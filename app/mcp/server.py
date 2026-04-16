@@ -72,21 +72,27 @@ class WorkbenchMCPServer:
         """Call a tool"""
         name = params.get("name", "")
         arguments = params.get("arguments", {})
-        
+        meta = params.get("meta", {})  # MCP meta 包含 token 等信息
+        mcp_token = meta.get("token", "")
+
         # Parse plugin.tool
         parts = name.split(".", 1)
         if len(parts) != 2:
             return {"content": [TextContent(text="Invalid tool name").__dict__]}
-        
+
         plugin_name, tool_name = parts
-        
+
         # Find the tool
         for plugin in self.plugin_manager.get_enabled_plugins():
             if plugin.name == plugin_name:
                 for tool in plugin.mcp_tools():
                     if tool.name == tool_name:
                         try:
-                            result = await tool.handler(**arguments)
+                            # 传递 mcp_token 给插件进行认证
+                            if hasattr(plugin, 'mcp_call'):
+                                result = await plugin.mcp_call(tool_name, arguments, mcp_token)
+                            else:
+                                result = await tool.handler(**arguments)
                             return {
                                 "content": [
                                     TextContent(
@@ -100,7 +106,7 @@ class WorkbenchMCPServer:
                                 "content": [TextContent(type="text", text=f"Error: {e}").__dict__],
                                 "isError": True
                             }
-        
+
         return {"content": [TextContent(text=f"Tool not found: {name}").__dict__]}
     
     async def _list_resources(self, params: Dict[str, Any]) -> Dict[str, Any]:

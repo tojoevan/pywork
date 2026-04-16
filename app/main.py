@@ -5,12 +5,14 @@ import os
 from typing import Optional
 
 from fastapi import FastAPI, Request
-from fastapi.responses import JSONResponse
+from fastapi.responses import JSONResponse, HTMLResponse
+from fastapi.staticfiles import StaticFiles
 import uvicorn
 
 from app.storage import SQLiteEngine
 from app.plugin import PluginManager
 from app.mcp import WorkbenchMCPServer
+from app.template import TemplateEngine
 
 
 class WorkbenchApp:
@@ -20,14 +22,19 @@ class WorkbenchApp:
         self,
         db_path: str = "./data/pywork.db",
         plugin_dir: str = "./plugins",
-        enabled_plugins: Optional[list] = None
+        enabled_plugins: Optional[list] = None,
+        template_dir: str = "./templates",
+        static_dir: str = "./static"
     ):
         self.db_path = db_path
         self.plugin_dir = plugin_dir
-        self.enabled_plugins = enabled_plugins or ["blog"]
+        self.enabled_plugins = enabled_plugins or ["blog", "auth"]
+        self.template_dir = template_dir
+        self.static_dir = static_dir
         
         self.engine = SQLiteEngine(db_path)
         self.plugin_manager = PluginManager(self.engine, plugin_dir)
+        self.template_engine: Optional[TemplateEngine] = None
         self.mcp_server: Optional[WorkbenchMCPServer] = None
         
         self.app = FastAPI(
@@ -42,8 +49,24 @@ class WorkbenchApp:
         await self.engine.start()
         print(f"✓ SQLite engine started: {self.db_path}")
         
+        # Initialize template engine
+        self.template_engine = TemplateEngine(self.template_dir)
+        
+        # Add plugin template directories
+        for plugin_name in self.enabled_plugins:
+            plugin_tpl_dir = os.path.join(self.plugin_dir, plugin_name, 'templates')
+            if os.path.exists(plugin_tpl_dir):
+                self.template_engine.add_template_dir(plugin_tpl_dir)
+        print(f"✓ Template engine initialized")
+        
         # Load plugins
-        await self.plugin_manager.load_all(self.enabled_plugins)
+        print(f"→ Loading plugins: {self.enabled_plugins}")
+        try:
+            await self.plugin_manager.load_all(self.enabled_plugins)
+        except Exception as e:
+            print(f"✗ Plugin load error: {e}")
+            import traceback
+            traceback.print_exc()
         print(f"✓ Plugins loaded: {list(self.plugin_manager.plugins.keys())}")
         
         # Setup MCP server
@@ -51,6 +74,11 @@ class WorkbenchApp:
         
         # Setup routes
         self._setup_routes()
+        
+        # Mount static files
+        if os.path.exists(self.static_dir):
+            self.app.mount("/static", StaticFiles(directory=self.static_dir), name="static")
+            print(f"✓ Static files mounted: {self.static_dir}")
     
     async def shutdown(self):
         """Shutdown application"""
@@ -61,18 +89,253 @@ class WorkbenchApp:
     def _setup_routes(self):
         """Setup HTTP routes from plugins"""
         
-        @self.app.get("/")
+        @self.app.get("/", response_class=HTMLResponse)
         async def root():
+            """首页"""
+            blog_plugin = self.plugin_manager.plugins.get("blog")
+            posts = []
+            if blog_plugin:
+                posts = await blog_plugin.list_posts()
+            html = await self.template_engine.render("home.html", {
+                "posts": posts[:10]
+            })
+            return HTMLResponse(content=html)
+        
+        @self.app.get("/health")
+        async def health():
+            return {"status": "ok"}
+        
+        @self.app.get("/api")
+        async def api_info():
+            """API 信息"""
             return {
                 "name": "pyWork",
                 "version": "0.1.0",
                 "plugins": list(self.plugin_manager.plugins.keys())
             }
         
-        @self.app.get("/health")
-        async def health():
-            return {"status": "ok"}
+        # 博客前端路由
+        @self.app.get("/blog", response_class=HTMLResponse)
+        async def blog_index(request: Request):
+            """博客首页"""
+            blog_plugin = self.plugin_manager.plugins.get("blog")
+            if blog_plugin:
+                posts = await blog_plugin.list_posts()
+                html = await self.template_engine.render("index.html", {
+                    "posts": posts,
+                    "pagination": None
+                })
+                return HTMLResponse(content=html)
+            return HTMLResponse(content="<h1>Blog plugin not loaded</h1>")
         
+        @self.app.get("/blog/view/{post_id}", response_class=HTMLResponse)
+        async def blog_post(post_id: int):
+            """文章详情页面"""
+            blog_plugin = self.plugin_manager.plugins.get("blog")
+            if blog_plugin:
+                post = await blog_plugin.get_post_api(post_id)
+                if post:
+                    html = await self.template_engine.render("post.html", {
+                        "post": post
+                    })
+                    return HTMLResponse(content=html)
+            return HTMLResponse(content="<h1>Post not found</h1>", status_code=404)
+        
+        # 认证路由
+        @self.app.get("/login", response_class=HTMLResponse)
+        async def login_page():
+            """登录页面"""
+            html = await self.template_engine.render("login.html", {})
+            return HTMLResponse(content=html)
+        
+        @self.app.get("/register", response_class=HTMLResponse)
+        async def register_page():
+            """注册页面"""
+            html = await self.template_engine.render("register.html", {})
+            return HTMLResponse(content=html)
+        
+        @self.app.get("/profile", response_class=HTMLResponse)
+        async def profile_page():
+            """用户中心页面"""
+            html = await self.template_engine.render("profile.html", {})
+            return HTMLResponse(content=html)
+        
+        @self.app.post("/auth/login")
+        async def auth_login(request: Request):
+            """登录API"""
+            auth_plugin = self.plugin_manager.plugins.get("auth")
+            if auth_plugin:
+                return await auth_plugin.login_api(request)
+            return {"error": "Auth plugin not loaded"}
+        
+        @self.app.post("/auth/register")
+        async def auth_register(request: Request):
+            """注册API"""
+            auth_plugin = self.plugin_manager.plugins.get("auth")
+            if auth_plugin:
+                return await auth_plugin.register_api(request)
+            return {"error": "Auth plugin not loaded"}
+        
+        @self.app.post("/auth/logout")
+        async def auth_logout(request: Request):
+            """登出API"""
+            auth_plugin = self.plugin_manager.plugins.get("auth")
+            if auth_plugin:
+                return await auth_plugin.logout_api(request)
+            return {"error": "Auth plugin not loaded"}
+        
+        @self.app.get("/auth/me")
+        async def auth_me(request: Request):
+            """当前用户"""
+            auth_plugin = self.plugin_manager.plugins.get("auth")
+            if auth_plugin:
+                return await auth_plugin.me_api(request)
+            return {"error": "Auth plugin not loaded"}
+
+        # MCP Token 管理路由
+        @self.app.get("/auth/mcp-tokens")
+        async def list_mcp_tokens(request: Request):
+            """获取当前用户的 MCP Token 列表"""
+            auth_plugin = self.plugin_manager.plugins.get("auth")
+            if not auth_plugin:
+                return {"error": "Auth plugin not loaded"}
+
+            # 验证用户登录
+            user = await auth_plugin.me_api(request)
+            if user.get("error"):
+                return {"error": "未登录"}
+
+            tokens = await auth_plugin.list_mcp_tokens(user["id"])
+            return {"tokens": tokens}
+
+        @self.app.post("/auth/mcp-tokens")
+        async def create_mcp_token(request: Request):
+            """创建新的 MCP Token"""
+            auth_plugin = self.plugin_manager.plugins.get("auth")
+            if not auth_plugin:
+                return {"error": "Auth plugin not loaded"}
+
+            # 验证用户登录
+            user = await auth_plugin.me_api(request)
+            if user.get("error"):
+                return {"error": "未登录"}
+
+            data = await request.json()
+            name = data.get("name", "MCP Client")
+
+            result = await auth_plugin.create_mcp_token(user["id"], name)
+            return result
+
+        @self.app.delete("/auth/mcp-tokens/{token_id}")
+        async def revoke_mcp_token(request: Request):
+            """撤销 MCP Token"""
+            auth_plugin = self.plugin_manager.plugins.get("auth")
+            if not auth_plugin:
+                return {"error": "Auth plugin not loaded"}
+
+            # 验证用户登录
+            user = await auth_plugin.me_api(request)
+            if user.get("error"):
+                return {"error": "未登录"}
+
+            # 获取 token id (前16位)
+            token_id = request.path_params.get("token_id", "")
+
+            # 查找并删除该用户的 token
+            deleted = False
+            for token, info in list(auth_plugin.mcp_tokens.items()):
+                if info["user_id"] == user["id"] and token.startswith(token_id):
+                    del auth_plugin.mcp_tokens[token]
+                    deleted = True
+                    break
+
+            if deleted:
+                return {"success": True}
+            return {"error": "Token 不存在或无权撤销"}
+
+        # GitHub OAuth 路由
+        @self.app.get("/auth/github")
+        async def github_auth():
+            """GitHub OAuth 授权"""
+            auth_plugin = self.plugin_manager.plugins.get("auth")
+            if auth_plugin:
+                result = await auth_plugin.github_auth_url_api(type('Request', (), {'query_params': {}})())
+                if "url" in result:
+                    from fastapi.responses import RedirectResponse
+                    return RedirectResponse(url=result["url"])
+                return result
+            return {"error": "Auth plugin not loaded"}
+        
+        @self.app.get("/auth/github/callback")
+        async def github_callback(request: Request):
+            """GitHub OAuth 回调"""
+            auth_plugin = self.plugin_manager.plugins.get("auth")
+            if auth_plugin:
+                result = await auth_plugin.github_callback_api(request)
+                if "success" in result and result.get("success"):
+                    # 登录成功，重定向到首页
+                    from fastapi.responses import RedirectResponse
+                    response = RedirectResponse(url="/", status_code=302)
+                    # 设置 cookie
+                    response.set_cookie(
+                        key="auth_token",
+                        value=result.get("token"),
+                        httponly=True,
+                        max_age=7 * 24 * 3600  # 7天
+                    )
+                    return response
+                return result
+            return {"error": "Auth plugin not loaded"}
+
+        @self.app.get("/api/mcp-config")
+        async def mcp_config(request: Request):
+            """获取 MCP 配置（仅 API 模式，不暴露本地路径）"""
+            import socket
+
+            # 获取当前主机信息
+            hostname = socket.gethostname()
+
+            # 尝试获取实际 IP
+            try:
+                s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+                s.connect(("8.8.8.8", 80))
+                local_ip = s.getsockname()[0]
+                s.close()
+            except:
+                local_ip = "127.0.0.1"
+
+            # 检测是否生产环境
+            is_production = os.environ.get("PYWORK_ENV") == "production"
+            is_docker = os.path.exists("/.dockerenv")
+
+            # 确定基础 URL
+            if is_production:
+                base_url = os.environ.get("PYWORK_URL", f"https://{hostname}")
+            elif is_docker:
+                base_url = f"http://{local_ip}:8080"
+            else:
+                base_url = f"http://localhost:8080"
+
+            # 构建 MCP 配置（仅 API 模式，不暴露任何本地路径或数据库信息）
+            config = {
+                "mcpServers": {
+                    "pywork": {
+                        "url": f"{base_url}/mcp",
+                        "headers": {
+                            "Authorization": "Bearer YOUR_MCP_TOKEN_HERE"
+                        }
+                    }
+                },
+                "mcpEnabled": self.mcp_server is not None,
+                "environment": {
+                    "isProduction": is_production,
+                    "baseUrl": base_url
+                },
+                "note": "请先生成 MCP Token，替换配置中的 YOUR_MCP_TOKEN_HERE"
+            }
+
+            return config
+
         # Register plugin routes
         for plugin in self.plugin_manager.get_enabled_plugins():
             for route in plugin.routes():
@@ -88,7 +351,8 @@ class WorkbenchApp:
                 # Merge path params into body
                 params = dict(request.path_params)
                 params.update(body)
-                return await route.handler(**params)
+                # Pass request for handlers that need it
+                return await route.handler(request=request, **params)
             self.app.add_api_route(
                 route.path,
                 post_handler,
@@ -100,9 +364,9 @@ class WorkbenchApp:
                 params = dict(request.path_params)
                 params.update(dict(request.query_params))
                 if params:
-                    return await route.handler(**params)
+                    return await route.handler(request=request, **params)
                 else:
-                    return await route.handler()
+                    return await route.handler(request=request)
             self.app.add_api_route(
                 route.path,
                 get_handler,
@@ -137,7 +401,9 @@ def cli():
     parser = argparse.ArgumentParser(description="pyWork - Digital Workbench")
     parser.add_argument("--db", default="./data/pywork.db", help="Database path")
     parser.add_argument("--plugins", default="./plugins", help="Plugin directory")
-    parser.add_argument("--enabled", default="blog", help="Enabled plugins (comma-separated)")
+    parser.add_argument("--enabled", default="blog,auth", help="Enabled plugins (comma-separated)")
+    parser.add_argument("--templates", default="./templates", help="Template directory")
+    parser.add_argument("--static", default="./static", help="Static files directory")
     parser.add_argument("--http", action="store_true", help="Run HTTP server")
     parser.add_argument("--mcp-stdio", action="store_true", help="Run MCP stdio server")
     parser.add_argument("--host", default="0.0.0.0", help="HTTP host")
@@ -146,7 +412,7 @@ def cli():
     args = parser.parse_args()
     
     # Ensure data directory exists
-    os.makedirs(os.path.dirname(args.db), exist_ok=True)
+    os.makedirs(os.path.dirname(args.db) or ".", exist_ok=True)
     
     # Parse enabled plugins
     enabled_plugins = [p.strip() for p in args.enabled.split(",")]
@@ -155,7 +421,9 @@ def cli():
     app = WorkbenchApp(
         db_path=args.db,
         plugin_dir=args.plugins,
-        enabled_plugins=enabled_plugins
+        enabled_plugins=enabled_plugins,
+        template_dir=args.templates,
+        static_dir=args.static
     )
     
     if args.mcp_stdio:

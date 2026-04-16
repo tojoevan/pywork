@@ -1,0 +1,156 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{{ Site.title | default('pyWork') }}</title>
+    <link rel="stylesheet" href="/static/css/home.css">
+</head>
+<body>
+    <!-- 顶部导航 -->
+    <header class="topbar">
+        <div class="container">
+            <a href="/" class="brand">{{ Site.title | default('pyWork') }}</a>
+            <nav class="nav">
+                <a href="/blog">博客</a>
+                <a href="/notes">笔记</a>
+                <a href="/about">关于</a>
+            </nav>
+            <div class="actions">
+                <span id="user-info" style="display:none;">
+                    <a href="/profile" class="user-link">
+                        <span class="user-avatar" id="user-avatar">U</span>
+                        <span id="username-display">用户</span>
+                    </a>
+                    <a href="#" class="btn-logout" onclick="logout()">退出</a>
+                </span>
+                <a href="/login" class="btn-login" id="login-btn">登录</a>
+            </div>
+        </div>
+    </header>
+
+    <!-- 主内容区 -->
+    <main class="main">
+        <div class="container three-columns">
+            
+            <!-- 左栏：用户/推荐 -->
+            <aside class="col-left">
+                <section class="card">
+                    <h3 class="card-title">活跃作者</h3>
+                    <ul class="user-list">
+                        <li><span class="dot"></span>张三</li>
+                        <li><span class="dot"></span>李四</li>
+                        <li><span class="dot"></span>王五</li>
+                    </ul>
+                </section>
+                
+                <section class="card">
+                    <h3 class="card-title">热门标签</h3>
+                    <div class="tags">
+                        <a href="/blog?tag=Python" class="tag">Python</a>
+                        <a href="/blog?tag=架构" class="tag">架构</a>
+                        <a href="/blog?tag=思考" class="tag">思考</a>
+                        <a href="/blog?tag=随笔" class="tag">随笔</a>
+                    </div>
+                </section>
+            </aside>
+
+            <!-- 中栏：文章流 -->
+            <section class="col-center">
+                {% if posts %}
+                {% for post in posts %}
+                <article class="post">
+                    <h2 class="post-title">
+                        <a href="/blog/view/{{ post.id }}">{{ post.title }}</a>
+                    </h2>
+                    <p class="post-summary">{{ post.body | excerpt(160) }}</p>
+                    <div class="post-footer">
+                        <span class="author">{{ post.author_name or '匿名' }}</span>
+                        <span class="sep">·</span>
+                        <time>{{ post.created_at | datefmt }}</time>
+                        {% if post.tags %}
+                        <span class="sep">·</span>
+                        <div class="post-tags">
+                            {% for tag in post.tags %}
+                            <a href="/blog?tag={{ tag }}" class="tag">{{ tag }}</a>
+                            {% endfor %}
+                        </div>
+                        {% endif %}
+                    </div>
+                </article>
+                {% endfor %}
+                {% else %}
+                <div class="empty">
+                    <p>暂无文章</p>
+                    <a href="/blog" class="link">查看全部</a>
+                </div>
+                {% endif %}
+            </section>
+
+            <!-- 右栏：公告/统计 -->
+            <aside class="col-right">
+                <section class="card highlight">
+                    <h3 class="card-title">公告</h3>
+                    <p>欢迎来到 pyWork 多用户博客平台。分享知识，记录成长。</p>
+                </section>
+                
+                <section class="card">
+                    <h3 class="card-title">统计</h3>
+                    <ul class="stats">
+                        <li><span class="num">128</span><span class="label">文章</span></li>
+                        <li><span class="num">45</span><span class="label">用户</span></li>
+                        <li><span class="num">1.2k</span><span class="label">阅读</span></li>
+                    </ul>
+                </section>
+                
+                <section class="card">
+                    <h3 class="card-title">最新评论</h3>
+                    <ul class="comments">
+                        <li>好文章！ - 匿名</li>
+                        <li>学习了 - 访客</li>
+                    </ul>
+                </section>
+            </aside>
+
+        </div>
+    </main>
+
+    <!-- 底部 -->
+    <footer class="footer">
+        <div class="container">
+            <span>© {{ Site.year | default(2026) }} pyWork</span>
+            <span class="sep">|</span>
+            <a href="/about">关于</a>
+            <span class="sep">|</span>
+            <a href="/privacy">隐私政策</a>
+        </div>
+    </footer>
+
+    <script>
+        // 检查登录状态（Cookie 会自动附加到请求）
+        async function checkAuth() {
+            try {
+                const response = await fetch('/auth/me');
+                const user = await response.json();
+
+                if (!user.error) {
+                    // 已登录，显示用户信息
+                    document.getElementById('user-info').style.display = 'inline-flex';
+                    document.getElementById('login-btn').style.display = 'none';
+                    document.getElementById('username-display').textContent = user.username;
+                    document.getElementById('user-avatar').textContent = user.username.charAt(0).toUpperCase();
+                }
+            } catch (e) {
+                console.error('检查登录状态失败', e);
+            }
+        }
+
+        async function logout() {
+            await fetch('/auth/logout', { method: 'POST' });
+            window.location.reload();
+        }
+
+        checkAuth();
+    </script>
+</body>
+</html>

@@ -21,13 +21,21 @@ class BlogPlugin(Plugin):
         """Initialize blog plugin"""
         self.engine = ctx.engine
         self.config = ctx.config
+        self.ctx = ctx  # 保存 ctx 以便获取其他 plugin
         
         # Create blog-specific tables if needed
         # (contents table is shared, but we can add indexes)
     
+    def _get_auth_plugin(self):
+        """Get auth plugin if available"""
+        if self.ctx:
+            return self.ctx.get_plugin("auth")
+        return None
+    
     def routes(self) -> List[Route]:
         """HTTP routes"""
         return [
+            Route("/blog/new", "GET", self.new_post_page, "blog.new_post"),
             Route("/blog/posts", "GET", self.list_posts, "blog.list_posts"),
             Route("/blog/posts", "POST", self.create_post_api, "blog.create_post"),
             Route("/blog/posts/{post_id}", "GET", self.get_post_api, "blog.get_post"),
@@ -146,11 +154,22 @@ Requirements:
         content: str,
         status: str = "draft",
         tags: Optional[List[str]] = None,
-        author_id: int = 1
+        author_id: int = 1,
+        mcp_token: str = None
     ) -> Dict[str, Any]:
         """Create a blog post"""
+        # 如果提供了 MCP token，验证并获取用户
+        if mcp_token:
+            auth_plugin = self._get_auth_plugin()
+            if auth_plugin:
+                user = await auth_plugin.get_user_by_mcp_token(mcp_token)
+                if user:
+                    author_id = user["id"]
+                else:
+                    return {"error": "无效的 MCP Token"}
+
         now = int(time.time())
-        
+
         data = {
             "plugin_type": "blog",
             "author_id": author_id,
@@ -161,20 +180,50 @@ Requirements:
             "created_at": now,
             "updated_at": now
         }
-        
-        await self.engine.put("contents", 0, data)
-        
-        # Get the last inserted ID
-        row = await self.engine.fetchone(
-            "SELECT last_insert_rowid() as id"
-        )
-        
+
+        record_id = await self.engine.put("contents", 0, data)
+
         return {
-            "id": row["id"],
+            "id": record_id,
             "title": title,
             "status": status,
             "created_at": now
         }
+
+    async def mcp_call(self, tool_name: str, arguments: Dict, mcp_token: str = None) -> Any:
+        """MCP 调用入口，处理认证"""
+        if tool_name == "create_post":
+            return await self.create_post(mcp_token=mcp_token, **arguments)
+        elif tool_name == "search_posts":
+            return await self.search_posts(**arguments)
+        elif tool_name == "update_post":
+            # 更新需要验证权限
+            if mcp_token:
+                auth_plugin = self._get_auth_plugin()
+                if auth_plugin:
+                    user = await auth_plugin.get_user_by_mcp_token(mcp_token)
+                    if user:
+                        # 检查是否是作者或管理员
+                        post = await self.engine.get("contents", arguments.get("id"))
+                        if post and (post.get("author_id") == user["id"] or user.get("role") == "admin"):
+                            return await self.update_post(**arguments)
+                        return {"error": "无权修改此文章"}
+                return {"error": "无效的 MCP Token"}
+            return {"error": "需要 MCP Token 进行认证"}
+        elif tool_name == "delete_post":
+            if mcp_token:
+                auth_plugin = self._get_auth_plugin()
+                if auth_plugin:
+                    user = await auth_plugin.get_user_by_mcp_token(mcp_token)
+                    if user:
+                        post = await self.engine.get("contents", arguments.get("id"))
+                        if post and (post.get("author_id") == user["id"] or user.get("role") == "admin"):
+                            return await self.delete_post_mcp(**arguments)
+                        return {"error": "无权删除此文章"}
+                return {"error": "无效的 MCP Token"}
+            return {"error": "需要 MCP Token 进行认证"}
+        else:
+            raise ValueError(f"Unknown tool: {tool_name}")
     
     async def search_posts(
         self,
@@ -201,9 +250,14 @@ Requirements:
             params.append(status)
         
         sql = f"""
-            SELECT * FROM contents 
+            SELECT 
+                c.*,
+                u.username as author_name,
+                u.avatar as author_avatar
+            FROM contents c
+            LEFT JOIN users u ON c.author_id = u.id
             WHERE {' AND '.join(conditions)}
-            ORDER BY created_at DESC
+            ORDER BY c.created_at DESC
             LIMIT ?
         """
         params.append(limit)
@@ -217,6 +271,9 @@ Requirements:
                     row["tags"] = json.loads(row["tags"])
                 except:
                     pass
+            # 确保作者信息存在
+            if not row.get("author_name"):
+                row["author_name"] = "匿名"
         
         return rows
     
@@ -272,28 +329,77 @@ Requirements:
 """
     
     # HTTP API handlers (FastAPI style)
-    async def list_posts(self):
+    async def list_posts(self, **kwargs):
         """List posts API"""
         return await self.search_posts(limit=20)
     
-    async def create_post_api(self, **kwargs):
+    async def new_post_page(self, request):
+        """新建博客页面"""
+        from starlette.responses import HTMLResponse
+        import os
+        
+        template_path = os.path.join(os.path.dirname(__file__), "templates", "new.html")
+        with open(template_path, "r", encoding="utf-8") as f:
+            html = f.read()
+        
+        return HTMLResponse(content=html)
+    
+    async def create_post_api(self, request, **kwargs):
         """Create post API"""
+        # 字段映射：前端用 body，后端用 content
+        if "body" in kwargs:
+            kwargs["content"] = kwargs.pop("body")
+        
+        # 获取当前用户
+        author_id = 1  # 默认作者
+        token = request.cookies.get("auth_token", "")
+        if token:
+            # 通过 auth plugin 验证 token
+            auth_plugin = self._get_auth_plugin()
+            if auth_plugin:
+                user = await auth_plugin.get_user_by_token(token)
+                if user:
+                    author_id = user["id"]
+        
+        kwargs["author_id"] = author_id
         return await self.create_post(**kwargs)
     
-    async def get_post_api(self, post_id: int):
+    async def get_post_api(self, post_id: int, **kwargs):
         """Get post API"""
-        return await self.engine.get("contents", post_id)
+        post = await self.engine.get("contents", post_id)
+        if not post:
+            return None
+            
+        # 解析 tags
+        if post.get("tags"):
+            try:
+                post["tags"] = json.loads(post["tags"])
+            except:
+                pass
+        
+        # 获取作者信息
+        if post.get("author_id"):
+            user = await self.engine.get("users", post["author_id"])
+            if user:
+                post["author_name"] = user.get("username", "匿名")
+                post["author_avatar"] = user.get("avatar")
+            else:
+                post["author_name"] = "匿名"
+        else:
+            post["author_name"] = "匿名"
+            
+        return post
     
     async def update_post_api(self, post_id: int, **kwargs):
         """Update post API"""
         kwargs["id"] = post_id
         return await self.update_post(**kwargs)
     
-    async def delete_post_api(self, post_id: int):
+    async def delete_post_api(self, post_id: int, **kwargs):
         """Delete post API"""
         await self.engine.delete("contents", post_id)
         return {"deleted": True}
     
-    async def search_posts_api(self, query: Optional[str] = None, tag: Optional[str] = None, status: Optional[str] = None, limit: int = 10):
+    async def search_posts_api(self, query: Optional[str] = None, tag: Optional[str] = None, status: Optional[str] = None, limit: int = 10, **kwargs):
         """Search posts API"""
         return await self.search_posts(query=query, tag=tag, status=status, limit=limit)

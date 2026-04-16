@@ -1,0 +1,422 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>写博客 - pyWork</title>
+    <link rel="stylesheet" href="/static/css/home.css">
+    <!-- Vditor CSS -->
+    <link rel="stylesheet" href="https://unpkg.com/vditor@3.10.4/dist/index.css" />
+    <style>
+        :root {
+            --green-primary: #10b981;
+            --green-dark: #059669;
+            --gray-50: #fafafa;
+            --gray-100: #f5f5f5;
+            --gray-200: #e5e5e5;
+            --gray-300: #d4d4d4;
+            --gray-500: #737373;
+            --gray-600: #525252;
+            --gray-700: #404040;
+            --gray-800: #2d2d2d;
+        }
+        body {
+            background: var(--gray-100);
+            font-family: system-ui, -apple-system, sans-serif;
+        }
+        .editor-container {
+            max-width: 900px;
+            margin: 0 auto;
+            padding: 24px 20px 60px;
+        }
+        .editor-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 20px;
+        }
+        .editor-header h1 {
+            font-size: 20px;
+            font-weight: 600;
+            color: var(--gray-800);
+            margin: 0;
+        }
+        .editor-actions {
+            display: flex;
+            gap: 12px;
+        }
+        .btn {
+            padding: 8px 20px;
+            border-radius: 4px;
+            font-size: 14px;
+            cursor: pointer;
+            text-decoration: none;
+            transition: all 0.15s;
+        }
+        .btn-secondary {
+            background: white;
+            border: 1px solid var(--gray-300);
+            color: var(--gray-600);
+        }
+        .btn-secondary:hover {
+            background: var(--gray-100);
+            border-color: var(--gray-400);
+        }
+        .btn-primary {
+            background: var(--green-primary);
+            border: 1px solid var(--green-primary);
+            color: white;
+        }
+        .btn-primary:hover {
+            background: var(--green-dark);
+            border-color: var(--green-dark);
+        }
+        .title-input {
+            width: 100%;
+            padding: 16px;
+            font-size: 24px;
+            font-weight: 600;
+            border: 1px solid var(--gray-200);
+            border-radius: 8px;
+            margin-bottom: 16px;
+            background: white;
+            color: var(--gray-800);
+            outline: none;
+            transition: border-color 0.15s;
+        }
+        .title-input:focus {
+            border-color: var(--green-primary);
+        }
+        .title-input::placeholder {
+            color: var(--gray-300);
+        }
+        .meta-row {
+            display: flex;
+            gap: 16px;
+            margin-bottom: 16px;
+        }
+        .meta-input {
+            flex: 1;
+            padding: 12px 16px;
+            font-size: 14px;
+            border: 1px solid var(--gray-200);
+            border-radius: 8px;
+            background: white;
+            color: var(--gray-700);
+            outline: none;
+            transition: border-color 0.15s;
+        }
+        .meta-input:focus {
+            border-color: var(--green-primary);
+        }
+        .meta-input::placeholder {
+            color: var(--gray-400);
+        }
+        #vditor {
+            border-radius: 8px;
+            overflow: hidden;
+        }
+        .vditor {
+            border: 1px solid var(--gray-200) !important;
+        }
+        .vditor--dark {
+            --toolbar-background: #f5f5f5 !important;
+        }
+        .status-bar {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-top: 16px;
+            padding: 12px 16px;
+            background: white;
+            border-radius: 8px;
+            font-size: 13px;
+            color: var(--gray-500);
+        }
+        .status-bar .save-status {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+        .status-bar .save-status.saving {
+            color: #f59e0b;
+        }
+        .status-bar .save-status.saved {
+            color: var(--green-primary);
+        }
+        /* 提示弹窗 */
+        .toast {
+            position: fixed;
+            top: 80px;
+            left: 50%;
+            transform: translateX(-50%);
+            padding: 12px 24px;
+            background: var(--gray-800);
+            color: white;
+            border-radius: 8px;
+            font-size: 14px;
+            opacity: 0;
+            transition: opacity 0.3s;
+            z-index: 1000;
+        }
+        .toast.show {
+            opacity: 1;
+        }
+        .toast.success {
+            background: var(--green-primary);
+        }
+        .toast.error {
+            background: #ef4444;
+        }
+    </style>
+</head>
+<body>
+    <!-- 顶部导航 -->
+    <header class="topbar">
+        <div class="container">
+            <a href="/" class="brand">pyWork</a>
+            <nav class="nav">
+                <a href="/blog">博客</a>
+                <a href="/notes">笔记</a>
+                <a href="/about">关于</a>
+            </nav>
+            <div class="actions">
+                <span id="user-info" style="display:none;">
+                    <a href="/profile" class="user-link">
+                        <span class="user-avatar" id="user-avatar">U</span>
+                        <span id="username-display">用户</span>
+                    </a>
+                    <a href="#" class="btn-logout" onclick="logout()">退出</a>
+                </span>
+                <a href="/login" class="btn-login" id="login-btn">登录</a>
+            </div>
+        </div>
+    </header>
+
+    <div class="editor-container">
+        <div class="editor-header">
+            <h1>写博客</h1>
+            <div class="editor-actions">
+                <a href="/profile" class="btn btn-secondary">取消</a>
+                <button class="btn btn-primary" onclick="publishPost()">发布</button>
+            </div>
+        </div>
+
+        <input type="text" class="title-input" id="post-title" placeholder="标题" maxlength="200">
+        
+        <div class="meta-row">
+            <input type="text" class="meta-input" id="post-tags" placeholder="标签（用逗号分隔，如：Python, 架构, 思考）">
+            <select class="meta-input" id="post-status" style="max-width: 150px;">
+                <option value="draft">草稿</option>
+                <option value="published">发布</option>
+            </select>
+        </div>
+
+        <div id="vditor"></div>
+
+        <div class="status-bar">
+            <div class="save-status" id="save-status">
+                <span>自动保存已开启</span>
+            </div>
+            <div class="word-count">
+                字数：<span id="word-count">0</span>
+            </div>
+        </div>
+    </div>
+
+    <!-- Toast 提示 -->
+    <div class="toast" id="toast"></div>
+
+    <!-- Vditor JS -->
+    <script src="https://unpkg.com/vditor@3.10.4/dist/index.min.js"></script>
+    <script>
+        let vditor;
+        let autoSaveTimer;
+        let currentUser = null;
+
+        // 初始化编辑器
+        function initEditor() {
+            vditor = new Vditor('vditor', {
+                height: 500,
+                placeholder: '开始写作...',
+                theme: 'classic',
+                counter: {
+                    enable: true,
+                    after: (count) => {
+                        document.getElementById('word-count').textContent = count;
+                    }
+                },
+                cache: {
+                    enable: true,
+                    id: 'pywork-blog-editor'
+                },
+                mode: 'wysiwyg',
+                toolbar: [
+                    'headings', 'bold', 'italic', 'strike', '|',
+                    'line', 'quote', '|',
+                    'list', 'ordered-list', 'check', '|',
+                    'code', 'inline-code', '|',
+                    'link', 'table', '|',
+                    'undo', 'redo', '|',
+                    'preview', 'fullscreen'
+                ],
+                after: () => {
+                    // 编辑器初始化完成
+                    startAutoSave();
+                }
+            });
+        }
+
+        // 检查登录状态
+        async function checkAuth() {
+            try {
+                const response = await fetch('/auth/me');
+                const user = await response.json();
+
+                if (user.error) {
+                    window.location.href = '/login';
+                    return false;
+                }
+
+                currentUser = user;
+                document.getElementById('user-info').style.display = 'inline-flex';
+                document.getElementById('login-btn').style.display = 'none';
+                document.getElementById('username-display').textContent = user.username;
+                document.getElementById('user-avatar').textContent = user.username.charAt(0).toUpperCase();
+                return true;
+            } catch (e) {
+                console.error('检查登录状态失败', e);
+                window.location.href = '/login';
+                return false;
+            }
+        }
+
+        // 发布文章
+        async function publishPost() {
+            const title = document.getElementById('post-title').value.trim();
+            const content = vditor.getValue();
+            const tagsInput = document.getElementById('post-tags').value.trim();
+            const status = document.getElementById('post-status').value;
+
+            if (!title) {
+                showToast('请输入标题', 'error');
+                return;
+            }
+
+            if (!content) {
+                showToast('请输入内容', 'error');
+                return;
+            }
+
+            // 解析标签
+            const tags = tagsInput ? tagsInput.split(',').map(t => t.trim()).filter(t => t) : [];
+
+            const statusEl = document.getElementById('save-status');
+            statusEl.className = 'save-status saving';
+            statusEl.innerHTML = '<span>发布中...</span>';
+
+            try {
+                const response = await fetch('/blog/posts', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        title,
+                        body: content,
+                        tags,
+                        status
+                    })
+                });
+
+                const result = await response.json();
+
+                if (result.id) {
+                    showToast('发布成功！', 'success');
+                    statusEl.className = 'save-status saved';
+                    statusEl.innerHTML = '<span>✓ 已发布</span>';
+                    
+                    // 跳转到文章页面
+                    setTimeout(() => {
+                        window.location.href = '/blog/posts/' + result.id;
+                    }, 1000);
+                } else {
+                    showToast(result.error || '发布失败', 'error');
+                    statusEl.innerHTML = '<span>发布失败</span>';
+                }
+            } catch (e) {
+                console.error('发布失败', e);
+                showToast('发布失败，请重试', 'error');
+                statusEl.innerHTML = '<span>发布失败</span>';
+            }
+        }
+
+        // 自动保存草稿（本地）
+        function startAutoSave() {
+            autoSaveTimer = setInterval(() => {
+                const title = document.getElementById('post-title').value.trim();
+                const content = vditor.getValue();
+                
+                if (title || content) {
+                    localStorage.setItem('pywork-draft', JSON.stringify({
+                        title,
+                        content,
+                        tags: document.getElementById('post-tags').value,
+                        status: document.getElementById('post-status').value,
+                        savedAt: new Date().toISOString()
+                    }));
+                    
+                    const statusEl = document.getElementById('save-status');
+                    statusEl.className = 'save-status saved';
+                    statusEl.innerHTML = '<span>✓ 已自动保存</span>';
+                }
+            }, 30000); // 30秒自动保存一次
+        }
+
+        // 加载草稿
+        function loadDraft() {
+            const draft = localStorage.getItem('pywork-draft');
+            if (draft) {
+                try {
+                    const data = JSON.parse(draft);
+                    if (data.title) document.getElementById('post-title').value = data.title;
+                    if (data.tags) document.getElementById('post-tags').value = data.tags;
+                    if (data.status) document.getElementById('post-status').value = data.status;
+                    if (data.content) {
+                        vditor.setValue(data.content);
+                    }
+                } catch (e) {
+                    console.error('加载草稿失败', e);
+                }
+            }
+        }
+
+        // 显示提示
+        function showToast(message, type = '') {
+            const toast = document.getElementById('toast');
+            toast.textContent = message;
+            toast.className = 'toast show ' + type;
+            
+            setTimeout(() => {
+                toast.className = 'toast';
+            }, 3000);
+        }
+
+        // 退出登录
+        async function logout() {
+            await fetch('/auth/logout', { method: 'POST' });
+            window.location.href = '/login';
+        }
+
+        // 初始化
+        async function init() {
+            const loggedIn = await checkAuth();
+            if (loggedIn) {
+                initEditor();
+                // 编辑器初始化后加载草稿
+                setTimeout(loadDraft, 500);
+            }
+        }
+
+        init();
+    </script>
+</body>
+</html>

@@ -214,7 +214,7 @@ class SQLiteEngine(Engine):
             row = await cursor.fetchone()
             return dict(row) if row else None
     
-    async def put(self, table: str, record_id: int, data: Dict[str, Any]) -> None:
+    async def put(self, table: str, record_id: int, data: Dict[str, Any]) -> int:
         """Write record with log tracking"""
         now = int(time.time())
         
@@ -264,6 +264,7 @@ class SQLiteEngine(Engine):
         )
         
         await self._db.commit()
+        return record_id
     
     async def delete(self, table: str, record_id: int) -> None:
         """Delete record"""

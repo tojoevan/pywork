@@ -57,9 +57,16 @@ class TemplateSet:
 class PluginContext:
     """Plugin context with dependencies"""
     
-    def __init__(self, engine: Engine, config: Dict[str, Any]):
+    def __init__(self, engine: Engine, config: Dict[str, Any], plugin_manager=None):
         self.engine = engine
         self.config = config
+        self._plugin_manager = plugin_manager
+    
+    def get_plugin(self, name: str) -> Optional[Any]:
+        """Get another plugin by name"""
+        if self._plugin_manager:
+            return self._plugin_manager.plugins.get(name)
+        return None
 
 
 class Plugin(ABC):
@@ -152,7 +159,7 @@ class PluginManager:
         
         # Instantiate and initialize
         plugin = plugin_class()
-        ctx = PluginContext(engine=self.engine, config=config or {})
+        ctx = PluginContext(engine=self.engine, config=config or {}, plugin_manager=self)
         
         await plugin.init(ctx)
         

@@ -1,0 +1,280 @@
+/* pyWork认证页面样式 - 灰色+活力绿 */
+
+/* 配色变量 */
+:root {
+    --gray-900: #111827;
+    --gray-800: #1f2937;
+    --gray-700: #374151;
+    --gray-600: #4b5563;
+    --gray-500: #6b7280;
+    --gray-400: #9ca3af;
+    --gray-300: #d1d5db;
+    --gray-200: #e5e7eb;
+    --gray-100: #f3f4f6;
+    --gray-50: #f9fafb;
+    
+    --green-primary: #10b981;
+    --green-light: #34d399;
+    --green-dark: #059669;
+    
+    --text-primary: var(--gray-800);
+    --text-secondary: var(--gray-500);
+    --text-muted: var(--gray-400);
+    
+    --bg-primary: var(--gray-50);
+    --bg-card: #ffffff;
+    --border-color: var(--gray-200);
+}
+
+/* 重置 */
+*, *::before, *::after {
+    box-sizing: border-box;
+    margin: 0;
+    padding: 0;
+}
+
+body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", sans-serif;
+    font-size: 15px;
+    line-height: 1.6;
+    color: var(--text-primary);
+    background: var(--bg-primary);
+}
+
+a {
+    color: var(--green-primary);
+    text-decoration: none;
+}
+
+a:hover {
+    color: var(--green-dark);
+}
+
+/* 认证页面布局 */
+.auth-page {
+    min-height: 100vh;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 24px;
+}
+
+.auth-container {
+    width: 100%;
+    max-width: 400px;
+}
+
+/* Logo */
+.auth-logo {
+    display: block;
+    text-align: center;
+    font-size: 28px;
+    font-weight: 700;
+    color: var(--gray-800);
+    margin-bottom: 32px;
+    letter-spacing: -0.5px;
+}
+
+.auth-logo:hover {
+    color: var(--green-primary);
+}
+
+/* 认证卡片 */
+.auth-card {
+    background: var(--bg-card);
+    border: 1px solid var(--border-color);
+    border-radius: 12px;
+    padding: 32px;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
+}
+
+.auth-title {
+    font-size: 24px;
+    font-weight: 600;
+    text-align: center;
+    margin-bottom: 4px;
+}
+
+.auth-subtitle {
+    text-align: center;
+    color: var(--text-muted);
+    font-size: 14px;
+    margin-bottom: 24px;
+}
+
+/* 表单 */
+.auth-form {
+    display: flex;
+    flex-direction: column;
+    gap: 20px;
+}
+
+.form-group {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
+
+.form-group label {
+    font-size: 14px;
+    font-weight: 500;
+    color: var(--text-secondary);
+}
+
+.form-group input {
+    padding: 10px 14px;
+    border: 1px solid var(--border-color);
+    border-radius: 6px;
+    font-size: 15px;
+    transition: border-color 0.2s, box-shadow 0.2s;
+}
+
+.form-group input:focus {
+    outline: none;
+    border-color: var(--green-primary);
+    box-shadow: 0 0 0 3px rgba(16, 185, 129, 0.1);
+}
+
+.form-group input::placeholder {
+    color: var(--gray-400);
+}
+
+.form-hint {
+    font-size: 12px;
+    color: var(--text-muted);
+}
+
+/* 表单选项 */
+.form-options {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    font-size: 14px;
+}
+
+.checkbox {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    cursor: pointer;
+}
+
+.checkbox input[type="checkbox"] {
+    width: 16px;
+    height: 16px;
+    cursor: pointer;
+}
+
+.checkbox span {
+    color: var(--text-secondary);
+}
+
+.checkbox a {
+    color: var(--green-primary);
+}
+
+.link {
+    color: var(--text-muted);
+}
+
+.link:hover {
+    color: var(--green-primary);
+}
+
+/* 按钮 */
+.btn-primary {
+    padding: 12px 24px;
+    background: var(--green-primary);
+    color: #fff;
+    border: none;
+    border-radius: 6px;
+    font-size: 15px;
+    font-weight: 500;
+    cursor: pointer;
+    transition: background 0.2s;
+}
+
+.btn-primary:hover {
+    background: var(--green-dark);
+}
+
+/* 页脚 */
+.auth-footer {
+    margin-top: 24px;
+    padding-top: 20px;
+    border-top: 1px solid var(--border-color);
+    text-align: center;
+}
+
+.auth-footer p {
+    font-size: 14px;
+    color: var(--text-muted);
+}
+
+/* 社交登录 */
+.social-auth {
+    margin-top: 24px;
+}
+
+.divider {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    color: var(--text-muted);
+    font-size: 13px;
+    margin-bottom: 16px;
+}
+
+.divider::before,
+.divider::after {
+    content: "";
+    flex: 1;
+    height: 1px;
+    background: var(--border-color);
+}
+
+.social-buttons {
+    display: flex;
+    gap: 12px;
+}
+
+.btn-social {
+    flex: 1;
+    padding: 10px 16px;
+    background: var(--bg-card);
+    border: 1px solid var(--border-color);
+    border-radius: 6px;
+    text-align: center;
+    font-size: 14px;
+    font-weight: 500;
+    color: var(--text-secondary);
+    transition: all 0.2s;
+}
+
+.btn-social:hover {
+    background: var(--gray-50);
+    border-color: var(--gray-300);
+    color: var(--text-primary);
+}
+
+/* 错误提示 */
+.error-message {
+    background: #fef2f2;
+    border: 1px solid #fecaca;
+    color: #dc2626;
+    padding: 12px;
+    border-radius: 6px;
+    font-size: 14px;
+    margin-bottom: 16px;
+}
+
+/* 成功提示 */
+.success-message {
+    background: #ecfdf5;
+    border: 1px solid #a7f3d0;
+    color: var(--green-dark);
+    padding: 12px;
+    border-radius: 6px;
+    font-size: 14px;
+    margin-bottom: 16px;
+}

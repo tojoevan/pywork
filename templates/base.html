@@ -1,0 +1,91 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{% block title %}{{ Site.title | default('pyWork') }}{% endblock %}</title>
+    
+    <!-- 静态资源 -->
+    <link rel="stylesheet" href="/static/css/base.css">
+    <link rel="stylesheet" href="/static/css/home.css">
+    {% block head %}{% endblock %}
+    
+    <!-- 站点配置 -->
+    <style>
+        :root {
+            --primary-color: {{ Site.primary_color | default('#3b82f6') }};
+            --bg-color: {{ Site.bg_color | default('#ffffff') }};
+            --text-color: {{ Site.text_color | default('#1f2937') }};
+            --border-color: {{ Site.border_color | default('#e5e7eb') }};
+        }
+    </style>
+</head>
+<body>
+    <!-- 顶部导航 -->
+    <header class="topbar">
+        <div class="container">
+            <a href="/" class="brand">{{ Site.title | default('pyWork') }}</a>
+            <nav class="nav">
+                <a href="/blog">博客</a>
+                <a href="/notes">笔记</a>
+                <a href="/about">关于</a>
+            </nav>
+            <div class="actions">
+                <span id="user-info" style="display:none;">
+                    <a href="/profile" class="user-link">
+                        <span class="user-avatar" id="user-avatar">U</span>
+                        <span id="username-display">用户</span>
+                    </a>
+                    <a href="#" class="btn-logout" onclick="logout()">退出</a>
+                </span>
+                <a href="/login" class="btn-login" id="login-btn">登录</a>
+            </div>
+        </div>
+    </header>
+
+    <!-- 主内容区 -->
+    <main class="main-content">
+        <div class="container">
+            {% block content %}{% endblock %}
+        </div>
+    </main>
+
+    <!-- 页脚 -->
+    <footer class="footer">
+        <div class="container">
+            <p>&copy; {{ Site.year | default(2026) }} {{ Site.title | default('pyWork') }}. 
+            Powered by <a href="#">pyWork</a></p>
+        </div>
+    </footer>
+
+    <!-- 脚本 -->
+    <script src="/static/js/base.js"></script>
+    <script>
+        // 检查登录状态（Cookie 自动附加）
+        async function checkAuth() {
+            try {
+                const response = await fetch('/auth/me');
+                const user = await response.json();
+
+                if (!user.error) {
+                    // 已登录，显示用户信息
+                    document.getElementById('user-info').style.display = 'inline-flex';
+                    document.getElementById('login-btn').style.display = 'none';
+                    document.getElementById('username-display').textContent = user.username;
+                    document.getElementById('user-avatar').textContent = user.username.charAt(0).toUpperCase();
+                }
+            } catch (e) {
+                console.error('检查登录状态失败', e);
+            }
+        }
+
+        async function logout() {
+            await fetch('/auth/logout', { method: 'POST' });
+            window.location.reload();
+        }
+
+        checkAuth();
+    </script>
+    {% block scripts %}{% endblock %}
+</body>
+</html>
