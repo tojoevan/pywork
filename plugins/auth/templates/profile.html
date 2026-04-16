@@ -829,8 +829,16 @@
                 });
                 const data = await response.json();
 
+                console.log('API response:', data);  // 调试信息
+
                 if (data.error) {
                     alert('生成失败: ' + data.error);
+                    return;
+                }
+
+                if (!data.token) {
+                    alert('生成失败: 服务器未返回 Token');
+                    console.error('Response missing token field:', data);
                     return;
                 }
 
