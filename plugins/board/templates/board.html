@@ -297,24 +297,89 @@ document.querySelectorAll('.btn-move').forEach(btn => {
             body: `status=${toStatus}`
         });
         if (res.ok) {
-            card.remove();
+            // 找到目标列的 tasks 容器
+            const targetColumn = document.querySelector(`.board-column[data-status="${toStatus}"] .column-tasks`);
+            if (targetColumn) {
+                // 更新卡片的按钮
+                const actionsDiv = card.querySelector('.task-actions');
+                actionsDiv.innerHTML = getMoveButtons(toStatus, taskId, card.dataset.priority);
+                // 重新绑定事件
+                bindMoveButtons();
+                bindDeleteButtons();
+                // 移动卡片到目标列
+                targetColumn.appendChild(card);
+            }
             updateColumnCounts();
         }
     });
 });
 
-document.querySelectorAll('.btn-delete').forEach(btn => {
-    btn.addEventListener('click', async function() {
-        if (!confirm('确定删除此任务？')) return;
-        const card = this.closest('.task-card');
-        const taskId = card.dataset.id;
-        const res = await fetch(`/board/tasks/${taskId}`, { method: 'DELETE' });
+function getMoveButtons(status, taskId, priority) {
+    // 根据状态返回不同的按钮组合
+    if (status === 'todo') {
+        return `<button class="btn-move" data-to="in-progress">→</button>
+                <button class="btn-move" data-to="done">✓</button>
+                <button class="btn-delete" data-id="${taskId}">×</button>`;
+    } else if (status === 'in-progress') {
+        return `<button class="btn-move" data-to="todo">←</button>
+                <button class="btn-move" data-to="done">→</button>
+                <button class="btn-delete" data-id="${taskId}">×</button>`;
+    } else if (status === 'done') {
+        return `<button class="btn-move" data-to="todo">↩</button>
+                <button class="btn-move" data-to="in-progress">←</button>
+                <button class="btn-delete" data-id="${taskId}">×</button>`;
+    }
+    return '';
+}
+
+function bindMoveButtons() {
+    document.querySelectorAll('.btn-move').forEach(btn => {
+        btn.removeEventListener('click', handleMove);
+        btn.addEventListener('click', handleMove);
+    });
+}
+
+function handleMove(e) {
+    const card = this.closest('.task-card');
+    const taskId = card.dataset.id;
+    const toStatus = this.dataset.to;
+    fetch(`/board/tasks/${taskId}`, {
+        method: 'PUT',
+        headers: {'Content-Type': 'application/x-www-form-urlencoded'},
+        body: `status=${toStatus}`
+    }).then(res => {
+        if (res.ok) {
+            const targetColumn = document.querySelector(`.board-column[data-status="${toStatus}"] .column-tasks`);
+            if (targetColumn) {
+                const actionsDiv = card.querySelector('.task-actions');
+                actionsDiv.innerHTML = getMoveButtons(toStatus, taskId, card.dataset.priority);
+                bindMoveButtons();
+                bindDeleteButtons();
+                targetColumn.appendChild(card);
+            }
+            updateColumnCounts();
+        }
+    });
+}
+
+function bindDeleteButtons() {
+    document.querySelectorAll('.btn-delete').forEach(btn => {
+        btn.removeEventListener('click', handleDelete);
+        btn.addEventListener('click', handleDelete);
+    });
+}
+
+function handleDelete(e) {
+    if (!confirm('确定删除此任务？')) return;
+    const card = this.closest('.task-card');
+    const taskId = card.dataset.id;
+    fetch(`/board/tasks/${taskId}`, { method: 'DELETE' }).then(res => {
         if (res.ok) {
             card.remove();
             updateColumnCounts();
         }
     });
-});
+}
 
 {# ============================================================ #}
 {#  定时任务：创建                                           #}
