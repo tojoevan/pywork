@@ -469,6 +469,7 @@ class BoardPlugin(Plugin):
                 "cron_jobs": jobs,
                 "PRESET_JOBS": PRESET_JOBS,
                 "INTERVAL_OPTIONS": INTERVAL_OPTIONS,
+                "pending_posts": [],
             }
         )
         return HTMLResponse(content=html)
