@@ -210,18 +210,25 @@ class WorkbenchApp:
             return HTMLResponse(content="<h1>Blog plugin not loaded</h1>")
         
         @self.app.get("/blog/view/{post_id}", response_class=HTMLResponse)
-        async def blog_post(post_id: int):
+        async def blog_post(request: Request, post_id: int):
             """文章详情页面"""
             blog_plugin = self.plugin_manager.plugins.get("blog")
+            auth_plugin = self.plugin_manager.plugins.get("auth")
+            
+            # 获取当前用户
+            current_user = None
+            token = request.cookies.get("auth_token", "")
+            if token and auth_plugin:
+                current_user = await auth_plugin.get_user_by_token(token)
+            
             if blog_plugin:
                 post = await blog_plugin.get_post_api(post_id)
                 if post:
                     html = await self.template_engine.render("post.html", {
                         "post": post,
-                        "nav_page": "blog"
+                        "nav_page": "blog",
+                        "current_user": current_user
                     })
-
-
                     return HTMLResponse(content=html)
             return HTMLResponse(content="<h1>Post not found</h1>", status_code=404)
         

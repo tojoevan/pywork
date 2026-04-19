@@ -376,6 +376,7 @@ Requirements:
             if auth:
                 current_user = await auth.get_user_by_token(token)
         
+        
         html = await self.ctx.template_engine.render("post.html", {
             "nav_page": "blog",
             "post": post,
@@ -494,8 +495,35 @@ Requirements:
         kwargs["id"] = post_id
         return await self.update_post(**kwargs)
     
-    async def delete_post_api(self, post_id: int, **kwargs):
+    async def delete_post_api(self, post_id: int, request=None, **kwargs):
         """Delete post API"""
+        # 鉴权：检查用户是否登录
+        token = request.cookies.get("auth_token", "") if request else ""
+        if not token:
+            from starlette.responses import JSONResponse
+            return JSONResponse({"error": "请先登录"}, status_code=401)
+        
+        auth_plugin = self._get_auth_plugin()
+        if not auth_plugin:
+            from starlette.responses import JSONResponse
+            return JSONResponse({"error": "认证服务不可用"}, status_code=500)
+        
+        user = await auth_plugin.get_user_by_token(token)
+        if not user:
+            from starlette.responses import JSONResponse
+            return JSONResponse({"error": "无效的登录状态"}, status_code=401)
+        
+        # 获取文章，检查权限
+        post = await self.engine.get("contents", post_id)
+        if not post:
+            from starlette.responses import JSONResponse
+            return JSONResponse({"error": "文章不存在"}, status_code=404)
+        
+        # 只有作者或管理员可以删除
+        if post.get("author_id") != user["id"] and user.get("role") != "admin":
+            from starlette.responses import JSONResponse
+            return JSONResponse({"error": "无权删除此文章"}, status_code=403)
+        
         await self.engine.delete("contents", post_id)
         return {"deleted": True}
     

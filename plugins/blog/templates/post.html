@@ -33,12 +33,6 @@
             </div>
             {% endif %}
         </div>
-        <!-- 编辑按钮（作者或管理员可见） -->
-        {% if current_user and (current_user.id == post.author_id or current_user.role == 'admin') %}
-        <div class="post-edit-actions" style="margin-top: 12px;">
-            <a href="/blog/edit/{{ post.id }}" class="btn btn-secondary" style="font-size: 14px;">编辑</a>
-        </div>
-        {% endif %}
     </header>
 
     <!-- 文章内容 -->
@@ -46,15 +40,40 @@
         {{ post.body | markdown }}
     </div>
 
-    <!-- 文章尾部 -->
+    {% if post.updated_at and post.updated_at != post.created_at %}
+    <p class="update-time">最后更新: {{ post.updated_at | datefmt }}</p>
+    {% endif %}
+
+    <!-- 操作按钮 -->
+    {% if current_user and (current_user.id == post.author_id or current_user.role == 'admin') %}
     <footer class="post-footer">
-        {% if post.updated_at and post.updated_at != post.created_at %}
-        <p class="update-time">最后更新: {{ post.updated_at | datefmt }}</p>
-        {% endif %}
-        
-        <div class="post-actions">
-            <a href="/blog" class="back-link">← 返回列表</a>
-        </div>
+        <a href="/blog" class="btn btn-secondary">返回列表</a>
+        <a href="/blog/edit/{{ post.id }}" class="btn btn-primary">编辑</a>
+        <button class="btn btn-danger" onclick="deletePost({{ post.id }})">删除文章</button>
     </footer>
+    {% else %}
+    <footer class="post-footer">
+        <a href="/blog" class="btn btn-secondary">返回列表</a>
+    </footer>
+    {% endif %}
 </article>
+{% endblock %}
+
+{% block scripts %}
+{{ super() }}
+<script>
+async function deletePost(id) {
+    if (!confirm('确定删除这篇文章吗？')) return;
+    
+    const response = await fetch('/blog/posts/' + id, {
+        method: 'DELETE'
+    });
+    
+    if (response.ok) {
+        window.location.href = '/blog';
+    } else {
+        alert('删除失败');
+    }
+}
+</script>
 {% endblock %}

@@ -34,7 +34,7 @@
     </header>
     
     <div class="post-content">
-        {{ note.body | safe }}
+        {{ note.body | markdown }}
     </div>
     
     {% if note.is_owner %}

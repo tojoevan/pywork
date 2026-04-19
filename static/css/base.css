@@ -99,13 +99,20 @@ a:hover {
 
 /* 按钮 */
 .btn {
-    display: inline-block;
-    padding: 0.5rem 1rem;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    height: 36px;
+    padding: 0 1rem;
     border-radius: 0.375rem;
+    font-size: 0.875rem;
     font-weight: 500;
     cursor: pointer;
     transition: all 0.2s;
     border: none;
+    text-decoration: none;
+    box-sizing: border-box;
+    font-family: inherit;
 }
 
 .btn-primary {
@@ -125,6 +132,16 @@ a:hover {
 
 .btn-secondary:hover {
     background: #d1d5db;
+    text-decoration: none;
+}
+
+.btn-danger {
+    background: #ef4444;
+    color: white;
+}
+
+.btn-danger:hover {
+    background: #dc2626;
     text-decoration: none;
 }
 
