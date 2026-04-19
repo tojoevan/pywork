@@ -137,10 +137,15 @@ class AuthPlugin(Plugin):
         salt, password_hash = self._hash_password(password)
         created_at = int(time.time())
         
+        # 第一个注册的用户自动成为管理员
+        row = await self.engine.fetchone("SELECT COUNT(*) as cnt FROM users")
+        is_first = row["cnt"] == 0 if row else True
+        role = "admin" if is_first else "user"
+        
         # 直接使用 SQL 插入
         await self.engine.execute(
             "INSERT INTO users (username, email, password_hash, created_at, role) VALUES (?, ?, ?, ?, ?)",
-            (username, email, f"{salt}:{password_hash}", created_at, "user")
+            (username, email, f"{salt}:{password_hash}", created_at, role)
         )
         
         # 获取新创建的ID
@@ -358,17 +363,22 @@ class AuthPlugin(Plugin):
         
         created_at = int(time.time())
         
+        # 第一个注册的用户自动成为管理员
+        row = await self.engine.fetchone("SELECT COUNT(*) as cnt FROM users")
+        is_first = row["cnt"] == 0 if row else True
+        role = "admin" if is_first else "user"
+        
         try:
             # 尝试插入包含 github_id 的记录
             await self.engine.execute(
                 "INSERT INTO users (username, email, created_at, role, avatar, github_id) VALUES (?, ?, ?, ?, ?, ?)",
-                (username, github_email, created_at, "user", github_avatar, github_id)
+                (username, github_email, created_at, role, github_avatar, github_id)
             )
         except:
             # 如果 github_id 字段不存在，使用基本字段
             await self.engine.execute(
                 "INSERT INTO users (username, email, created_at, role, avatar) VALUES (?, ?, ?, ?, ?)",
-                (username, github_email, created_at, "user", github_avatar)
+                (username, github_email, created_at, role, github_avatar)
             )
         
         # 获取新用户

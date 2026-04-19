@@ -376,7 +376,7 @@ import asyncio, hashlib, secrets
 
 async def reset():
     engine = SQLiteEngine('./data/pywork.db')
-    await engine.init()
+    await engine.start()          # 注意：是 start() 不是 init()
     salt = secrets.token_hex(16)
     pw = hashlib.pbkdf2_hmac('sha256', b'new_password', bytes.fromhex(salt), 100000)
     await engine.execute('UPDATE users SET password_hash=? WHERE role=?', (f'{salt}:{pw.hex()}', 'admin'))
@@ -388,7 +388,27 @@ asyncio.run(reset())
 
 ### Q: 数据库在哪？
 
-默认 `./data/pywork.db`，可通过 `--db` 指定。支持自定义数据库迁移，表结构自动初始化。
+默认 `./data/pywork.db`，可通过 `--db` 指定。**表结构随服务启动自动初始化，无需手动建库。**
+
+启动时会自动创建以下表：
+
+| 表名 | 所属插件 | 说明 |
+|------|---------|------|
+| `users` | 核心 | 用户 |
+| `contents` | 核心 | 所有内容（博客/微博/笔记/留言） |
+| `objects` | 核心 | 文件对象 |
+| `tasks` | 核心 | 任务 |
+| `plugins` | 核心 | 插件注册 |
+| `templates` | 核心 | 模板 |
+| `board_tasks` | board | 看板任务 |
+| `cron_jobs` | board | 定时任务定义 |
+| `cron_stats` | board | 定时任务统计结果 |
+| `active_authors` | board | 活跃作者统计 |
+| `site_config` | board | 网站配置（logo_text 等） |
+| `_raft_log` | 核心 | Raft 日志（Phase 2+ 预留）|
+| `_meta` | 核心 | 键值存储 |
+
+> 注意：`mcp_tokens` 存储在内存中（重启丢失），如需持久化请修改 AuthPlugin 改存数据库。
 
 ### Q: MCP 连接失败？
 
