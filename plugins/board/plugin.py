@@ -273,9 +273,9 @@ class BoardPlugin(Plugin):
         """手动触发执行一个定时任务"""
         from starlette.responses import JSONResponse
 
-        forbid = await self._check_admin(request)
-        if forbid:
-            return forbid
+        redirect = await self._check_admin_or_redirect(request)
+        if redirect:
+            return redirect
 
         job_id = int(kwargs.get("job_id", 0))
         job = await self._get_cron_job(job_id)
@@ -453,9 +453,9 @@ class BoardPlugin(Plugin):
         """定时任务管理页面"""
         from starlette.responses import HTMLResponse
 
-        forbid = await self._check_admin(request)
-        if forbid:
-            return forbid
+        redirect = await self._check_admin_or_redirect(request)
+        if redirect:
+            return redirect
 
         current_user = await self._get_current_user(request)
         jobs = await self._list_cron_jobs()
@@ -480,9 +480,9 @@ class BoardPlugin(Plugin):
     async def list_cron_jobs_api(self, request, **kwargs):
         """GET /board/cron/jobs"""
         from starlette.responses import JSONResponse
-        forbid = await self._check_admin(request)
-        if forbid:
-            return forbid
+        redirect = await self._check_admin_or_redirect(request)
+        if redirect:
+            return redirect
         jobs = await self._list_cron_jobs()
         return JSONResponse({"jobs": jobs})
 
@@ -490,9 +490,9 @@ class BoardPlugin(Plugin):
         """POST /board/cron/jobs"""
         from starlette.responses import JSONResponse, RedirectResponse
 
-        forbid = await self._check_admin(request)
-        if forbid:
-            return forbid
+        redirect = await self._check_admin_or_redirect(request)
+        if redirect:
+            return redirect
 
         form = await request.form()
         name = (form.get("name") or "").strip()
@@ -523,9 +523,9 @@ class BoardPlugin(Plugin):
         """PUT /board/cron/jobs/{job_id}"""
         from starlette.responses import JSONResponse
 
-        forbid = await self._check_admin(request)
-        if forbid:
-            return forbid
+        redirect = await self._check_admin_or_redirect(request)
+        if redirect:
+            return redirect
 
         job_id = int(kwargs.get("job_id", 0))
         form = await request.form()
@@ -550,9 +550,9 @@ class BoardPlugin(Plugin):
         """DELETE /board/cron/jobs/{job_id}"""
         from starlette.responses import JSONResponse
 
-        forbid = await self._check_admin(request)
-        if forbid:
-            return forbid
+        redirect = await self._check_admin_or_redirect(request)
+        if redirect:
+            return redirect
 
         job_id = int(kwargs.get("job_id", 0))
         await self._delete_cron_job(job_id)
@@ -604,9 +604,9 @@ class BoardPlugin(Plugin):
         """GET /board/settings/api - 获取当前设置"""
         from starlette.responses import JSONResponse
 
-        forbid = await self._check_admin(request)
-        if forbid:
-            return forbid
+        redirect = await self._check_admin_or_redirect(request)
+        if redirect:
+            return redirect
 
         settings = await self._get_site_settings()
         return JSONResponse(settings)
@@ -615,9 +615,9 @@ class BoardPlugin(Plugin):
         """PUT /board/settings/api - 更新设置"""
         from starlette.responses import JSONResponse
 
-        forbid = await self._check_admin(request)
-        if forbid:
-            return forbid
+        redirect = await self._check_admin_or_redirect(request)
+        if redirect:
+            return redirect
 
         content_type = request.headers.get("content-type", "")
         if "application/json" in content_type:
