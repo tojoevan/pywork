@@ -10,6 +10,10 @@ class MicroblogPlugin(Plugin):
     """微博插件 - 快速分享"""
 
     MAX_LENGTH = 500
+    # 频率控制：IP -> 最后发布时间（秒）
+    _ip_rate_limit: Dict[str, float] = {}
+    # 匿名发布间隔：60秒
+    ANONYMOUS_RATE_LIMIT = 60
 
     @property
     def name(self) -> str:
@@ -292,10 +296,30 @@ class MicroblogPlugin(Plugin):
                     content = form.get("content", "")
                 except:
                     pass
-        author_id = await self._get_author_id(request)
+        
+        # 获取客户端 IP
+        client_ip = request.client.host if request.client else "unknown"
+        if "x-forwarded-for" in request.headers:
+            client_ip = request.headers["x-forwarded-for"].split(",")[0].strip()
+        
         # 检测是否匿名：没有 auth_token
         token = request.cookies.get("auth_token", "")
         is_anonymous = not token
+        
+        # 匿名用户频率控制
+        if is_anonymous:
+            now = time.time()
+            last_post = self._ip_rate_limit.get(client_ip, 0)
+            if now - last_post < self.ANONYMOUS_RATE_LIMIT:
+                remaining = int(self.ANONYMOUS_RATE_LIMIT - (now - last_post))
+                return {"error": f"发布过于频繁，请 {remaining} 秒后再试"}
+            # 更新发布时间
+            self._ip_rate_limit[client_ip] = now
+            # 清理过期的记录（防止内存泄漏）
+            expired = now - 300  # 5分钟前的记录
+            self._ip_rate_limit = {k: v for k, v in self._ip_rate_limit.items() if v > expired}
+        
+        author_id = await self._get_author_id(request)
         return await self.create_post(content=content, author_id=author_id, is_anonymous=is_anonymous)
 
     async def delete_api(self, post_id: int, request, **kwargs):
