@@ -50,7 +50,7 @@ let vditor;
 let autoSaveTimer;
 const isEdit = {{ is_edit | default('false') | lower }};
 const noteId = {{ note.id | default('0') }};
-const existingContent = {{ note.body | tojson | default('""') }};
+const existingContent = {{ note.body | default('') | tojson }};
 
 function initEditor() {
     vditor = new Vditor('vditor', {
@@ -67,9 +67,6 @@ function initEditor() {
             }
             if (!isEdit) startAutoSave();
         }
-    });
-}
-        after: () => { startAutoSave(); }
     });
 }
 
