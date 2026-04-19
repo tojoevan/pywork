@@ -44,7 +44,7 @@
 </div>
 
 <script>
-    const currentAuthorId = {{ current_author_id if current_author_id else 'null' }};
+    const currentAuthorId = {{ current_author_id | tojson }};
     let editingPostId = null;
 
     async function loadFeed() {
