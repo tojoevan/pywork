@@ -433,6 +433,40 @@ class WorkbenchApp:
             for route in plugin.routes():
                 # Register route dynamically
                 self._register_route(route)
+        
+        # MCP HTTP endpoint
+        @self.app.post("/mcp")
+        async def mcp_handler(request: Request):
+            """MCP HTTP endpoint - receives JSON-RPC requests"""
+            body = await request.json()
+            method = body.get("method", "")
+            params = body.get("params", {})
+            request_id = body.get("id")
+            
+            # Extract token from Authorization header
+            auth_header = request.headers.get("Authorization", "")
+            token = ""
+            if auth_header.startswith("Bearer "):
+                token = auth_header[7:]
+            
+            # Inject token into params for MCP server
+            if token:
+                params["meta"] = {"token": token}
+            
+            try:
+                result = await self.mcp_server.handle(method, params)
+                return {"jsonrpc": "2.0", "id": request_id, "result": result}
+            except Exception as e:
+                return {"jsonrpc": "2.0", "id": request_id, "error": {"code": -32000, "message": str(e)}}
+        
+        @self.app.get("/mcp")
+        async def mcp_get_handler(request: Request):
+            """MCP GET endpoint - for capability discovery"""
+            return {"jsonrpc": "2.0", "id": None, "result": {
+                "protocolVersion": "2024-11-05",
+                "capabilities": {"tools": {}, "resources": {}, "prompts": {}},
+                "serverInfo": {"name": "pyWork", "version": "0.1.0"}
+            }}
     
     def _register_route(self, route):
         """Register a single route"""

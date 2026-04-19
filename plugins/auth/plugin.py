@@ -7,7 +7,7 @@ import secrets
 import hashlib
 import urllib.parse
 from typing import Optional, Dict, Any, List
-from app.plugin import Plugin, PluginContext
+from app.plugin import Plugin, PluginContext, MCPTool
 from app.storage import Engine
 
 
@@ -457,12 +457,12 @@ class AuthPlugin(Plugin):
     
     # === MCP工具 ===
     
-    def mcp_tools(self) -> List[Dict]:
+    def mcp_tools(self) -> List[MCPTool]:
         return [
-            {
-                "name": "auth_register",
-                "description": "用户注册",
-                "inputSchema": {
+            MCPTool(
+                name="auth_register",
+                description="用户注册",
+                input_schema={
                     "type": "object",
                     "properties": {
                         "username": {"type": "string", "description": "用户名"},
@@ -471,11 +471,11 @@ class AuthPlugin(Plugin):
                     },
                     "required": ["username", "password"]
                 }
-            },
-            {
-                "name": "auth_login",
-                "description": "用户登录",
-                "inputSchema": {
+            ),
+            MCPTool(
+                name="auth_login",
+                description="用户登录",
+                input_schema={
                     "type": "object",
                     "properties": {
                         "username": {"type": "string", "description": "用户名"},
@@ -483,57 +483,57 @@ class AuthPlugin(Plugin):
                     },
                     "required": ["username", "password"]
                 }
-            },
-            {
-                "name": "auth_logout",
-                "description": "用户登出",
-                "inputSchema": {
+            ),
+            MCPTool(
+                name="auth_logout",
+                description="用户登出",
+                input_schema={
                     "type": "object",
                     "properties": {
                         "token": {"type": "string", "description": "Session token"}
                     },
                     "required": ["token"]
                 }
-            },
-            {
-                "name": "auth_get_user",
-                "description": "获取用户信息",
-                "inputSchema": {
+            ),
+            MCPTool(
+                name="auth_get_user",
+                description="获取用户信息",
+                input_schema={
                     "type": "object",
                     "properties": {
                         "user_id": {"type": "integer", "description": "用户ID"}
                     },
                     "required": ["user_id"]
                 }
-            },
-            {
-                "name": "auth_github_url",
-                "description": "获取 GitHub OAuth 授权链接",
-                "inputSchema": {
+            ),
+            MCPTool(
+                name="auth_github_url",
+                description="获取 GitHub OAuth 授权链接",
+                input_schema={
                     "type": "object",
                     "properties": {
                         "state": {"type": "string", "description": "CSRF state 参数"}
                     }
                 }
-            },
-            {
-                "name": "auth_create_mcp_token",
-                "description": "创建新的 MCP API Token（需要认证）",
-                "inputSchema": {
+            ),
+            MCPTool(
+                name="auth_create_mcp_token",
+                description="创建新的 MCP API Token（需要认证）",
+                input_schema={
                     "type": "object",
                     "properties": {
                         "name": {"type": "string", "description": "Token 名称"}
                     }
                 }
-            },
-            {
-                "name": "auth_list_mcp_tokens",
-                "description": "列出所有 MCP Tokens（需要认证）",
-                "inputSchema": {
+            ),
+            MCPTool(
+                name="auth_list_mcp_tokens",
+                description="列出所有 MCP Tokens（需要认证）",
+                input_schema={
                     "type": "object",
                     "properties": {}
                 }
-            }
+            ),
         ]
     
     async def mcp_call(self, tool_name: str, arguments: Dict, mcp_token: str = None) -> Any:

@@ -15,7 +15,7 @@ class MCPTool:
     name: str
     description: str
     input_schema: Dict[str, Any]
-    handler: Callable[..., Any]
+    handler: Callable[..., Any] = None  # Optional; plugin can use mcp_call instead
 
 
 @dataclass

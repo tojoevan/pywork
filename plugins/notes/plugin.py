@@ -194,7 +194,13 @@ class NotesPlugin(Plugin):
         
         return {"id": note_id, "updated": True}
     
-    async def delete_note(self, note_id: int, author_id: int = None) -> Dict[str, Any]:
+    async def delete_note(self, note_id: int, author_id: int = None, mcp_token: str = None) -> Dict[str, Any]:
+        if mcp_token:
+            user = await self._get_current_user_mcp(mcp_token)
+            if user:
+                author_id = user["id"]
+            else:
+                return {"error": "无效的 MCP Token"}
         existing = await self.engine.get("contents", note_id)
         if not existing:
             return {"error": "笔记不存在"}
@@ -204,6 +210,44 @@ class NotesPlugin(Plugin):
         
         await self.engine.delete("contents", note_id)
         return {"id": note_id, "deleted": True}
+
+    async def update_note(self, note_id: int, title: str = None, content: str = None,
+                          visibility: str = None, author_id: int = None, mcp_token: str = None) -> Dict[str, Any]:
+        if mcp_token:
+            user = await self._get_current_user_mcp(mcp_token)
+            if user:
+                author_id = user["id"]
+            else:
+                return {"error": "无效的 MCP Token"}
+        existing = await self.engine.get("contents", note_id)
+        if not existing:
+            return {"error": "笔记不存在"}
+        if author_id and existing.get("author_id") != author_id:
+            return {"error": "无权修改此笔记"}
+        
+        now = int(time.time())
+        data = {"updated_at": now}
+        if title is not None:
+            data["title"] = title
+        if content is not None:
+            data["body"] = content
+        if visibility is not None:
+            data["visibility"] = visibility
+        
+        await self.engine.put("contents", note_id, data)
+        return {"id": note_id, "updated": True}
+
+    async def mcp_call(self, tool_name: str, arguments: Dict, mcp_token: str = None) -> Any:
+        """MCP call dispatcher for notes plugin"""
+        if tool_name == "create_note":
+            return await self.create_note(mcp_token=mcp_token, **arguments)
+        elif tool_name == "list_notes":
+            return await self.list_notes(mcp_token=mcp_token, **arguments)
+        elif tool_name == "update_note":
+            return await self.update_note(mcp_token=mcp_token, **arguments)
+        elif tool_name == "delete_note":
+            return await self.delete_note(mcp_token=mcp_token, **arguments)
+        raise ValueError(f"Unknown tool: {tool_name}")
     
     # HTTP handlers
     async def list_notes_page(self, request, **kwargs):
