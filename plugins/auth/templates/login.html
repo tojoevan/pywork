@@ -8,33 +8,30 @@
 </head>
 <body class="auth-page">
     <div class="auth-container">
-        <!-- Logo -->
-        <a href="/" class="auth-logo">pyWork</a>
-        
         <!-- 登录表单 -->
         <div class="auth-card">
-            <h1 class="auth-title">登录</h1>
+            <h1 class="auth-title"><a href="/" class="logo-text">{{ Site.logo_text | default('pyWork') }}</a> 登录</h1>
             <p class="auth-subtitle">欢迎回来</p>
             
-            <form action="/auth/login" method="post" class="auth-form">
-                <div class="form-group">
+            <form action="/auth/login" method="post" class="auth-form inline-form">
+                <div class="form-row inline-row">
                     <label for="username">用户名</label>
-                    <input type="text" id="username" name="username"required
-                           placeholder="请输入用户名"autocomplete="username">
+                    <input type="text" id="username" name="username" required
+                           placeholder="请输入用户名" autocomplete="username">
                 </div>
                 
-                <div class="form-group">
+                <div class="form-row inline-row">
                     <label for="password">密码</label>
                     <input type="password" id="password" name="password" required
                            placeholder="请输入密码" autocomplete="current-password">
                 </div>
                 
-                <div class="form-options">
+                <div class="form-options inline-options">
+                    <div class="checkbox-spacer"></div>
                     <label class="checkbox">
                         <input type="checkbox" name="remember">
                         <span>记住我</span>
                     </label>
-                    <a href="/auth/forgot" class="link">忘记密码？</a>
                 </div>
                 
                 <button type="submit" class="btn-primary">登录</button>

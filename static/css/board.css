@@ -430,3 +430,83 @@
     color: var(--text-secondary, #888);
     font-size: 14px;
 }
+
+/* ============================================================ */
+/*  微博审核                                                  */
+/* ============================================================ */
+.moderation-container {
+    max-width: 800px;
+    margin: 0 auto;
+}
+.moderation-header {
+    margin-bottom: 1.5rem;
+}
+.moderation-header h3 {
+    margin: 0 0 0.25rem;
+    font-size: 1.2rem;
+}
+.moderation-desc {
+    color: var(--text-muted);
+    font-size: 0.875rem;
+    margin: 0;
+}
+.moderation-empty {
+    text-align: center;
+    color: var(--text-muted);
+    padding: 3rem;
+    font-size: 1.1rem;
+}
+.mod-post {
+    border: 1px solid var(--border-color);
+    border-radius: 8px;
+    padding: 1rem;
+    margin-bottom: 0.75rem;
+    background: var(--bg-card);
+}
+.mod-post-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 0.5rem;
+    font-size: 0.875rem;
+}
+.mod-author {
+    font-weight: 600;
+    color: var(--text-primary);
+}
+.mod-time {
+    color: var(--text-muted);
+}
+.mod-post-content {
+    color: var(--text-primary);
+    line-height: 1.6;
+    margin-bottom: 0.75rem;
+    white-space: pre-wrap;
+    word-break: break-word;
+}
+.mod-actions {
+    display: flex;
+    gap: 0.5rem;
+}
+.btn-approve-mod {
+    background: #22c55e;
+    color: white;
+    border: none;
+    border-radius: 6px;
+    padding: 0.4rem 1rem;
+    cursor: pointer;
+    font-size: 0.875rem;
+    transition: background 0.2s;
+}
+.btn-approve-mod:hover { background: #16a34a; }
+.btn-reject-mod {
+    background: #ef4444;
+    color: white;
+    border: none;
+    border-radius: 6px;
+    padding: 0.4rem 1rem;
+    cursor: pointer;
+    font-size: 0.875rem;
+    transition: background 0.2s;
+}
+.btn-reject-mod:hover { background: #dc2626; }

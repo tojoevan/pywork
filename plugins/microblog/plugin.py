@@ -36,6 +36,8 @@ class MicroblogPlugin(Plugin):
             Route("/microblog", "POST", self.create_api, "microblog.create"),
             Route("/api/microblog", "GET", self.list_api, "microblog.list"),
             Route("/api/microblog/{post_id}", "DELETE", self.delete_api, "microblog.delete"),
+            Route("/api/microblog/{post_id}/approve", "POST", self.approve_post_api, "microblog.approve"),
+            Route("/api/microblog/{post_id}/reject", "POST", self.reject_post_api, "microblog.reject"),
         ]
 
     def mcp_tools(self) -> List[MCPTool]:
@@ -110,7 +112,8 @@ class MicroblogPlugin(Plugin):
         content: str,
         visibility: str = "public",
         mcp_token: str = None,
-        author_id: int = 1
+        author_id: int = 1,
+        is_anonymous: bool = False
     ) -> Dict[str, Any]:
         if not content or not content.strip():
             return {"error": "内容不能为空"}
@@ -126,25 +129,38 @@ class MicroblogPlugin(Plugin):
                 return {"error": "无效的 MCP Token"}
 
         now = int(time.time())
+        # 匿名用户 → 待审核状态
+        if is_anonymous:
+            post_status = "pending"
+        else:
+            post_status = visibility
+
         data = {
             "plugin_type": "microblog",
             "author_id": author_id,
             "title": "",
             "body": content,
-            "status": visibility,
+            "status": post_status,
             "tags": "",
             "created_at": now,
             "updated_at": now,
         }
         record_id = await self.engine.put("contents", 0, data)
+        if is_anonymous:
+            return {"id": record_id, "created_at": now, "status": "pending", "message": "发布成功，待管理员审核通过后显示"}
         return {"id": record_id, "created_at": now}
 
-    async def list_posts(self, limit: int = 20, mcp_token: str = None) -> List[Dict]:
-        sql = """
+    async def list_posts(self, limit: int = 20, mcp_token: str = None, include_pending: bool = False) -> List[Dict]:
+        # 默认只显示已审核通过的微博，include_pending=True 时显示 pending 状态
+        if include_pending:
+            status_filter = "c.status IN ('public', 'pending')"
+        else:
+            status_filter = "c.status = 'public'"
+        sql = f"""
             SELECT c.*, u.username as author_name, u.avatar as author_avatar
             FROM contents c
             LEFT JOIN users u ON c.author_id = u.id
-            WHERE c.plugin_type = 'microblog'
+            WHERE c.plugin_type = 'microblog' AND {status_filter}
             ORDER BY c.created_at DESC
             LIMIT ?
         """
@@ -169,6 +185,64 @@ class MicroblogPlugin(Plugin):
                 return {"error": "无效的 Token"}
         await self.engine.delete("contents", id)
         return {"deleted": True}
+
+    async def get_pending_posts(self) -> List[Dict]:
+        """获取所有待审核微博（管理员用）"""
+        sql = """
+            SELECT c.*, u.username as author_name, u.avatar as author_avatar
+            FROM contents c
+            LEFT JOIN users u ON c.author_id = u.id
+            WHERE c.plugin_type = 'microblog' AND c.status = 'pending'
+            ORDER BY c.created_at DESC
+        """
+        rows = await self.engine.fetchall(sql, ())
+        for row in rows:
+            if not row.get("author_name"):
+                row["author_name"] = "匿名"
+            row["content"] = row.pop("body", "")
+        return rows
+
+    async def approve_post(self, post_id: int) -> Dict:
+        """通过审核"""
+        post = await self.engine.get("contents", post_id)
+        if not post or post.get("plugin_type") != "microblog":
+            return {"error": "微博不存在"}
+        if post.get("status") == "public":
+            return {"error": "已经是审核通过状态"}
+        post["status"] = "public"
+        post["updated_at"] = int(time.time())
+        await self.engine.put("contents", post_id, post)
+        return {"id": post_id, "status": "public"}
+
+    async def reject_post(self, post_id: int) -> Dict:
+        """拒绝审核，删除"""
+        post = await self.engine.get("contents", post_id)
+        if not post or post.get("plugin_type") != "microblog":
+            return {"error": "微博不存在"}
+        await self.engine.delete("contents", post_id)
+        return {"id": post_id, "deleted": True}
+
+    async def approve_post_api(self, post_id: int, request, **kwargs):
+        """POST /api/microblog/{post_id}/approve"""
+        token = request.cookies.get("auth_token", "")
+        auth = self._auth()
+        if not token or not auth:
+            return {"error": "请先登录"}
+        user = await auth.get_user_by_token(token)
+        if not user or user.get("role") != "admin":
+            return {"error": "需要管理员权限"}
+        return await self.approve_post(post_id)
+
+    async def reject_post_api(self, post_id: int, request, **kwargs):
+        """POST /api/microblog/{post_id}/reject"""
+        token = request.cookies.get("auth_token", "")
+        auth = self._auth()
+        if not token or not auth:
+            return {"error": "请先登录"}
+        user = await auth.get_user_by_token(token)
+        if not user or user.get("role") != "admin":
+            return {"error": "需要管理员权限"}
+        return await self.reject_post(post_id)
 
     async def mcp_call(self, tool_name: str, arguments: Dict, mcp_token: str = None) -> Any:
         if tool_name == "create_microblog":
@@ -219,7 +293,10 @@ class MicroblogPlugin(Plugin):
                 except:
                     pass
         author_id = await self._get_author_id(request)
-        return await self.create_post(content=content, author_id=author_id)
+        # 检测是否匿名：没有 auth_token
+        token = request.cookies.get("auth_token", "")
+        is_anonymous = not token
+        return await self.create_post(content=content, author_id=author_id, is_anonymous=is_anonymous)
 
     async def delete_api(self, post_id: int, request, **kwargs):
         # 鉴权：只有作者或 admin 才能删除

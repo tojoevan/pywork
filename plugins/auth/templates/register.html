@@ -8,42 +8,49 @@
 </head>
 <body class="auth-page">
     <div class="auth-container">
-        <!-- Logo -->
-        <a href="/" class="auth-logo">pyWork</a>
-        
         <!-- 注册表单 -->
         <div class="auth-card">
-            <h1 class="auth-title">创建账号</h1>
+            <h1 class="auth-title"><a href="/" class="logo-text">{{ Site.logo_text | default('pyWork') }}</a> 创建账号</h1>
             <p class="auth-subtitle">加入社区，分享知识</p>
             
-            <form action="/auth/register" method="post" class="auth-form">
-                <div class="form-group">
+            <form action="/auth/register" method="post" class="auth-form inline-form">
+                <div class="form-row inline-row">
                     <label for="username">用户名</label>
                     <input type="text" id="username" name="username" required
-                           placeholder="请输入用户名" autocomplete="username">
-                    <span class="form-hint">字母、数字、下划线，4-20字符</span>
+                           placeholder="4-20位字母数字" autocomplete="username">
                 </div>
-                
-                <div class="form-group">
+
+                <div class="form-row inline-row">
                     <label for="email">邮箱</label>
-                    <input type="email" id="email" name="email"required
-                           placeholder="请输入邮箱" autocomplete="email">
+                    <input type="email" id="email" name="email" required
+                           placeholder="your@email.com" autocomplete="email">
                 </div>
-                
-                <div class="form-group">
+
+                <div class="form-row inline-row">
                     <label for="password">密码</label>
                     <input type="password" id="password" name="password" required
-                           placeholder="请输入密码" autocomplete="new-password">
-                    <span class="form-hint">至少8位，包含字母和数字</span>
+                           placeholder="至少8位" autocomplete="new-password">
                 </div>
-                
-                <div class="form-group">
+
+                <div class="form-row inline-row">
                     <label for="password_confirm">确认密码</label>
                     <input type="password" id="password_confirm" name="password_confirm" required
-                           placeholder="请再次输入密码" autocomplete="new-password">
+                           placeholder="再次输入" autocomplete="new-password">
                 </div>
+
+                <div class="form-row inline-row captcha-row">
+                    <label for="captcha_code">验证码</label>
+                    <input type="text" id="captcha_code" name="captcha_code" required
+                           placeholder="4位数字" maxlength="4" autocomplete="off">
+                </div>
+                <div class="captcha-image-row">
+                    <img id="captcha-img" src="/auth/captcha" alt="验证码" class="captcha-img" onclick="refreshCaptcha()">
+                    <span class="form-hint">点击图片刷新验证码</span>
+                </div>
+                <input type="hidden" id="captcha_id" name="captcha_id">
                 
-                <div class="form-options">
+                <div class="form-options inline-options">
+                    <div class="checkbox-spacer"></div>
                     <label class="checkbox">
                         <input type="checkbox" name="agree" required>
                         <span>我已阅读并同意<a href="/terms">服务条款</a></span>
@@ -54,9 +61,26 @@
             </form>
             
             <div class="auth-footer">
-                <p>已有账号？<a href="/auth/login">立即登录</a></p>
+                <p>已有账号？<a href="/login">立即登录</a></p>
             </div>
         </div>
     </div>
+    
+    <script>
+        // 加载验证码
+        async function refreshCaptcha() {
+            try {
+                const res = await fetch('/auth/captcha');
+                const data = await res.json();
+                document.getElementById('captcha-img').src = data.image;
+                document.getElementById('captcha_id').value = data.id;
+            } catch (e) {
+                console.error('加载验证码失败:', e);
+            }
+        }
+        
+        // 页面加载时获取验证码
+        refreshCaptcha();
+    </script>
 </body>
 </html>

@@ -260,6 +260,14 @@ class WorkbenchApp:
                 return await auth_plugin.register_api(request)
             return {"error": "Auth plugin not loaded"}
         
+        @self.app.get("/auth/captcha")
+        async def auth_captcha():
+            """获取验证码"""
+            auth_plugin = self.plugin_manager.plugins.get("auth")
+            if auth_plugin:
+                return await auth_plugin.captcha_api()
+            return {"error": "Auth plugin not loaded"}
+        
         @self.app.post("/auth/logout")
         async def auth_logout(request: Request):
             """登出API"""

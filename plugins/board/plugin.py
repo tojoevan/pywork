@@ -70,6 +70,11 @@ class BoardPlugin(Plugin):
             Route("/board/cron/jobs/{job_id}", "PUT", self.update_cron_job, "board.cron_update"),
             Route("/board/cron/jobs/{job_id}", "DELETE", self.delete_cron_job, "board.cron_delete"),
             Route("/board/cron/jobs/{job_id}/run", "POST", self.run_cron_job_api, "board.cron_run"),
+            # 网站设置
+            Route("/board/settings", "GET", self.settings_page, "board.settings_page"),
+            Route("/board/settings/api", "GET", self.get_settings_api, "board.settings_get"),
+            Route("/board/settings/api", "PUT", self.update_settings_api, "board.settings_update"),
+            Route("/board/moderation", "GET", self.moderation_page, "board.moderation_page"),
         ]
 
     # ========================================================
@@ -554,6 +559,118 @@ class BoardPlugin(Plugin):
         return JSONResponse({"success": True})
 
     # ========================================================
+    #  网站设置
+    # ========================================================
+
+    async def settings_page(self, request, **kwargs):
+        """网站设置页面"""
+        from starlette.responses import HTMLResponse
+
+        redirect = await self._check_admin_or_redirect(request)
+        if redirect:
+            return redirect
+
+        html = await self.template_engine.render(
+            "settings.html",
+            {"nav_page": "board", "section": "settings"},
+        )
+        return HTMLResponse(html)
+
+    async def moderation_page(self, request, **kwargs):
+        """微博审核页面"""
+        from starlette.responses import HTMLResponse
+
+        redirect = await self._check_admin_or_redirect(request)
+        if redirect:
+            return redirect
+
+        # 获取微博插件的待审核列表
+        mb_plugin = self.ctx.get_plugin("microblog")
+        pending = []
+        if mb_plugin:
+            pending = await mb_plugin.get_pending_posts()
+        return HTMLResponse(
+            await self.template_engine.render(
+                "moderation.html",
+                {
+                    "nav_page": "board",
+                    "section": "moderation",
+                    "pending_posts": pending,
+                },
+            )
+        )
+
+    async def get_settings_api(self, request, **kwargs):
+        """GET /board/settings/api - 获取当前设置"""
+        from starlette.responses import JSONResponse
+
+        forbid = await self._check_admin(request)
+        if forbid:
+            return forbid
+
+        settings = await self._get_site_settings()
+        return JSONResponse(settings)
+
+    async def update_settings_api(self, request, **kwargs):
+        """PUT /board/settings/api - 更新设置"""
+        from starlette.responses import JSONResponse
+
+        forbid = await self._check_admin(request)
+        if forbid:
+            return forbid
+
+        content_type = request.headers.get("content-type", "")
+        if "application/json" in content_type:
+            data = await request.json()
+        else:
+            form = await request.form()
+            data = dict(form)
+
+        await self._update_site_settings(data)
+        # 清除模板引擎缓存
+        if self.template_engine:
+            self.template_engine._site_cache = None
+        return JSONResponse({"success": True})
+
+    async def _get_site_settings(self) -> Dict[str, str]:
+        """从数据库读取网站设置"""
+        defaults = {
+            "title": "pyWork",
+            "logo_text": "pyWork",
+            "footer_text": "© 2026 pyWork. All rights reserved.",
+            "description": "多用户数字工作台",
+        }
+        try:
+            rows = await self.engine.fetchall("SELECT key, value FROM site_config")
+            settings = dict(defaults)
+            for row in rows:
+                settings[row["key"]] = row["value"]
+            return settings
+        except Exception:
+            return defaults
+
+    async def _update_site_settings(self, data: Dict[str, str]):
+        """更新网站设置到数据库"""
+        allowed_keys = ["title", "logo_text", "footer_text", "description", "primary_color"]
+        # 确保表存在
+        await self.engine.execute("""
+            CREATE TABLE IF NOT EXISTS site_config (
+                key TEXT PRIMARY KEY,
+                value TEXT NOT NULL
+            )
+        """)
+        for key in allowed_keys:
+            if key in data:
+                try:
+                    # SQLite UPSERT: INSERT OR REPLACE
+                    await self.engine.execute(
+                        "INSERT OR REPLACE INTO site_config (key, value) VALUES (?, ?)",
+                        (key, data[key])
+                    )
+                except Exception as e:
+                    print(f"[Board] Failed to update {key}: {e}")
+
+    # ========================================================
     #  看板页面（整合定时任务）
     # ========================================================
 
@@ -600,6 +717,7 @@ class BoardPlugin(Plugin):
                 "cron_jobs": cron_jobs,
                 "PRESET_JOBS": PRESET_JOBS,
                 "INTERVAL_OPTIONS": INTERVAL_OPTIONS,
+                "pending_posts": [],
             }
         )
         return HTMLResponse(content=html)

@@ -1,271 +1,236 @@
-/* pyWork认证页面样式 - 灰色+活力绿 */
+/* pyWork Auth Styles - 认证页面样式 */
 
-/* 配色变量 */
+/* CSS Variables */
 :root {
-    --gray-900: #111827;
-    --gray-800: #1f2937;
-    --gray-700: #374151;
-    --gray-600: #4b5563;
-    --gray-500: #6b7280;
-    --gray-400: #9ca3af;
-    --gray-300: #d1d5db;
-    --gray-200: #e5e7eb;
-    --gray-100: #f3f4f6;
-    --gray-50: #f9fafb;
-    
+    --primary-color: #10b981;
+    --primary-dark: #059669;
+    --text-color: #1f2937;
+    --text-secondary: #6b7280;
+    --bg-color: #ffffff;
+    --bg-secondary: #f9fafb;
+    --border-color: #e5e7eb;
     --green-primary: #10b981;
-    --green-light: #34d399;
     --green-dark: #059669;
-    
-    --text-primary: var(--gray-800);
-    --text-secondary: var(--gray-500);
-    --text-muted: var(--gray-400);
-    
-    --bg-primary: var(--gray-50);
-    --bg-card: #ffffff;
-    --border-color: var(--gray-200);
-}
-
-/* 重置 */
-*, *::before, *::after {
-    box-sizing: border-box;
-    margin: 0;
-    padding: 0;
-}
-
-body {
-    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", sans-serif;
-    font-size: 15px;
-    line-height: 1.6;
-    color: var(--text-primary);
-    background: var(--bg-primary);
-}
-
-a {
-    color: var(--green-primary);
-    text-decoration: none;
-}
-
-a:hover {
-    color: var(--green-dark);
+    --gray-100: #f3f4f6;
 }
 
 /* 认证页面布局 */
 .auth-page {
     min-height: 100vh;
+    background: linear-gradient(135deg, #f3f4f6 0%, #e5e7eb 100%);
     display: flex;
     align-items: center;
     justify-content: center;
-    padding: 24px;
+    padding: 0;
 }
 
 .auth-container {
     width: 100%;
-    max-width: 400px;
+    max-width: 520px;
 }
 
 /* Logo */
 .auth-logo {
     display: block;
     text-align: center;
-    font-size: 28px;
-    font-weight: 700;
-    color: var(--gray-800);
-    margin-bottom: 32px;
-    letter-spacing: -0.5px;
+    font-size: 2rem;
+    font-weight: bold;
+    color: var(--primary-color);
+    margin-bottom: 2rem;
+    text-decoration: none;
 }
 
 .auth-logo:hover {
-    color: var(--green-primary);
+    text-decoration: none;
 }
 
-/* 认证卡片 */
+/* 认证卡片 - 加宽到560px */
 .auth-card {
-    background: var(--bg-card);
-    border: 1px solid var(--border-color);
+    background: var(--bg-color);
     border-radius: 12px;
-    padding: 32px;
-    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
+    box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+    padding: 1.5rem;
+    margin-bottom: 1.5rem;
 }
 
 .auth-title {
-    font-size: 24px;
-    font-weight: 600;
+    font-size: 1.75rem;
+    font-weight: 700;
+    color: var(--text-color);
     text-align: center;
-    margin-bottom: 4px;
+    margin-bottom: 0.5rem;
+}
+
+.auth-title .logo-text {
+    color: var(--primary-color);
+    text-decoration: none;
+}
+
+.auth-title .logo-text:hover {
+    text-decoration: underline;
 }
 
 .auth-subtitle {
-    text-align: center;
-    color: var(--text-muted);
-    font-size: 14px;
-    margin-bottom: 24px;
-}
-
-/* 表单 */
-.auth-form {
-    display: flex;
-    flex-direction: column;
-    gap: 20px;
-}
-
-.form-group {
-    display: flex;
-    flex-direction: column;
-    gap: 6px;
-}
-
-.form-group label {
-    font-size: 14px;
-    font-weight: 500;
     color: var(--text-secondary);
+    text-align: center;
+    margin-bottom: 2rem;
+    font-size: 0.95rem;
 }
 
-.form-group input {
-    padding: 10px 14px;
+/* 表单基础样式 */
+.auth-form .form-group {
+    margin-bottom: 1.25rem;
+}
+
+.auth-form label {
+    display: block;
+    margin-bottom: 0.5rem;
+    font-weight: 500;
+    color: var(--text-color);
+    font-size: 0.9rem;
+}
+
+.auth-form input[type="text"],
+.auth-form input[type="email"],
+.auth-form input[type="password"] {
+    width: 100%;
+    padding: 0.75rem 1rem;
     border: 1px solid var(--border-color);
-    border-radius: 6px;
-    font-size: 15px;
-    transition: border-color 0.2s, box-shadow 0.2s;
+    border-radius: 8px;
+    font-size: 1rem;
+    transition: all 0.2s;
+    background: var(--bg-color);
 }
 
-.form-group input:focus {
+.auth-form input:focus {
     outline: none;
-    border-color: var(--green-primary);
+    border-color: var(--primary-color);
     box-shadow: 0 0 0 3px rgba(16, 185, 129, 0.1);
 }
 
-.form-group input::placeholder {
-    color: var(--gray-400);
-}
-
 .form-hint {
-    font-size: 12px;
-    color: var(--text-muted);
+    display: block;
+    font-size: 0.8rem;
+    color: var(--text-secondary);
+    margin-top: 0.25rem;
 }
 
 /* 表单选项 */
 .form-options {
     display: flex;
-    justify-content: space-between;
     align-items: center;
-    font-size: 14px;
+    justify-content: space-between;
+    margin-bottom: 1.5rem;
+    font-size: 0.9rem;
 }
 
 .checkbox {
     display: flex;
     align-items: center;
-    gap: 8px;
+    gap: 0.5rem;
     cursor: pointer;
 }
 
 .checkbox input[type="checkbox"] {
-    width: 16px;
-    height: 16px;
-    cursor: pointer;
-}
-
-.checkbox span {
-    color: var(--text-secondary);
-}
-
-.checkbox a {
-    color: var(--green-primary);
+    width: 1rem;
+    height: 1rem;
+    accent-color: var(--primary-color);
 }
 
 .link {
-    color: var(--text-muted);
+    color: var(--primary-color);
+    text-decoration: none;
 }
 
 .link:hover {
-    color: var(--green-primary);
+    text-decoration: underline;
 }
 
 /* 按钮 */
 .btn-primary {
-    padding: 12px 24px;
-    background: var(--green-primary);
-    color: #fff;
+    width: 100%;
+    padding: 0.875rem;
+    background: var(--primary-color);
+    color: white;
     border: none;
-    border-radius: 6px;
-    font-size: 15px;
-    font-weight: 500;
+    border-radius: 8px;
+    font-size: 1rem;
+    font-weight: 600;
     cursor: pointer;
-    transition: background 0.2s;
+    transition: all 0.2s;
 }
 
 .btn-primary:hover {
-    background: var(--green-dark);
+    background: var(--primary-dark);
 }
 
-/* 页脚 */
+/* 底部链接 */
 .auth-footer {
-    margin-top: 24px;
-    padding-top: 20px;
-    border-top: 1px solid var(--border-color);
     text-align: center;
+    color: var(--text-secondary);
+    font-size: 0.9rem;
 }
 
-.auth-footer p {
-    font-size: 14px;
-    color: var(--text-muted);
+.auth-footer a {
+    color: var(--primary-color);
+    font-weight: 500;
 }
 
 /* 社交登录 */
 .social-auth {
-    margin-top: 24px;
+    text-align: center;
 }
 
 .divider {
-    display: flex;
-    align-items: center;
-    gap: 16px;
-    color: var(--text-muted);
-    font-size: 13px;
-    margin-bottom: 16px;
+    position: relative;
+    margin: 1.5rem 0;
+    color: var(--text-secondary);
+    font-size: 0.875rem;
 }
 
 .divider::before,
 .divider::after {
-    content: "";
-    flex: 1;
+    content: '';
+    position: absolute;
+    top: 50%;
+    width: calc(50% - 2rem);
     height: 1px;
     background: var(--border-color);
 }
 
+.divider::before {
+    left: 0;
+}
+
+.divider::after {
+    right: 0;
+}
+
+.divider span {
+    background: transparent;
+    padding: 0 1rem;
+}
+
 .social-buttons {
     display: flex;
-    gap: 12px;
+    gap: 1rem;
+    justify-content: center;
 }
 
 .btn-social {
     flex: 1;
-    padding: 10px 16px;
-    background: var(--bg-card);
+    padding: 0.75rem;
     border: 1px solid var(--border-color);
-    border-radius: 6px;
-    text-align: center;
-    font-size: 14px;
+    border-radius: 8px;
+    color: var(--text-color);
+    text-decoration: none;
     font-weight: 500;
-    color: var(--text-secondary);
     transition: all 0.2s;
 }
 
 .btn-social:hover {
-    background: var(--gray-50);
-    border-color: var(--gray-300);
-    color: var(--text-primary);
-}
-
-/* 错误提示 */
-.error-message {
-    background: #fef2f2;
-    border: 1px solid #fecaca;
-    color: #dc2626;
-    padding: 12px;
-    border-radius: 6px;
-    font-size: 14px;
-    margin-bottom: 16px;
+    background: var(--bg-secondary);
+    text-decoration: none;
 }
 
 /* 成功提示 */
@@ -277,4 +242,196 @@ a:hover {
     border-radius: 6px;
     font-size: 14px;
     margin-bottom: 16px;
+}
+
+/* 验证码样式 */
+.captcha-group {
+    margin-bottom: 20px;
+}
+
+.captcha-input-wrap {
+    display: flex;
+    gap: 12px;
+    align-items: center;
+}
+
+.captcha-input-wrap input[type="text"] {
+    flex: 1;
+    min-width: 0;
+    height: 40px;
+    box-sizing: border-box;
+}
+
+.captcha-img {
+    width: 100px;
+    height: 40px;
+    border-radius: 6px;
+    cursor: pointer;
+    border: 1px solid var(--border-color);
+    background: var(--gray-100);
+    object-fit: contain;
+}
+
+.captcha-img:hover {
+    border-color: var(--green-primary);
+}
+
+/* 紧凑表单布局 - 两列 */
+.compact-form .form-row {
+    display: flex;
+    gap: 16px;
+    margin-bottom: 16px;
+}
+
+.compact-form .form-row .form-group {
+    flex: 1;
+    margin-bottom: 0;
+}
+
+.compact-form .form-group label {
+    display: block;
+    margin-bottom: 4px;
+    font-size: 13px;
+    font-weight: 500;
+    color: var(--text-secondary);
+}
+
+.compact-form .form-group input {
+    padding: 10px 12px;
+    font-size: 14px;
+}
+
+.compact-form .form-hint {
+    font-size: 12px;
+    margin-top: 2px;
+}
+
+/* 行内表单布局 - label和input在同一行 */
+.inline-form .inline-row {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin-bottom: 16px;
+}
+
+.inline-form .inline-row label {
+    width: 80px;
+    flex-shrink: 0;
+    margin-bottom: 0;
+    font-size: 14px;
+    font-weight: 500;
+    color: var(--text-color);
+    text-align: right;
+}
+
+.inline-form .inline-row input {
+    flex: 1;
+    padding: 10px 12px;
+    font-size: 14px;
+}
+
+/* 验证码图片行 */
+.captcha-image-row {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin-left: 92px;  /* 80px label宽度 + 12px gap */
+    margin-bottom: 16px;
+}
+
+.captcha-image-row .captcha-img {
+    width: 100px;
+    height: 40px;
+    border-radius: 6px;
+    cursor: pointer;
+    border: 1px solid var(--border-color);
+    background: var(--gray-100);
+    object-fit: contain;
+}
+
+.captcha-image-row .captcha-img:hover {
+    border-color: var(--green-primary);
+}
+
+.captcha-image-row .form-hint {
+    font-size: 12px;
+    color: var(--text-secondary);
+}
+
+/* 行内选项布局 - checkbox与上方label对齐 */
+.inline-options {
+    display: flex;
+    align-items: flex-start;
+    margin-bottom: 20px;
+}
+
+.inline-options .checkbox-spacer {
+    width: 70px;
+    flex-shrink: 0;
+}
+
+.inline-options .checkbox {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex: 1;
+    font-size: 14px;
+}
+
+.inline-options .checkbox input[type="checkbox"] {
+    width: 16px;
+    height: 16px;
+    margin: 0;
+}
+
+/* 移动端适配 */
+@media (max-width: 640px) {
+    .auth-card {
+        padding: 1.5rem;
+    }
+
+    .compact-form .form-row {
+        flex-direction: column;
+        gap: 12px;
+    }
+
+    .inline-form .inline-row {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 6px;
+    }
+
+    .inline-form .inline-row label {
+        width: auto;
+        text-align: left;
+    }
+
+    .inline-form .inline-row input {
+        width: 100%;
+    }
+
+    .captcha-image-row {
+        margin-left: 0;
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 6px;
+    }
+
+    .inline-options {
+        flex-direction: column;
+    }
+
+    .inline-options .checkbox-spacer {
+        display: none;
+    }
+
+    .form-options {
+        flex-direction: column;
+        gap: 0.75rem;
+        align-items: flex-start;
+    }
+
+    .social-buttons {
+        flex-direction: column;
+    }
 }

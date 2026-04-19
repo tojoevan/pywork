@@ -17,6 +17,7 @@ class AuthPlugin(Plugin):
     def __init__(self):
         self.sessions: Dict[str, Dict] = {}  # 简单内存session，生产环境应使用Redis
         self.mcp_tokens: Dict[str, Dict] = {}  # MCP API tokens
+        self.captcha_codes: Dict[str, Dict] = {}  # 验证码缓存: {code_id: {code, expires}}
         self.engine = None
         self.config = None
 
@@ -47,6 +48,36 @@ class AuthPlugin(Plugin):
     def routes(self):
         """HTTP routes"""
         return []  # 路由在 main.py 中注册
+    
+    def _generate_captcha(self) -> tuple:
+        """生成验证码，返回 (code_id, code_text)"""
+        code_id = secrets.token_urlsafe(16)
+        # 生成4位数字验证码
+        code = ''.join([str(secrets.randbelow(10)) for _ in range(4)])
+        expires = int(time.time()) + 300  # 5分钟有效期
+        self.captcha_codes[code_id] = {
+            "code": code,
+            "expires": expires
+        }
+        return code_id, code
+    
+    def _verify_captcha(self, code_id: str, code: str) -> bool:
+        """验证验证码"""
+        if not code_id or not code:
+            return False
+        data = self.captcha_codes.get(code_id)
+        if not data:
+            return False
+        # 检查是否过期
+        if int(time.time()) > data["expires"]:
+            del self.captcha_codes[code_id]
+            return False
+        # 验证代码（不区分大小写）
+        if data["code"].lower() == code.lower():
+            # 验证成功后删除，防止重复使用
+            del self.captcha_codes[code_id]
+            return True
+        return False
     
     def _hash_password(self, password: str, salt: str = None) -> tuple:
         """密码加密"""
@@ -83,8 +114,14 @@ class AuthPlugin(Plugin):
     
     # === 核心功能 ===
     
-    async def register(self, username: str, email: str, password: str) -> Dict:
+    async def register(self, username: str, email: str, password: str, captcha_id: str = None, captcha_code: str = None) -> Dict:
         """用户注册"""
+        # 验证验证码
+        if not captcha_id or not captcha_code:
+            return {"error": "请输入验证码"}
+        if not self._verify_captcha(captcha_id, captcha_code):
+            return {"error": "验证码错误或已过期"}
+        
         # 检查用户名是否存在
         existing = await self.engine.query("users", username=username)
         if existing:
@@ -554,7 +591,9 @@ class AuthPlugin(Plugin):
         result = await self.register(
             username=data.get("username"),
             email=data.get("email"),
-            password=data.get("password")
+            password=data.get("password"),
+            captcha_id=data.get("captcha_id"),
+            captcha_code=data.get("captcha_code")
         )
         # 表单提交返回 HTML 响应
         content_type = request.headers.get("content-type", "")
@@ -658,7 +697,69 @@ class AuthPlugin(Plugin):
         if user:
             return user
         return {"error": "未登录"}
-    
+
+    async def captcha_api(self):
+        """生成验证码图片API"""
+        import base64
+        from io import BytesIO
+
+        code_id, code = self._generate_captcha()
+
+        # 生成简单的验证码图片 (PIL)
+        try:
+            from PIL import Image, ImageDraw, ImageFont
+
+            # 创建图片
+            img = Image.new('RGB', (100, 40), color='#f3f4f6')
+            draw = ImageDraw.Draw(img)
+
+            # 添加干扰线
+            import random
+            for _ in range(3):
+                x1, y1 = random.randint(0, 100), random.randint(0, 40)
+                x2, y2 = random.randint(0, 100), random.randint(0, 40)
+                draw.line([(x1, y1), (x2, y2)], fill='#d1d5db', width=1)
+
+            # 添加干扰点
+            for _ in range(30):
+                x, y = random.randint(0, 100), random.randint(0, 40)
+                draw.point((x, y), fill='#9ca3af')
+
+            # 绘制文字
+            try:
+                font = ImageFont.truetype("/System/Library/Fonts/Helvetica.ttc", 24)
+            except:
+                font = ImageFont.load_default()
+
+            # 居中绘制验证码
+            text = code
+            bbox = draw.textbbox((0, 0), text, font=font)
+            text_width = bbox[2] - bbox[0]
+            text_height = bbox[3] - bbox[1]
+            x = (100 - text_width) // 2
+            y = (40 - text_height) // 2 - 5
+
+            # 绘制文字（带轻微阴影）
+            draw.text((x+1, y+1), text, font=font, fill='#9ca3af')
+            draw.text((x, y), text, font=font, fill='#374151')
+
+            # 转换为 base64
+            buffer = BytesIO()
+            img.save(buffer, format='PNG')
+            img_base64 = base64.b64encode(buffer.getvalue()).decode()
+
+            return {
+                "id": code_id,
+                "image": f"data:image/png;base64,{img_base64}"
+            }
+        except ImportError:
+            # PIL 未安装，返回纯文本验证码（仅用于开发测试）
+            return {
+                "id": code_id,
+                "code": code,  # 仅用于测试，生产环境应使用图片
+                "image": ""
+            }
+
     async def github_auth_url_api(self, request):
         """获取 GitHub OAuth 授权链接"""
         url = self.get_github_auth_url()

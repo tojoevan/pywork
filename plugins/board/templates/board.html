@@ -18,6 +18,8 @@
         <div class="tab-nav">
             <button class="tab-btn active" data-tab="board">看板</button>
             <button class="tab-btn" data-tab="cron">定时任务</button>
+            <button class="tab-btn" data-tab="moderation">微博审核</button>
+            <a href="/board/settings" class="tab-btn">网站设置</a>
         </div>
     </div>
 
@@ -225,6 +227,21 @@
         </div>
 
     </div>
+
+    {# ============================================================ #}
+    {#  微博审核区                                              #}
+    {# ============================================================ #}
+    <div class="tab-panel hidden" id="panel-moderation">
+        <div class="moderation-container">
+            <div class="moderation-header">
+                <h3>📝 微博审核</h3>
+                <p class="moderation-desc">审核匿名用户发布的微博，通过后才会显示在微博广场。</p>
+            </div>
+            <div class="moderation-list" id="moderation-list">
+            </div>
+        </div>
+    </div>
+
 </div>
 
 <script>
@@ -240,14 +257,22 @@ document.querySelectorAll('.tab-btn').forEach(btn => {
             p.classList.toggle('hidden', p.id !== `panel-${tab}`);
         });
         // 更新 URL
-        history.replaceState(null, '', tab === 'board' ? '/board' : '/board/cron');
+        if (tab === 'board') history.replaceState(null, '', '/board');
+        else if (tab === 'cron') history.replaceState(null, '', '/board/cron');
+        else if (tab === 'moderation') history.replaceState(null, '', '/board/moderation');
+
+        // 加载审核列表
+        if (tab === 'moderation') loadModerationList();
     });
 });
 
 // 根据当前 URL 初始化 tab
 (function initTab() {
-    if (location.pathname === '/board/cron') {
+    const path = location.pathname;
+    if (path === '/board/cron') {
         document.querySelector('[data-tab="cron"]').click();
+    } else if (path === '/board/moderation') {
+        document.querySelector('[data-tab="moderation"]').click();
     }
 })();
 
@@ -364,5 +389,76 @@ document.querySelectorAll('.btn-cron-del').forEach(btn => {
         }
     });
 });
+
+{# ============================================================ #}
+{#  微博审核：加载列表 / 通过 / 拒绝                         #}
+{# ============================================================ #}
+async function loadModerationList() {
+    const container = document.getElementById('moderation-list');
+    if (!container) return;
+    // pending_posts 已由后端传入
+    renderModerationList(container, window.__pendingPosts || []);
+}
+
+function renderModerationList(container, posts) {
+    if (!posts || posts.length === 0) {
+        container.innerHTML = '<div class="moderation-empty">暂无待审核微博 🎉</div>';
+        return;
+    }
+    container.innerHTML = posts.map(post => `
+        <div class="mod-post" id="mod-post-${post.id}">
+            <div class="mod-post-header">
+                <span class="mod-author">${escapeHtml(post.author_name || '匿名')}</span>
+                <span class="mod-time">${formatTime(post.created_at)}</span>
+            </div>
+            <div class="mod-post-content">${escapeHtml(post.content || post.body || '')}</div>
+            <div class="mod-actions">
+                <button class="btn-approve-mod" onclick="approvePost(${post.id})">✅ 通过</button>
+                <button class="btn-reject-mod" onclick="rejectPost(${post.id})">❌ 拒绝</button>
+            </div>
+        </div>
+    `).join('');
+}
+
+async function approvePost(id) {
+    const res = await fetch(`/api/microblog/${id}/approve`, { method: 'POST' });
+    const data = await res.json();
+    if (data.error) { alert(data.error); return; }
+    const el = document.getElementById(`mod-post-${id}`);
+    if (el) el.remove();
+    const container = document.getElementById('moderation-list');
+    if (container && container.querySelectorAll('.mod-post').length === 0) {
+        container.innerHTML = '<div class="moderation-empty">暂无待审核微博 🎉</div>';
+    }
+}
+
+async function rejectPost(id) {
+    if (!confirm('确定拒绝并删除该微博？')) return;
+    const res = await fetch(`/api/microblog/${id}/reject`, { method: 'POST' });
+    const data = await res.json();
+    if (data.error) { alert(data.error); return; }
+    const el = document.getElementById(`mod-post-${id}`);
+    if (el) el.remove();
+    const container = document.getElementById('moderation-list');
+    if (container && container.querySelectorAll('.mod-post').length === 0) {
+        container.innerHTML = '<div class="moderation-empty">暂无待审核微博 🎉</div>';
+    }
+}
+
+function escapeHtml(str) {
+    return String(str)
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;');
+}
+
+function formatTime(ts) {
+    const d = new Date(ts * 1000);
+    return `${d.getMonth()+1}-${d.getDate()} ${d.getHours().toString().padStart(2,'0')}:${d.getMinutes().toString().padStart(2,'0')}`;
+}
+
+// 注入 pending_posts 到 JS
+window.__pendingPosts = {{ pending_posts | tojson | safe }};
 </script>
 {% endblock %}

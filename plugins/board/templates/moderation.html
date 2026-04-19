@@ -1,0 +1,97 @@
+{% extends "base.html" %}
+
+{% block title %}微博审核 - {{ Site.title | default('pyWork') }}{% endblock %}
+
+{% block head %}
+<link rel="stylesheet" href="/static/css/board.css">
+{% endblock %}
+
+{% block content %}
+<div class="board-container">
+    <div class="board-header">
+        <h1>📝 微博审核</h1>
+        <p class="board-desc">审核匿名用户发布的微博，通过后才会显示在微博广场。</p>
+        <div class="tab-nav">
+            <a href="/board" class="tab-btn">看板</a>
+            <a href="/board/cron" class="tab-btn">定时任务</a>
+            <button class="tab-btn active">微博审核</button>
+            <a href="/board/settings" class="tab-btn">网站设置</a>
+        </div>
+    </div>
+
+    <div class="moderation-container">
+        <div class="moderation-list" id="moderation-list">
+        </div>
+    </div>
+</div>
+
+<script>
+window.__pendingPosts = {{ pending_posts | tojson | safe }};
+
+async function loadModerationList() {
+    const container = document.getElementById('moderation-list');
+    if (!container) return;
+    renderModerationList(container, window.__pendingPosts || []);
+}
+
+function renderModerationList(container, posts) {
+    if (!posts || posts.length === 0) {
+        container.innerHTML = '<div class="moderation-empty">暂无待审核微博 🎉</div>';
+        return;
+    }
+    container.innerHTML = posts.map(post => `
+        <div class="mod-post" id="mod-post-${post.id}">
+            <div class="mod-post-header">
+                <span class="mod-author">${escapeHtml(post.author_name || '匿名')}</span>
+                <span class="mod-time">${formatTime(post.created_at)}</span>
+            </div>
+            <div class="mod-post-content">${escapeHtml(post.content || post.body || '')}</div>
+            <div class="mod-actions">
+                <button class="btn-approve-mod" onclick="approvePost(${post.id})">✅ 通过</button>
+                <button class="btn-reject-mod" onclick="rejectPost(${post.id})">❌ 拒绝</button>
+            </div>
+        </div>
+    `).join('');
+}
+
+async function approvePost(id) {
+    const res = await fetch(`/api/microblog/${id}/approve`, { method: 'POST' });
+    const data = await res.json();
+    if (data.error) { alert(data.error); return; }
+    const el = document.getElementById(`mod-post-${id}`);
+    if (el) el.remove();
+    const container = document.getElementById('moderation-list');
+    if (container && container.querySelectorAll('.mod-post').length === 0) {
+        container.innerHTML = '<div class="moderation-empty">暂无待审核微博 🎉</div>';
+    }
+}
+
+async function rejectPost(id) {
+    if (!confirm('确定拒绝并删除该微博？')) return;
+    const res = await fetch(`/api/microblog/${id}/reject`, { method: 'POST' });
+    const data = await res.json();
+    if (data.error) { alert(data.error); return; }
+    const el = document.getElementById(`mod-post-${id}`);
+    if (el) el.remove();
+    const container = document.getElementById('moderation-list');
+    if (container && container.querySelectorAll('.mod-post').length === 0) {
+        container.innerHTML = '<div class="moderation-empty">暂无待审核微博 🎉</div>';
+    }
+}
+
+function escapeHtml(str) {
+    return String(str)
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;');
+}
+
+function formatTime(ts) {
+    const d = new Date(ts * 1000);
+    return `${d.getMonth()+1}-${d.getDate()} ${d.getHours().toString().padStart(2,'0')}:${d.getMinutes().toString().padStart(2,'0')}`;
+}
+
+loadModerationList();
+</script>
+{% endblock %}

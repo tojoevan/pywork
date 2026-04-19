@@ -130,8 +130,8 @@ class TemplateEngine:
         
         self.env.loader = ChoiceLoader(loaders)
     
-    def _load_site_config(self) -> Dict[str, Any]:
-        """Lazily load site config from database"""
+    async def _load_site_config_async(self) -> Dict[str, Any]:
+        """Async load site config from database"""
         if self._site_cache is not None:
             return self._site_cache
         
@@ -146,24 +146,11 @@ class TemplateEngine:
             return default
         
         try:
-            import asyncio
-            loop = asyncio.get_event_loop()
-            if loop.is_running():
-                # 如果在异步环境中，用 run_in_executor 避免阻塞
-                import concurrent.futures
-                with concurrent.futures.ThreadPoolExecutor() as pool:
-                    rows = list(self._engine.db.execute(
-                        "SELECT key, value FROM site_config"
-                    ))
-            else:
-                rows = list(self._engine.db.execute(
-                    "SELECT key, value FROM site_config"
-                ))
-            
+            rows = await self._engine.fetchall("SELECT key, value FROM site_config")
             if rows:
                 config = dict(default)
-                for key, value in rows:
-                    config[key] = value
+                for row in rows:
+                    config[row['key']] = row['value']
                 self._site_cache = config
             else:
                 self._site_cache = default
@@ -185,12 +172,10 @@ class TemplateEngine:
         # 自动加载 site config（只读缓存）
         actual_site = site_config
         if actual_site is None:
-            import asyncio
-            loop = asyncio.get_event_loop()
             try:
-                actual_site = await loop.run_in_executor(None, self._load_site_config)
-            except RuntimeError:
-                # 如果获取不到 event loop，直接用默认
+                actual_site = await self._load_site_config_async()
+            except Exception:
+                # 出错时用默认
                 actual_site = {
                     'title': 'pyWork',
                     'description': '多用户数字工作台',

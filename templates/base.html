@@ -24,7 +24,7 @@
     <!-- 顶部导航 -->
     <header class="topbar">
         <div class="container">
-            <a href="/" class="brand">{{ Site.title | default('pyWork') }}</a>
+            <a href="/" class="brand">{{ Site.logo_text | default(Site.title) | default('pyWork') }}</a>
             <nav class="nav">
                 <a href="/" {% if nav_page=='home' %}class="active"{% endif %}>首页</a>
                 <a href="/blog" {% if nav_page=='blog' %}class="active"{% endif %}>博客</a>
@@ -55,8 +55,7 @@
     <!-- 页脚 -->
     <footer class="footer">
         <div class="container">
-            <p>&copy; {{ Site.year | default(2026) }} {{ Site.title | default('pyWork') }}. 
-            Powered by <a href="#">pyWork</a></p>
+            <p>{{ Site.footer_text | default('© 2026 pyWork. All rights reserved.') }}</p>
         </div>
     </footer>
 
