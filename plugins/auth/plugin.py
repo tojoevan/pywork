@@ -44,6 +44,23 @@ class AuthPlugin(Plugin):
         self.github_client_id = os.environ.get("GITHUB_CLIENT_ID")
         self.github_client_secret = os.environ.get("GITHUB_CLIENT_SECRET")
         self.github_redirect_uri = os.environ.get("GITHUB_REDIRECT_URI", "http://localhost:8080/auth/github/callback")
+        
+        # 初始化 sessions 表
+        await self._init_sessions_table()
+    
+    async def _init_sessions_table(self):
+        """创建 sessions 表"""
+        await self.engine.execute("""
+            CREATE TABLE IF NOT EXISTS sessions (
+                token TEXT PRIMARY KEY,
+                user_id INTEGER NOT NULL,
+                created_at INTEGER NOT NULL,
+                expires_at INTEGER NOT NULL
+            )
+        """)
+        # 清理过期 session
+        import time
+        await self.engine.execute("DELETE FROM sessions WHERE expires_at < ?", (int(time.time()),))
     
     def routes(self):
         """HTTP routes"""
@@ -184,6 +201,16 @@ class AuthPlugin(Plugin):
         
         # 生成session
         token = self._generate_token()
+        import time
+        expires_at = int(time.time()) + 7 * 24 * 3600  # 7天过期
+        
+        # 写入数据库
+        await self.engine.execute(
+            "INSERT INTO sessions (token, user_id, created_at, expires_at) VALUES (?, ?, ?, ?)",
+            (token, user["id"], int(time.time()), expires_at)
+        )
+        
+        # 同时保留内存缓存（可选，用于快速访问）
         self.sessions[token] = {
             "user_id": user["id"],
             "username": user["username"],
@@ -196,6 +223,9 @@ class AuthPlugin(Plugin):
     
     async def logout(self, token: str) -> Dict:
         """用户登出"""
+        # 从数据库删除
+        await self.engine.execute("DELETE FROM sessions WHERE token = ?", (token,))
+        # 从内存删除
         if token in self.sessions:
             del self.sessions[token]
         return {"success": True}
@@ -246,6 +276,16 @@ class AuthPlugin(Plugin):
             
             # 生成 session
             token = self._generate_token()
+            import time
+            expires_at = int(time.time()) + 7 * 24 * 3600  # 7天过期
+            
+            # 写入数据库
+            await self.engine.execute(
+                "INSERT INTO sessions (token, user_id, created_at, expires_at) VALUES (?, ?, ?, ?)",
+                (token, user["id"], int(time.time()), expires_at)
+            )
+            
+            # 同时保留内存缓存
             self.sessions[token] = {
                 "user_id": user["id"],
                 "username": user["username"],
@@ -404,12 +444,22 @@ class AuthPlugin(Plugin):
         return user
     
     async def get_user_by_token(self, token: str) -> Optional[Dict]:
-        """通过token获取用户"""
-        session = self.sessions.get(token)
+        """通过token获取用户（从数据库读取）"""
+        import time
+        # 从数据库查询 session
+        session = await self.engine.fetchone(
+            "SELECT user_id, expires_at FROM sessions WHERE token = ?", (token,)
+        )
         if not session:
             return None
         
-        user = await self.get_user(session["user_id"])
+        # 检查是否过期
+        if session[1] < int(time.time()):
+            # 过期则删除
+            await self.engine.execute("DELETE FROM sessions WHERE token = ?", (token,))
+            return None
+        
+        user = await self.get_user(session[0])
         if user:
             user["token"] = token
         return user
