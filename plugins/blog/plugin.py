@@ -429,9 +429,20 @@ Requirements:
     
     async def create_post_api(self, request, **kwargs):
         """Create post API"""
-        # 字段映射：前端用 body，后端用 content
-        if "body" in kwargs:
-            kwargs["content"] = kwargs.pop("body")
+        # 解析请求体
+        content_type = request.headers.get("content-type", "")
+        if "application/json" in content_type:
+            body = await request.json()
+        else:
+            body = await request.form()
+        
+        title = body.get("title", "").strip() if isinstance(body.get("title"), str) else body.get("title", "")
+        content = body.get("body", body.get("content", "")).strip() if isinstance(body.get("body") or body.get("content"), str) else body.get("body", body.get("content", ""))
+        status = body.get("status", "draft")
+        tags = body.get("tags", [])
+        
+        if not title or not content:
+            return {"error": "标题和内容不能为空"}
         
         # 获取当前用户
         author_id = 1  # 默认作者
@@ -444,8 +455,13 @@ Requirements:
                 if user:
                     author_id = user["id"]
         
-        kwargs["author_id"] = author_id
-        return await self.create_post(**kwargs)
+        return await self.create_post(
+            title=title,
+            content=content,
+            status=status,
+            tags=tags if isinstance(tags, list) else [],
+            author_id=author_id
+        )
     
     async def get_post_api(self, post_id: int, **kwargs):
         """Get post API"""
