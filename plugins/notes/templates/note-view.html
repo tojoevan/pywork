@@ -1,0 +1,64 @@
+{% extends "base.html" %}
+
+{% block title %}{{ note.title }} - 笔记 - {{ Site.title | default('pyWork') }}{% endblock %}
+
+{% block head %}
+<link rel="stylesheet" href="/static/css/blog.css">
+<link rel="stylesheet" href="/static/css/notes.css">
+{% endblock %}
+
+{% block content %}
+<article class="blog-post">
+    <header class="post-header">
+        <div class="post-meta-top">
+            {% if note.visibility == 'public' %}
+            <span class="badge badge-public">公开</span>
+            {% else %}
+            <span class="badge badge-private">私有</span>
+            {% endif %}
+        </div>
+        <h1 class="post-title">{{ note.title }}</h1>
+        <div class="post-meta">
+            <time>{{ note.updated_at | datefmt }}</time>
+            {% if note.author_name %}
+            <span class="author">
+                {% if note.author_avatar %}
+                <img src="{{ note.author_avatar }}" alt="{{ note.author_name }}" class="author-avatar-small">
+                {% else %}
+                <span class="author-avatar-small">{{ note.author_name[0] }}</span>
+                {% endif %}
+                {{ note.author_name }}
+            </span>
+            {% endif %}
+        </div>
+    </header>
+    
+    <div class="post-content">
+        {{ note.body | safe }}
+    </div>
+    
+    {% if note.is_owner %}
+    <footer class="post-footer">
+        <a href="/notes" class="btn btn-secondary">返回列表</a>
+        <button class="btn btn-danger" onclick="deleteNote({{ note.id }})">删除笔记</button>
+    </footer>
+    {% endif %}
+</article>
+{% endblock %}
+
+{% block scripts %}
+{{ super() }}
+<script>
+async function deleteNote(id) {
+    if (!confirm('确定删除这条笔记吗？')) return;
+    
+    const response = await fetch('/notes/' + id, {
+        method: 'DELETE'
+    });
+    
+    if (response.ok) {
+        window.location.href = '/notes';
+    }
+}
+</script>
+{% endblock %}

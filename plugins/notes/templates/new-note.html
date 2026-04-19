@@ -1,30 +1,29 @@
 {% extends "base.html" %}
 
-{% block title %}写博客 - {{ Site.title | default('pyWork') }}{% endblock %}
+{% block title %}写笔记 - {{ Site.title | default('pyWork') }}{% endblock %}
 
 {% block head %}
-<link rel="stylesheet" href="/static/css/new-post.css">
+<link rel="stylesheet" href="/static/css/notes.css">
 <link rel="stylesheet" href="https://unpkg.com/vditor@3.10.4/dist/index.css" />
 {% endblock %}
 
 {% block content %}
 <div class="editor-container">
     <div class="editor-header">
-        <h1>写博客</h1>
+        <h1>写笔记</h1>
         <div class="editor-actions">
-            <a href="/profile" class="btn btn-secondary">取消</a>
-            <button class="btn btn-primary" onclick="publishPost()">发布</button>
+            <a href="/notes" class="btn btn-secondary">取消</a>
+            <button class="btn btn-primary" onclick="saveNote()">保存</button>
         </div>
     </div>
 
-    <input type="text" class="title-input" id="post-title" placeholder="标题" maxlength="200">
+    <input type="text" class="title-input" id="note-title" placeholder="笔记标题" maxlength="200">
     
     <div class="meta-row">
-        <input type="text" class="meta-input" id="post-tags" placeholder="标签（用逗号分隔，如：Python, 架构, 思考）">
-        <select class="meta-input" id="post-status" style="max-width: 150px;">
-            <option value="draft">草稿</option>
-            <option value="published">发布</option>
-        </select>
+        <div class="visibility-toggle">
+            <input type="checkbox" id="note-public">
+            <label for="note-public">公开笔记</label>
+        </div>
     </div>
 
     <div id="vditor"></div>
@@ -49,15 +48,14 @@
 <script>
 let vditor;
 let autoSaveTimer;
-let currentUser = null;
 
 function initEditor() {
     vditor = new Vditor('vditor', {
         height: 500,
-        placeholder: '开始写作...',
+        placeholder: '开始记录...',
         theme: 'classic',
         counter: { enable: true, after: (count) => { document.getElementById('word-count').textContent = count; } },
-        cache: { enable: true, id: 'pywork-blog-editor' },
+        cache: { enable: true, id: 'pywork-note-editor' },
         mode: 'wysiwyg',
         toolbar: ['headings', 'bold', 'italic', 'strike', '|', 'line', 'quote', '|', 'list', 'ordered-list', 'check', '|', 'code', 'inline-code', '|', 'link', 'table', '|', 'undo', 'redo', '|', 'preview', 'fullscreen'],
         after: () => { startAutoSave(); }
@@ -69,11 +67,6 @@ async function checkAuth() {
         const response = await fetch('/auth/me');
         const user = await response.json();
         if (user.error) { window.location.href = '/login'; return false; }
-        currentUser = user;
-        document.getElementById('user-info').style.display = 'inline-flex';
-        document.getElementById('login-btn').style.display = 'none';
-        document.getElementById('username-display').textContent = user.username;
-        document.getElementById('user-avatar').textContent = user.username.charAt(0).toUpperCase();
         return true;
     } catch (e) {
         window.location.href = '/login';
@@ -81,53 +74,53 @@ async function checkAuth() {
     }
 }
 
-async function publishPost() {
-    const title = document.getElementById('post-title').value.trim();
+async function saveNote() {
+    const title = document.getElementById('note-title').value.trim();
     const content = vditor.getValue();
-    const tagsInput = document.getElementById('post-tags').value.trim();
-    const status = document.getElementById('post-status').value;
+    const isPublic = document.getElementById('note-public').checked;
+    const visibility = isPublic ? 'public' : 'private';
 
     if (!title) { showToast('请输入标题', 'error'); return; }
     if (!content) { showToast('请输入内容', 'error'); return; }
 
-    const tags = tagsInput ? tagsInput.split(',').map(t => t.trim()).filter(t => t) : [];
-
     const statusEl = document.getElementById('save-status');
     statusEl.className = 'save-status saving';
-    statusEl.innerHTML = '<span>发布中...</span>';
+    statusEl.innerHTML = '<span>保存中...</span>';
 
     try {
-        const response = await fetch('/blog/posts', {
+        const response = await fetch('/notes', {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ title, body: content, tags, status })
+            headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+            body: 'title=' + encodeURIComponent(title) + 
+                  '&content=' + encodeURIComponent(content) + 
+                  '&visibility=' + visibility
         });
         const result = await response.json();
 
         if (result.id) {
-            showToast('发布成功！', 'success');
+            showToast('保存成功！', 'success');
             statusEl.className = 'save-status saved';
-            statusEl.innerHTML = '<span>✓ 已发布</span>';
-            setTimeout(() => { window.location.href = '/blog/posts/' + result.id; }, 1000);
+            statusEl.innerHTML = '<span>✓ 已保存</span>';
+            localStorage.removeItem('pywork-note-draft');
+            setTimeout(() => { window.location.href = '/notes/' + result.id; }, 1000);
         } else {
-            showToast(result.error || '发布失败', 'error');
-            statusEl.innerHTML = '<span>发布失败</span>';
+            showToast(result.error || '保存失败', 'error');
+            statusEl.innerHTML = '<span>保存失败</span>';
         }
     } catch (e) {
-        showToast('发布失败，请重试', 'error');
-        statusEl.innerHTML = '<span>发布失败</span>';
+        showToast('保存失败，请重试', 'error');
+        statusEl.innerHTML = '<span>保存失败</span>';
     }
 }
 
 function startAutoSave() {
     autoSaveTimer = setInterval(() => {
-        const title = document.getElementById('post-title').value.trim();
+        const title = document.getElementById('note-title').value.trim();
         const content = vditor.getValue();
         if (title || content) {
-            localStorage.setItem('pywork-draft', JSON.stringify({
+            localStorage.setItem('pywork-note-draft', JSON.stringify({
                 title, content,
-                tags: document.getElementById('post-tags').value,
-                status: document.getElementById('post-status').value,
+                isPublic: document.getElementById('note-public').checked,
                 savedAt: new Date().toISOString()
             }));
             const statusEl = document.getElementById('save-status');
@@ -138,13 +131,12 @@ function startAutoSave() {
 }
 
 function loadDraft() {
-    const draft = localStorage.getItem('pywork-draft');
+    const draft = localStorage.getItem('pywork-note-draft');
     if (!draft) return;
     try {
         const data = JSON.parse(draft);
-        if (data.title) document.getElementById('post-title').value = data.title;
-        if (data.tags) document.getElementById('post-tags').value = data.tags;
-        if (data.status) document.getElementById('post-status').value = data.status;
+        if (data.title) document.getElementById('note-title').value = data.title;
+        if (data.isPublic !== undefined) document.getElementById('note-public').checked = data.isPublic;
         if (data.content) vditor.setValue(data.content);
     } catch (e) { console.error('加载草稿失败', e); }
 }

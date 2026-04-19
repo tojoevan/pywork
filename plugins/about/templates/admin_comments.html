@@ -1,0 +1,92 @@
+{% extends "base.html" %}
+
+{% block title %}留言审核 - {{ Site.title | default('pyWork') }}{% endblock %}
+
+{% block head %}
+<link rel="stylesheet" href="/static/css/about.css">
+{% endblock %}
+
+{% block content %}
+<div class="about-container">
+    <div class="about-header">
+        <h1>留言审核</h1>
+        <p class="about-description">管理关于页面的留言</p>
+    </div>
+
+    <div class="admin-section">
+        <h2>待审核 ({{ pending_comments | length }})</h2>
+        {% if pending_comments %}
+        <div class="comments">
+            {% for comment in pending_comments %}
+            <div class="comment pending" id="comment-{{ comment.id }}">
+                <div class="comment-avatar">{{ comment.nickname[0] | upper }}</div>
+                <div class="comment-body">
+                    <div class="comment-header">
+                        <span class="comment-nickname">{{ comment.nickname }}</span>
+                        <span class="comment-time">{{ comment.created_at | datefmt }}</span>
+                    </div>
+                    <div class="comment-content">{{ comment.content | e }}</div>
+                    <div class="comment-admin-actions">
+                        <button class="btn-approve" onclick="approveComment({{ comment.id }})">通过</button>
+                        <button class="btn-reject" onclick="deleteComment({{ comment.id }})">拒绝</button>
+                    </div>
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+        {% else %}
+        <div class="comments-empty">暂无待审核留言</div>
+        {% endif %}
+    </div>
+
+    <div class="admin-section">
+        <h2>已通过 ({{ approved_comments | length }})</h2>
+        {% if approved_comments %}
+        <div class="comments">
+            {% for comment in approved_comments %}
+            <div class="comment" id="comment-{{ comment.id }}">
+                <div class="comment-avatar">{{ comment.nickname[0] | upper }}</div>
+                <div class="comment-body">
+                    <div class="comment-header">
+                        <span class="comment-nickname">{{ comment.nickname }}</span>
+                        <span class="comment-time">{{ comment.created_at | datefmt }}</span>
+                    </div>
+                    <div class="comment-content">{{ comment.content | e }}</div>
+                    <div class="comment-admin-actions">
+                        <button class="btn-reject" onclick="deleteComment({{ comment.id }})">删除</button>
+                    </div>
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+        {% else %}
+        <div class="comments-empty">暂无已通过留言</div>
+        {% endif %}
+    </div>
+
+    <div style="text-align:center; margin-top:2rem;">
+        <a href="/about" class="back-link">← 返回关于页面</a>
+    </div>
+</div>
+
+<script>
+async function approveComment(id) {
+    try {
+        const res = await fetch(`/about/comments/${id}/approve`, { method: 'POST' });
+        const result = await res.json();
+        if (result.error) { alert(result.error); return; }
+        location.reload();
+    } catch (e) { alert('操作失败'); }
+}
+
+async function deleteComment(id) {
+    if (!confirm('确定删除该留言？')) return;
+    try {
+        const res = await fetch(`/about/comments/${id}`, { method: 'DELETE' });
+        const result = await res.json();
+        if (result.error) { alert(result.error); return; }
+        location.reload();
+    } catch (e) { alert('操作失败'); }
+}
+</script>
+{% endblock %}

@@ -75,8 +75,10 @@ def markdown_filter(text: str) -> str:
 class TemplateEngine:
     """Jinja2 template engine with custom filters"""
     
-    def __init__(self, template_dir: str = "./templates"):
+    def __init__(self, template_dir: str = "./templates", engine=None):
         self.template_dir = template_dir
+        self._engine = engine  # SQLiteEngine reference for lazy site config loading
+        self._site_cache = None
         
         # 支持多目录加载（主模板 + 插件模板）
         loaders = []
@@ -92,6 +94,9 @@ class TemplateEngine:
                 plugin_tpl = os.path.join(plugins_dir, plugin, 'templates')
                 if os.path.exists(plugin_tpl):
                     loaders.append(FileSystemLoader(plugin_tpl))
+                # 也添加插件根目录，支持 "plugin_name/template.html" 格式
+                plugin_root = os.path.join(plugins_dir, plugin)
+                loaders.append(FileSystemLoader(plugin_root))
         
         if not loaders:
             loaders.append(FileSystemLoader('.'))
@@ -125,6 +130,48 @@ class TemplateEngine:
         
         self.env.loader = ChoiceLoader(loaders)
     
+    def _load_site_config(self) -> Dict[str, Any]:
+        """Lazily load site config from database"""
+        if self._site_cache is not None:
+            return self._site_cache
+        
+        default = {
+            'title': 'pyWork',
+            'description': '多用户数字工作台',
+            'year': datetime.now().year
+        }
+        
+        if self._engine is None:
+            self._site_cache = default
+            return default
+        
+        try:
+            import asyncio
+            loop = asyncio.get_event_loop()
+            if loop.is_running():
+                # 如果在异步环境中，用 run_in_executor 避免阻塞
+                import concurrent.futures
+                with concurrent.futures.ThreadPoolExecutor() as pool:
+                    rows = list(self._engine.db.execute(
+                        "SELECT key, value FROM site_config"
+                    ))
+            else:
+                rows = list(self._engine.db.execute(
+                    "SELECT key, value FROM site_config"
+                ))
+            
+            if rows:
+                config = dict(default)
+                for key, value in rows:
+                    config[key] = value
+                self._site_cache = config
+            else:
+                self._site_cache = default
+        except Exception:
+            self._site_cache = default
+        
+        return self._site_cache
+    
     async def render(
         self,
         template_name: str,
@@ -135,12 +182,23 @@ class TemplateEngine:
         """Render a template (async)"""
         template = self.env.get_template(template_name)
         
+        # 自动加载 site config（只读缓存）
+        actual_site = site_config
+        if actual_site is None:
+            import asyncio
+            loop = asyncio.get_event_loop()
+            try:
+                actual_site = await loop.run_in_executor(None, self._load_site_config)
+            except RuntimeError:
+                # 如果获取不到 event loop，直接用默认
+                actual_site = {
+                    'title': 'pyWork',
+                    'description': '多用户数字工作台',
+                    'year': datetime.now().year
+                }
+        
         context = {
-            'Site': site_config or {
-                'title': 'pyWork',
-                'description': '多用户数字工作台',
-                'year': datetime.now().year
-            },
+            'Site': actual_site,
             'User': user,
             **data
         }

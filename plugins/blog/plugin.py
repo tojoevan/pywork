@@ -4,6 +4,7 @@ import time
 import json
 
 from app.plugin import Plugin, PluginContext, MCPTool, MCPResource, MCPPrompt, Route
+from starlette.responses import HTMLResponse
 
 
 class BlogPlugin(Plugin):
@@ -335,13 +336,7 @@ Requirements:
     
     async def new_post_page(self, request):
         """新建博客页面"""
-        from starlette.responses import HTMLResponse
-        import os
-        
-        template_path = os.path.join(os.path.dirname(__file__), "templates", "new.html")
-        with open(template_path, "r", encoding="utf-8") as f:
-            html = f.read()
-        
+        html = await self.ctx.template_engine.render("new.html", {"nav_page": "blog"})
         return HTMLResponse(content=html)
     
     async def create_post_api(self, request, **kwargs):

@@ -1,0 +1,191 @@
+.microblog-container {
+    max-width: 800px;
+    margin: 0 auto;
+}
+
+.microblog-header {
+    text-align: center;
+    margin-bottom: 3rem;
+    padding-bottom: 2rem;
+    border-bottom: 1px solid var(--border-color);
+}
+
+.microblog-header h1 {
+    font-size: 2.5rem;
+    margin-bottom: 0.5rem;
+}
+
+.microblog-description {
+    color: #6b7280;
+    font-size: 1.125rem;
+}
+
+/* 发布框 */
+.compose-box {
+    display: flex;
+    gap: 12px;
+    background: white;
+    border: 1px solid var(--gray-200);
+    border-radius: 12px;
+    padding: 16px;
+    margin-bottom: 24px;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.04);
+}
+
+.compose-avatar {
+    width: 40px;
+    height: 40px;
+    border-radius: 50%;
+    background: var(--green-primary);
+    color: white;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 18px;
+    font-weight: 600;
+    flex-shrink: 0;
+}
+
+.compose-main {
+    flex: 1;
+    min-width: 0;
+}
+
+.compose-main textarea {
+    width: 100%;
+    border: none;
+    outline: none;
+    resize: none;
+    font-size: 15px;
+    line-height: 1.6;
+    font-family: inherit;
+    color: var(--gray-800);
+    background: transparent;
+    box-sizing: border-box;
+}
+
+.compose-main textarea::placeholder {
+    color: var(--gray-400);
+}
+
+.compose-footer {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-top: 8px;
+    padding-top: 8px;
+    border-top: 1px solid var(--gray-100);
+}
+
+.char-count {
+    font-size: 12px;
+    color: var(--gray-400);
+}
+
+.btn-send {
+    padding: 6px 16px;
+    background: var(--green-primary);
+    color: white;
+    border: none;
+    border-radius: 20px;
+    font-size: 14px;
+    cursor: pointer;
+    transition: background 0.15s;
+}
+
+.btn-send:hover {
+    background: var(--green-dark);
+}
+
+.btn-send:disabled {
+    background: var(--gray-300);
+    cursor: not-allowed;
+}
+
+/* 微博列表 */
+.feed {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    max-width: 800px;
+    margin: 0 auto;
+}
+
+.post {
+    display: flex;
+    gap: 12px;
+    background: white;
+    border: 1px solid var(--gray-200);
+    border-radius: 8px;
+    padding: 16px;
+}
+
+.post-avatar {
+    width: 40px;
+    height: 40px;
+    border-radius: 50%;
+    background: var(--green-primary);
+    color: white;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 16px;
+    font-weight: 600;
+    flex-shrink: 0;
+}
+
+.post-body {
+    flex: 1;
+    min-width: 0;
+}
+
+.post-header {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 6px;
+}
+
+.post-author {
+    font-weight: 600;
+    font-size: 14px;
+    color: var(--gray-800);
+}
+
+.post-time {
+    font-size: 12px;
+    color: var(--gray-400);
+}
+
+.post-content {
+    font-size: 15px;
+    line-height: 1.6;
+    color: var(--gray-700);
+    word-wrap: break-word;
+    white-space: pre-wrap;
+}
+
+.post-actions {
+    margin-top: 8px;
+}
+
+.btn-delete {
+    font-size: 12px;
+    color: var(--gray-400);
+    background: none;
+    border: none;
+    cursor: pointer;
+    padding: 0;
+}
+
+.btn-delete:hover {
+    color: #ef4444;
+}
+
+.feed-empty, .feed-loading, .feed-error {
+    padding: 48px 20px;
+    text-align: center;
+    color: var(--gray-400);
+    font-size: 14px;
+    background: white;
+}

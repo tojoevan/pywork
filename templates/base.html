@@ -20,25 +20,27 @@
         }
     </style>
 </head>
-<body>
+<body class="{{ body_class | default('') }}">
     <!-- 顶部导航 -->
     <header class="topbar">
         <div class="container">
             <a href="/" class="brand">{{ Site.title | default('pyWork') }}</a>
             <nav class="nav">
-                <a href="/blog">博客</a>
-                <a href="/notes">笔记</a>
-                <a href="/about">关于</a>
+                <a href="/" {% if nav_page=='home' %}class="active"{% endif %}>首页</a>
+                <a href="/blog" {% if nav_page=='blog' %}class="active"{% endif %}>博客</a>
+                <a href="/microblog" {% if nav_page=='microblog' %}class="active"{% endif %}>微博</a>
+                <a href="/notes" {% if nav_page=='notes' %}class="active"{% endif %}>笔记</a>
+                <a href="/about" {% if nav_page=='about' %}class="active"{% endif %}>关于</a>
             </nav>
             <div class="actions">
-                <span id="user-info" style="display:none;">
+                <span id="user-info" style="display:none; visibility:hidden;">
                     <a href="/profile" class="user-link">
                         <span class="user-avatar" id="user-avatar">U</span>
                         <span id="username-display">用户</span>
                     </a>
                     <a href="#" class="btn-logout" onclick="logout()">退出</a>
                 </span>
-                <a href="/login" class="btn-login" id="login-btn">登录</a>
+                <a href="/login" class="btn-login" id="login-btn" style="visibility:hidden;">登录</a>
             </div>
         </div>
     </header>
@@ -70,9 +72,14 @@
                 if (!user.error) {
                     // 已登录，显示用户信息
                     document.getElementById('user-info').style.display = 'inline-flex';
+                    document.getElementById('user-info').style.visibility = 'visible';
                     document.getElementById('login-btn').style.display = 'none';
                     document.getElementById('username-display').textContent = user.username;
                     document.getElementById('user-avatar').textContent = user.username.charAt(0).toUpperCase();
+                } else {
+                    // 未登录，显示登录按钮
+                    document.getElementById('login-btn').style.display = 'inline-flex';
+                    document.getElementById('login-btn').style.visibility = 'visible';
                 }
             } catch (e) {
                 console.error('检查登录状态失败', e);

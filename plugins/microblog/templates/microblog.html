@@ -1,0 +1,168 @@
+{% extends "base.html" %}
+
+{% block title %}微博 - pyWork{% endblock %}
+
+{% block head %}
+<link rel="stylesheet" href="/static/css/microblog.css">
+{% endblock %}
+
+{% block content %}
+<div class="microblog-container">
+    <div class="microblog-header">
+        <h1>微博</h1>
+        <p class="microblog-description">快速分享你的想法</p>
+    </div>
+
+    <!-- 发布框 -->
+    <div class="compose-box" id="composeBox">
+        <div class="compose-avatar" id="composeAvatar">?</div>
+        <div class="compose-main">
+            <textarea id="composeText" placeholder="有什么想法？" maxlength="500" rows="3"></textarea>
+            <div class="compose-footer">
+                <span class="char-count"><span id="charCount">0</span>/500</span>
+                <button class="btn-send" id="sendBtn" onclick="sendMicroblog()">发布</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- 微博列表 -->
+    <div class="feed" id="feed">
+        <div class="feed-loading">加载中...</div>
+    </div>
+</div>
+
+<script>
+    const currentAuthorId = {{ current_author_id if current_author_id else 'null' }};
+    async function loadFeed() {
+        try {
+            const response = await fetch('/api/microblog?limit=50');
+            const posts = await response.json();
+
+            const feed = document.getElementById('feed');
+            if (!posts || posts.length === 0) {
+                feed.innerHTML = '<div class="feed-empty">还没有微博，快来发布第一条吧</div>';
+                return;
+            }
+
+            feed.innerHTML = posts.map(post => {
+                const avatar = post.author_avatar || post.author_name?.charAt(0).toUpperCase() || '?';
+                const time = formatTime(post.created_at);
+                const isOwner = post.author_id === currentAuthorId;
+                return `
+                    <div class="post" id="post-${post.id}">
+                        <div class="post-avatar">${avatar}</div>
+                        <div class="post-body">
+                            <div class="post-header">
+                                <span class="post-author">${post.author_name || '匿名'}</span>
+                                <span class="post-time">${time}</span>
+                            </div>
+                            <div class="post-content">${escapeHtml(post.content || post.body || '')}</div>
+                            <div class="post-actions">
+                                ${isOwner ? `<button class="btn-delete" onclick="deletePost(${post.id})">删除</button>` : ''}
+                            </div>
+                        </div>
+                    </div>
+                `;
+            }).join('');
+        } catch (e) {
+            document.getElementById('feed').innerHTML = '<div class="feed-error">加载失败</div>';
+        }
+    }
+
+    async function sendMicroblog() {
+        const textarea = document.getElementById('composeText');
+        const content = textarea.value.trim();
+        if (!content) {
+            alert('请输入内容');
+            return;
+        }
+
+        const btn = document.getElementById('sendBtn');
+        btn.disabled = true;
+        btn.textContent = '发布中...';
+
+        try {
+            const response = await fetch('/microblog', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+                body: 'content=' + encodeURIComponent(content)
+            });
+            const result = await response.json();
+
+            if (result.error) {
+                alert(result.error);
+                btn.disabled = false;
+                btn.textContent = '发布';
+                return;
+            }
+
+            textarea.value = '';
+            document.getElementById('charCount').textContent = '0';
+            loadFeed();
+        } catch (e) {
+            alert('发布失败');
+        } finally {
+            btn.disabled = false;
+            btn.textContent = '发布';
+        }
+    }
+
+    async function deletePost(id) {
+        if (!confirm('确定删除这条微博？')) return;
+        try {
+            const response = await fetch(`/api/microblog/${id}`, { method: 'DELETE' });
+            const result = await response.json();
+            if (result.error) {
+                alert(result.error);
+                return;
+            }
+            const el = document.getElementById(`post-${id}`);
+            if (el) el.remove();
+        } catch (e) {
+            alert('删除失败');
+        }
+    }
+
+    function escapeHtml(text) {
+        const div = document.createElement('div');
+        div.textContent = text;
+        return div.innerHTML;
+    }
+
+    function formatTime(timestamp) {
+        if (!timestamp) return '';
+        const now = Date.now() / 1000;
+        const diff = now - timestamp;
+        if (diff < 60) return '刚刚';
+        if (diff < 3600) return Math.floor(diff / 60) + '分钟前';
+        if (diff < 86400) return Math.floor(diff / 3600) + '小时前';
+        if (diff < 604800) return Math.floor(diff / 86400) + '天前';
+        return new Date(timestamp * 1000).toLocaleDateString('zh-CN');
+    }
+
+    // 字数统计
+    document.getElementById('composeText').addEventListener('input', function() {
+        document.getElementById('charCount').textContent = this.value.length;
+    });
+
+    // Ctrl+Enter 发送
+    document.getElementById('composeText').addEventListener('keydown', function(e) {
+        if (e.ctrlKey && e.key === 'Enter') sendMicroblog();
+    });
+
+    // 加载用户信息
+    async function loadUser() {
+        try {
+            const res = await fetch('/auth/me');
+            const user = await res.json();
+            if (!user.error) {
+                const initial = user.username?.charAt(0).toUpperCase() || '?';
+                document.getElementById('composeAvatar').textContent = initial;
+            }
+        } catch (e) {}
+    }
+
+    loadUser();
+    loadFeed();
+</script>
+{% endblock %}

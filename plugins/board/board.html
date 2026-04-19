@@ -1,0 +1,368 @@
+{% extends "base.html" %}
+
+{% block title %}看板 - {{ Site.title | default('pyWork') }}{% endblock %}
+
+{% block head %}
+<link rel="stylesheet" href="/static/css/board.css">
+{% endblock %}
+
+{% block content %}
+<div class="board-container">
+
+    {# ============================================================ #}
+    {#  顶部 Tab 切换                                          #}
+    {# ============================================================ #}
+    <div class="board-header">
+        <h1>📋 看板</h1>
+        <p class="board-desc">任务管理，仅管理员可用</p>
+        <div class="tab-nav">
+            <button class="tab-btn active" data-tab="board">看板</button>
+            <button class="tab-btn" data-tab="cron">定时任务</button>
+        </div>
+    </div>
+
+    {# ============================================================ #}
+    {#  看板区                                                  #}
+    {# ============================================================ #}
+    <div class="tab-panel" id="panel-board">
+        {% if section != 'cron' %}
+
+        <!-- 新建任务 -->
+        <div class="board-add">
+            <form class="add-form" action="/board/tasks" method="POST">
+                <input type="text" name="title" placeholder="新任务标题..." required>
+                <input type="text" name="description" placeholder="描述（可选）">
+                <select name="priority">
+                    <option value="low">🟢 低</option>
+                    <option value="medium" selected>🟡 中</option>
+                    <option value="high">🔴 高</option>
+                </select>
+                <select name="status">
+                    <option value="todo">待办</option>
+                    <option value="in-progress">进行中</option>
+                    <option value="done">已完成</option>
+                </select>
+                <button type="submit">+ 添加</button>
+            </form>
+        </div>
+
+        <!-- 看板列 -->
+        <div class="board-columns">
+            <!-- 待办 -->
+            <div class="board-column" data-status="todo">
+                <div class="column-header">
+                    <span class="column-title">📝 待办</span>
+                    <span class="column-count">{{ columns.todo | length }}</span>
+                </div>
+                <div class="column-tasks">
+                    {% for task in columns.todo %}
+                    <div class="task-card" data-id="{{ task.id }}" data-priority="{{ task.priority }}">
+                        <div class="task-header">
+                            <span class="priority-badge priority-{{ task.priority }}">{{ PRIORITY_LABELS[task.priority] }}</span>
+                            <div class="task-actions">
+                                <button class="btn-move" data-to="in-progress">→</button>
+                                <button class="btn-delete" data-id="{{ task.id }}">×</button>
+                            </div>
+                        </div>
+                        <div class="task-title">{{ task.title }}</div>
+                        {% if task.description %}<div class="task-desc">{{ task.description }}</div>{% endif %}
+                        <div class="task-time">{{ task.created_at | datefmt }}</div>
+                    </div>
+                    {% endfor %}
+                </div>
+            </div>
+
+            <!-- 进行中 -->
+            <div class="board-column" data-status="in-progress">
+                <div class="column-header">
+                    <span class="column-title">🔄 进行中</span>
+                    <span class="column-count">{{ columns["in-progress"] | length }}</span>
+                </div>
+                <div class="column-tasks">
+                    {% for task in columns["in-progress"] %}
+                    <div class="task-card" data-id="{{ task.id }}" data-priority="{{ task.priority }}">
+                        <div class="task-header">
+                            <span class="priority-badge priority-{{ task.priority }}">{{ PRIORITY_LABELS[task.priority] }}</span>
+                            <div class="task-actions">
+                                <button class="btn-move" data-to="todo">←</button>
+                                <button class="btn-move" data-to="done">→</button>
+                                <button class="btn-delete" data-id="{{ task.id }}">×</button>
+                            </div>
+                        </div>
+                        <div class="task-title">{{ task.title }}</div>
+                        {% if task.description %}<div class="task-desc">{{ task.description }}</div>{% endif %}
+                        <div class="task-time">{{ task.created_at | datefmt }}</div>
+                    </div>
+                    {% endfor %}
+                </div>
+            </div>
+
+            <!-- 已完成 -->
+            <div class="board-column" data-status="done">
+                <div class="column-header">
+                    <span class="column-title">✅ 已完成</span>
+                    <span class="column-count">{{ columns.done | length }}</span>
+                </div>
+                <div class="column-tasks">
+                    {% for task in columns.done %}
+                    <div class="task-card task-card-done" data-id="{{ task.id }}" data-priority="{{ task.priority }}">
+                        <div class="task-header">
+                            <span class="priority-badge priority-{{ task.priority }}">{{ PRIORITY_LABELS[task.priority] }}</span>
+                            <div class="task-actions">
+                                <button class="btn-move" data-to="in-progress">←</button>
+                                <button class="btn-delete" data-id="{{ task.id }}">×</button>
+                            </div>
+                        </div>
+                        <div class="task-title">{{ task.title }}</div>
+                        {% if task.description %}<div class="task-desc">{{ task.description }}</div>{% endif %}
+                        <div class="task-time">{{ task.created_at | datefmt }}</div>
+                    </div>
+                    {% endfor %}
+                </div>
+            </div>
+        </div>
+    </div>
+
+    {# ============================================================ #}
+    {#  定时任务区                                              #}
+    {# ============================================================ #}
+        {% endif %}
+    </div>
+
+    <div class="tab-panel{{ ' hidden' if section != 'cron' else '' }}" id="panel-cron">
+
+        <!-- 新建任务表单 -->
+        <div class="cron-add card">
+            <h3 class="card-title">新建定时任务</h3>
+            <form class="cron-form" id="cron-form">
+                <div class="form-row">
+                    <label>任务名称</label>
+                    <input type="text" name="name" placeholder="例如：每小时统计" required>
+                </div>
+                <div class="form-row">
+                    <label>描述</label>
+                    <input type="text" name="description" placeholder="可选描述">
+                </div>
+                <div class="form-row">
+                    <label>处理器</label>
+                    <select name="handler_key">
+                        <option value="run_stats_collection">📊 统计内容数量（博客/微博/笔记）</option>
+                        <option value="run_active_authors">👥 活跃作者统计</option>
+                    </select>
+                </div>
+                <div class="form-row">
+                    <label>执行周期</label>
+                    <select name="interval_opt">
+                        <option value="hourly">每小时</option>
+                        <option value="daily">每天</option>
+                        <option value="weekly">每周</option>
+                    </select>
+                </div>
+                <div class="form-actions">
+                    <button type="submit" class="btn-primary">创建任务</button>
+                </div>
+            </form>
+        </div>
+
+        <!-- 任务列表 -->
+        <div class="cron-list card">
+            <h3 class="card-title">定时任务列表</h3>
+            {% if cron_jobs %}
+            <table class="cron-table">
+                <thead>
+                    <tr>
+                        <th>名称</th>
+                        <th>描述</th>
+                        <th>周期</th>
+                        <th>上次执行</th>
+                        <th>下次执行</th>
+                        <th>状态</th>
+                        <th>操作</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for job in cron_jobs %}
+                    <tr data-job-id="{{ job.id }}">
+                        <td><strong>{{ job.name }}</strong></td>
+                        <td class="text-muted">{{ job.description or '—' }}</td>
+                        <td>
+                            {% if job.interval_sec == 3600 %}每小时{% elif job.interval_sec == 86400 %}每天{% elif job.interval_sec == 604800 %}每周{% else %}{{ job.interval_sec }}秒{% endif %}
+                        </td>
+                        <td class="text-muted">
+                            {% if job.last_run_at > 0 %}
+                                {{ job.last_run_at | datefmt }}
+                                {% if job.run_count > 0 %}<br><small>累计 {{ job.run_count }} 次</small>{% endif %}
+                            {% else %}
+                                尚未执行
+                            {% endif %}
+                        </td>
+                        <td class="text-muted">
+                            {% if job.next_run_at > 0 and job.enabled %}
+                                {{ job.next_run_at | datefmt }}
+                            {% else %}
+                                —
+                            {% endif %}
+                        </td>
+                        <td>
+                            <label class="toggle">
+                                <input type="checkbox" class="toggle-enabled"
+                                    data-id="{{ job.id }}"
+                                    {{ 'checked' if job.enabled else '' }}>
+                                <span>{{ '启用' if job.enabled else '禁用' }}</span>
+                            </label>
+                        </td>
+                        <td class="actions">
+                            <button class="btn-run" data-id="{{ job.id }}" title="立即执行">▶</button>
+                            <button class="btn-cron-del" data-id="{{ job.id }}" title="删除">×</button>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+            {% else %}
+            <div class="empty">暂无定时任务，创建一个试试吧。</div>
+            {% endif %}
+        </div>
+
+    </div>
+</div>
+
+<script>
+{# ============================================================ #}
+{#  Tab 切换                                                #}
+{# ============================================================ #}
+document.querySelectorAll('.tab-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+        document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+        btn.classList.add('active');
+        const tab = btn.dataset.tab;
+        document.querySelectorAll('.tab-panel').forEach(p => {
+            p.classList.toggle('hidden', p.id !== `panel-${tab}`);
+        });
+        // 更新 URL
+        history.replaceState(null, '', tab === 'board' ? '/board' : '/board/cron');
+    });
+});
+
+// 根据当前 URL 初始化 tab
+(function initTab() {
+    if (location.pathname === '/board/cron') {
+        document.querySelector('[data-tab="cron"]').click();
+    }
+})();
+
+{# ============================================================ #}
+{#  看板：移动 / 删除 任务                                     #}
+{# ============================================================ #}
+function updateColumnCounts() {
+    document.querySelectorAll('.board-column').forEach(col => {
+        col.querySelector('.column-count').textContent =
+            col.querySelectorAll('.task-card').length;
+    });
+}
+
+document.querySelectorAll('.btn-move').forEach(btn => {
+    btn.addEventListener('click', async function() {
+        const card = this.closest('.task-card');
+        const taskId = card.dataset.id;
+        const toStatus = this.dataset.to;
+        const res = await fetch(`/board/tasks/${taskId}`, {
+            method: 'PUT',
+            headers: {'Content-Type': 'application/x-www-form-urlencoded'},
+            body: `status=${toStatus}`
+        });
+        if (res.ok) {
+            card.remove();
+            updateColumnCounts();
+        }
+    });
+});
+
+document.querySelectorAll('.btn-delete').forEach(btn => {
+    btn.addEventListener('click', async function() {
+        if (!confirm('确定删除此任务？')) return;
+        const card = this.closest('.task-card');
+        const taskId = card.dataset.id;
+        const res = await fetch(`/board/tasks/${taskId}`, { method: 'DELETE' });
+        if (res.ok) {
+            card.remove();
+            updateColumnCounts();
+        }
+    });
+});
+
+{# ============================================================ #}
+{#  定时任务：创建                                           #}
+{# ============================================================ #}
+document.getElementById('cron-form').addEventListener('submit', async function(e) {
+    e.preventDefault();
+    const form = new FormData(this);
+    const res = await fetch('/board/cron/jobs', {
+        method: 'POST',
+        body: form
+    });
+    const data = await res.json();
+    if (data.success || res.status === 302) {
+        location.reload();
+    } else {
+        alert('创建失败: ' + (data.error || '未知错误'));
+    }
+});
+
+{# ============================================================ #}
+{#  定时任务：立即执行                                       #}
+{# ============================================================ #}
+document.querySelectorAll('.btn-run').forEach(btn => {
+    btn.addEventListener('click', async function() {
+        const jobId = this.dataset.id;
+        this.textContent = '…';
+        this.disabled = true;
+        const res = await fetch(`/board/cron/jobs/${jobId}/run`, { method: 'POST' });
+        const data = await res.json();
+        this.textContent = '▶';
+        this.disabled = false;
+        if (data.success) {
+            alert(`执行完成: ${data.result}`);
+            location.reload();
+        } else {
+            alert('执行失败: ' + (data.error || '未知错误'));
+        }
+    });
+});
+
+{# ============================================================ #}
+{#  定时任务：启用/禁用                                      #}
+{# ============================================================ #}
+document.querySelectorAll('.toggle-enabled').forEach(toggle => {
+    toggle.addEventListener('change', async function() {
+        const jobId = this.dataset.id;
+        const enabled = this.checked ? 1 : 0;
+        const res = await fetch(`/board/cron/jobs/${jobId}`, {
+            method: 'PUT',
+            headers: {'Content-Type': 'application/x-www-form-urlencoded'},
+            body: `enabled=${enabled}`
+        });
+        if (!res.ok) {
+            this.checked = !enabled;
+            alert('更新失败');
+        }
+    });
+});
+
+{# ============================================================ #}
+{#  定时任务：删除                                          #}
+{# ============================================================ #}
+document.querySelectorAll('.btn-cron-del').forEach(btn => {
+    btn.addEventListener('click', async function() {
+        if (!confirm('确定删除此定时任务？')) return;
+        const jobId = this.dataset.id;
+        const res = await fetch(`/board/cron/jobs/${jobId}`, { method: 'DELETE' });
+        if (res.ok) {
+            this.closest('tr').remove();
+        } else {
+            alert('删除失败');
+        }
+    });
+});
+</script>
+{% endblock %}

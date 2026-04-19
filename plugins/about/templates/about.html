@@ -1,0 +1,120 @@
+{% extends "base.html" %}
+
+{% block title %}{{ Site.title | default('pyWork') }} - 关于{% endblock %}
+
+{% block head %}
+<link rel="stylesheet" href="/static/css/about.css">
+{% endblock %}
+
+{% block content %}
+<div class="about-container">
+    <!-- 头部 -->
+    <div class="about-header">
+        <h1>关于</h1>
+        <p class="about-description">了解这个项目，留下你的想法</p>
+    </div>
+
+    <!-- 关于内容 -->
+    <div class="about-content">
+        <section class="about-section">
+            <h2>pyWork</h2>
+            <p>基于 Python + FastAPI + SQLite 构建的个人工具平台。插件化架构，MCP 协议集成 AI，轻量但可扩展。</p>
+        </section>
+
+        <section class="about-section">
+            <h2>技术栈</h2>
+            <div class="tech-stack">
+                <span class="tech-tag">Python</span>
+                <span class="tech-tag">FastAPI</span>
+                <span class="tech-tag">SQLite</span>
+                <span class="tech-tag">MCP</span>
+                <span class="tech-tag">Jinja2</span>
+            </div>
+        </section>
+
+        <section class="about-section">
+            <h2>功能</h2>
+            <ul class="feature-list">
+                <li>📝 博客 — Markdown 写作，标签分类</li>
+                <li>💬 微博 — 快速分享想法</li>
+                <li>🔌 插件系统 — 热插拔，MCP 工具集成</li>
+                <li>🔐 认证 — 注册登录，GitHub OAuth</li>
+            </ul>
+        </section>
+    </div>
+
+    <!-- 留言区 -->
+    <div class="guestbook">
+        <h2 class="guestbook-title">留言板</h2>
+
+        <!-- 留言表单 -->
+        <div class="comment-form">
+            <div class="form-row form-row-inline">
+                <input type="text" id="nickname" placeholder="昵称（选填）" maxlength="50"
+                       value="{{ current_user.username if current_user else '' }}">
+                <input type="email" id="email" placeholder="邮箱（必填）" maxlength="100" required>
+            </div>
+            <div class="form-row">
+                <textarea id="commentContent" placeholder="说点什么..." maxlength="1000" rows="3"></textarea>
+            </div>
+            <div class="form-footer">
+                <span class="hint">留言需审核后显示</span>
+                <button class="btn-submit" id="submitBtn" onclick="submitComment()">提交留言</button>
+            </div>
+        </div>
+
+        <!-- 留言列表 -->
+        <div class="comments" id="comments">
+            {% for comment in comments %}
+            <div class="comment" id="comment-{{ comment.id }}">
+                <div class="comment-avatar">{{ comment.nickname[0] | upper }}</div>
+                <div class="comment-body">
+                    <div class="comment-header">
+                        <span class="comment-nickname">{{ comment.nickname }}</span>
+                        <span class="comment-time">{{ comment.created_at | datefmt }}</span>
+                    </div>
+                    <div class="comment-content">{{ comment.content | e }}</div>
+                </div>
+            </div>
+            {% else %}
+            <div class="comments-empty">还没有留言，来做第一个吧</div>
+            {% endfor %}
+        </div>
+    </div>
+</div>
+
+<script>
+async function submitComment() {
+    const nickname = document.getElementById('nickname').value.trim() || '匿名';
+    const email = document.getElementById('email').value.trim();
+    const content = document.getElementById('commentContent').value.trim();
+    if (!email) { alert('请输入邮箱地址'); return; }
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) { alert('请输入有效的邮箱地址'); return; }
+    if (!content) { alert('请输入留言内容'); return; }
+
+    const btn = document.getElementById('submitBtn');
+    btn.disabled = true;
+    btn.textContent = '提交中...';
+
+    try {
+        const res = await fetch('/about/comments', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+            body: 'nickname=' + encodeURIComponent(nickname) + '&email=' + encodeURIComponent(email) + '&content=' + encodeURIComponent(content)
+        });
+        const result = await res.json();
+        if (result.error) {
+            alert(result.error);
+        } else {
+            document.getElementById('commentContent').value = '';
+            alert('留言已提交，等待管理员审核');
+        }
+    } catch (e) {
+        alert('提交失败');
+    } finally {
+        btn.disabled = false;
+        btn.textContent = '提交留言';
+    }
+}
+</script>
+{% endblock %}

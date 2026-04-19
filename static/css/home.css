@@ -227,6 +227,37 @@ a:hover {
     flex-shrink: 0;
 }
 
+.author-name {
+    flex: 1;
+    font-size: 14px;
+    color: var(--text-primary);
+}
+
+.author-count {
+    font-size: 12px;
+    color: var(--text-secondary);
+    background: var(--bg-secondary);
+    padding: 2px 8px;
+    border-radius: 10px;
+}
+
+.author-stats {
+    font-size: 12px;
+    font-weight: 600;
+    letter-spacing: 0.5px;
+}
+.author-stats .c-blog  { color: #10b981 !important; }
+.author-stats .c-micro { color: #F8B878 !important; }
+.author-stats .c-note  { color: #5e8aba !important; }
+.author-stats span:not(.c-blog):not(.c-micro):not(.c-note) { color: var(--text-secondary); font-weight: 400; }
+
+.empty-tip {
+    font-size: 13px;
+    color: var(--text-secondary);
+    text-align: center;
+    padding: 12px 0;
+}
+
 .tags {
     display: flex;
     flex-wrap: wrap;
@@ -255,6 +286,7 @@ a:hover {
 .post {
     background: var(--bg-card);
     border: 1px solid var(--border-color);
+    border-left: 3px solid var(--green-primary); /* 绿色，与微博橙/笔记蓝区分 */
     border-radius: 10px;
     padding: 20px 24px;
     margin-bottom: 12px;
@@ -299,6 +331,8 @@ a:hover {
     font-size: 14px;
     line-height: 1.75;
     margin-bottom: 10px;
+    word-break: break-word;
+    overflow-wrap: break-word;
 }
 
 .post-footer {
@@ -453,3 +487,54 @@ a:hover {
 }
 
 
+
+/* 微博卡片 */
+.post-microblog {
+    padding: 16px 20px;
+    overflow: hidden; /* clearfix */
+    border-left: 3px solid #F8B878; /* orange-500，与博客绿区分 */
+}
+
+.post-microblog .mb-avatar {
+    float: left;
+    width: 32px;
+    height: 32px;
+    border-radius: 16px;
+    background: var(--green-primary);
+    color: #fff;
+    font-size: 13px;
+    font-weight: 600;
+    line-height: 32px;
+    text-align: center;
+    margin-right: 12px;
+    margin-top: 2px;
+}
+
+.post-microblog .mb-body {
+    overflow: hidden; /* clearfix */
+}
+
+.post-microblog .microblog-body {
+    color: var(--text-primary);
+    font-size: 14px;
+    line-height: 1.7;
+    margin: 0;
+}
+
+/* 笔记卡片 */
+.note-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    font-size: 12px;
+    color: var(--green-dark);
+    background: var(--green-light);
+    border: 1px solid var(--green-primary);
+    border-radius: 12px;
+    padding: 2px 10px;
+    margin-bottom: 10px;
+}
+
+.post-note {
+    border-left: 3px solid #5e8aba; /* blue-500，与绿色微博区分 */
+}

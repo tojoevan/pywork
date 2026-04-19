@@ -60,6 +60,23 @@ class AuthPlugin(Plugin):
         _, new_hash = self._hash_password(password, salt)
         return secrets.compare_digest(new_hash, hash_val)
     
+    def _split_password_hash(self, password_hash: str) -> tuple:
+        """解析密码哈希字符串，返回 (salt, hash)
+        支持格式: salt:hash (新格式) 和 salt$hash (旧格式)
+        """
+        if ':' in password_hash:
+            parts = password_hash.split(':', 1)
+        elif '$' in password_hash:
+            parts = password_hash.split('$', 1)
+        else:
+            return None, password_hash
+        salt = parts[0]
+        hash_val = parts[1] if len(parts) > 1 else ''
+        # 兼容旧格式：去掉 hash 值的前导 '$'
+        if hash_val.startswith('$'):
+            hash_val = hash_val[1:]
+        return salt, hash_val
+    
     def _generate_token(self) -> str:
         """生成session token"""
         return secrets.token_urlsafe(32)
@@ -86,7 +103,7 @@ class AuthPlugin(Plugin):
         # 直接使用 SQL 插入
         await self.engine.execute(
             "INSERT INTO users (username, email, password_hash, created_at, role) VALUES (?, ?, ?, ?, ?)",
-            (username, email, f"{salt}$" + password_hash, created_at, "user")
+            (username, email, f"{salt}:{password_hash}", created_at, "user")
         )
         
         # 获取新创建的ID
@@ -114,7 +131,9 @@ class AuthPlugin(Plugin):
         
         # 验证密码
         try:
-            salt, hash_val = user["password_hash"].split("$")
+            salt, hash_val = self._split_password_hash(user["password_hash"])
+            if not salt:
+                return {"error": "用户数据异常"}
         except:
             return {"error": "用户数据异常"}
         

@@ -28,7 +28,7 @@ class WorkbenchApp:
     ):
         self.db_path = db_path
         self.plugin_dir = plugin_dir
-        self.enabled_plugins = enabled_plugins or ["blog", "auth"]
+        self.enabled_plugins = enabled_plugins or ["blog", "auth", "microblog", "about", "notes", "board"]
         self.template_dir = template_dir
         self.static_dir = static_dir
         
@@ -49,8 +49,8 @@ class WorkbenchApp:
         await self.engine.start()
         print(f"✓ SQLite engine started: {self.db_path}")
         
-        # Initialize template engine
-        self.template_engine = TemplateEngine(self.template_dir)
+        # Initialize template engine (pass engine for lazy site config loading)
+        self.template_engine = TemplateEngine(self.template_dir, engine=self.engine)
         
         # Add plugin template directories
         for plugin_name in self.enabled_plugins:
@@ -61,6 +61,7 @@ class WorkbenchApp:
         
         # Load plugins
         print(f"→ Loading plugins: {self.enabled_plugins}")
+        self.plugin_manager._template_engine = self.template_engine
         try:
             await self.plugin_manager.load_all(self.enabled_plugins)
         except Exception as e:
@@ -91,13 +92,83 @@ class WorkbenchApp:
         
         @self.app.get("/", response_class=HTMLResponse)
         async def root():
-            """首页"""
+            """首页：混合展示博客 + 微博 + 公开笔记"""
             blog_plugin = self.plugin_manager.plugins.get("blog")
+            microblog_plugin = self.plugin_manager.plugins.get("microblog")
+            notes_plugin = self.plugin_manager.plugins.get("notes")
+
+            # 博客
             posts = []
             if blog_plugin:
-                posts = await blog_plugin.list_posts()
+                posts = await blog_plugin.list_posts(limit=20)
+
+            # 微博 → 转为统一格式
+            items = []
+            for p in posts:
+                items.append({
+                    "type": "post",
+                    "id": p["id"],
+                    "title": p.get("title", ""),
+                    "body": p.get("body", ""),
+                    "author_name": p.get("author_name", "匿名"),
+                    "author_avatar": p.get("author_avatar"),
+                    "created_at": p.get("created_at", 0),
+                    "tags": p.get("tags"),
+                })
+
+            if microblog_plugin:
+                micro_posts = await microblog_plugin.list_posts(limit=20)
+                for p in micro_posts:
+                    items.append({
+                        "type": "microblog",
+                        "id": p["id"],
+                        "body": p.get("content", p.get("body", "")),
+                        "author_name": p.get("author_name", "匿名"),
+                        "author_avatar": p.get("author_avatar"),
+                        "created_at": p.get("created_at", 0),
+                    })
+
+            # 公开笔记
+            if notes_plugin:
+                public_notes = await notes_plugin.list_notes(visibility="public", limit=10)
+                for n in public_notes:
+                    items.append({
+                        "type": "note",
+                        "id": n["id"],
+                        "title": n.get("title", ""),
+                        "body": n.get("body", ""),
+                        "author_name": n.get("author_name", "匿名"),
+                        "author_avatar": n.get("author_avatar"),
+                        "created_at": n.get("created_at", 0),
+                    })
+
+            # 按时间倒序混合
+            items.sort(key=lambda x: x["created_at"], reverse=True)
+            items = items[:20]
+
+            # 从看板插件获取统计数字 + 活跃作者
+            stats = {"blog_count": 0, "microblog_count": 0, "note_count": 0}
+            active_authors = []
+            board_plugin = self.plugin_manager.plugins.get("board")
+            if board_plugin:
+                if hasattr(board_plugin, "get_stats"):
+                    try:
+                        stats = await board_plugin.get_stats()
+                    except Exception:
+                        pass
+                if hasattr(board_plugin, "get_active_authors"):
+                    try:
+                        active_authors = await board_plugin.get_active_authors()
+                    except Exception:
+                        pass
+
             html = await self.template_engine.render("home.html", {
-                "posts": posts[:10]
+                "posts": items,
+                "nav_page": "home",
+                "blog_count": stats.get("blog_count", 0),
+                "microblog_count": stats.get("microblog_count", 0),
+                "note_count": stats.get("note_count", 0),
+                "active_authors": active_authors,
             })
             return HTMLResponse(content=html)
         
@@ -114,6 +185,15 @@ class WorkbenchApp:
                 "plugins": list(self.plugin_manager.plugins.keys())
             }
         
+        # 微博前端路由（必须在 /blog 之前，避免 /blog 捕获 /microblog）
+        @self.app.get("/microblog", response_class=HTMLResponse)
+        async def microblog_index(request: Request):
+            """微博首页"""
+            microblog_plugin = self.plugin_manager.plugins.get("microblog")
+            if microblog_plugin:
+                return await microblog_plugin.home(request)
+            return HTMLResponse(content="<h1>Microblog not loaded</h1>")
+
         # 博客前端路由
         @self.app.get("/blog", response_class=HTMLResponse)
         async def blog_index(request: Request):
@@ -123,7 +203,8 @@ class WorkbenchApp:
                 posts = await blog_plugin.list_posts()
                 html = await self.template_engine.render("index.html", {
                     "posts": posts,
-                    "pagination": None
+                    "pagination": None,
+                    "nav_page": "blog"
                 })
                 return HTMLResponse(content=html)
             return HTMLResponse(content="<h1>Blog plugin not loaded</h1>")
@@ -136,8 +217,11 @@ class WorkbenchApp:
                 post = await blog_plugin.get_post_api(post_id)
                 if post:
                     html = await self.template_engine.render("post.html", {
-                        "post": post
+                        "post": post,
+                        "nav_page": "blog"
                     })
+
+
                     return HTMLResponse(content=html)
             return HTMLResponse(content="<h1>Post not found</h1>", status_code=404)
         
@@ -145,19 +229,19 @@ class WorkbenchApp:
         @self.app.get("/login", response_class=HTMLResponse)
         async def login_page():
             """登录页面"""
-            html = await self.template_engine.render("login.html", {})
+            html = await self.template_engine.render("login.html", {"nav_page": ""})
             return HTMLResponse(content=html)
         
         @self.app.get("/register", response_class=HTMLResponse)
         async def register_page():
             """注册页面"""
-            html = await self.template_engine.render("register.html", {})
+            html = await self.template_engine.render("register.html", {"nav_page": ""})
             return HTMLResponse(content=html)
         
         @self.app.get("/profile", response_class=HTMLResponse)
         async def profile_page():
             """用户中心页面"""
-            html = await self.template_engine.render("profile.html", {})
+            html = await self.template_engine.render("profile.html", {"nav_page": "profile"})
             return HTMLResponse(content=html)
         
         @self.app.post("/auth/login")
@@ -347,7 +431,16 @@ class WorkbenchApp:
         
         if route.method in ("POST", "PUT"):
             async def post_handler(request: Request):
-                body = await request.json()
+                ct = request.headers.get("content-type", "")
+                if "application/json" in ct:
+                    body = await request.json()
+                else:
+                    # Support form-encoded data
+                    try:
+                        body = await request.form()
+                        body = dict(body)
+                    except Exception:
+                        body = {}
                 # Merge path params into body
                 params = dict(request.path_params)
                 params.update(body)
@@ -401,7 +494,7 @@ def cli():
     parser = argparse.ArgumentParser(description="pyWork - Digital Workbench")
     parser.add_argument("--db", default="./data/pywork.db", help="Database path")
     parser.add_argument("--plugins", default="./plugins", help="Plugin directory")
-    parser.add_argument("--enabled", default="blog,auth", help="Enabled plugins (comma-separated)")
+    parser.add_argument("--enabled", default="blog,auth,microblog,about,notes,board", help="Enabled plugins (comma-separated)")
     parser.add_argument("--templates", default="./templates", help="Template directory")
     parser.add_argument("--static", default="./static", help="Static files directory")
     parser.add_argument("--http", action="store_true", help="Run HTTP server")

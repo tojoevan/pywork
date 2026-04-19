@@ -1,0 +1,79 @@
+{% extends "base.html" %}
+
+{% block title %}笔记 - {{ Site.title | default('pyWork') }}{% endblock %}
+
+{% block head %}
+<link rel="stylesheet" href="/static/css/blog.css">
+<link rel="stylesheet" href="/static/css/notes.css">
+{% endblock %}
+
+{% block content %}
+<div class="blog-index">
+    <div class="blog-header">
+        <h1>{{ Site.notes_title | default('笔记') }}</h1>
+        <p class="blog-description">{{ Site.notes_description | default('随时记录，沉淀思考') }}</p>
+    </div>
+
+    {% if current_user %}
+    <div class="blog-header" style="padding-bottom: 16px; margin-bottom: 24px; display: flex; align-items: center; justify-content: space-between;">
+        <a href="/notes/new" class="btn btn-primary">新建笔记</a>
+    </div>
+    {% endif %}
+
+    {% if notes %}
+    <div class="posts-grid">
+        {% for note in notes %}
+        <article class="post-card">
+            <div class="post-meta">
+                <span class="author">
+                    {% if note.author_avatar %}
+                    <img src="{{ note.author_avatar }}" alt="{{ note.author_name }}" class="author-avatar-small">
+                    {% else %}
+                    <span class="author-avatar-small">{{ note.author_name[0] }}</span>
+                    {% endif %}
+                    {{ note.author_name }}
+                </span>
+                <time datetime="{{ note.updated_at | datetime }}">
+                    {{ note.updated_at | datefmt }}
+                </time>
+                {% if note.visibility %}
+                <span class="badge badge-{{ note.visibility }}">{{ '公开' if note.visibility == 'public' else '私有' }}</span>
+                {% endif %}
+            </div>
+            <h2 class="post-title">
+                <a href="/notes/{{ note.id }}">{{ note.title }}</a>
+            </h2>
+            <p class="post-excerpt">{{ note.body | excerpt(120) }}</p>
+            {% if current_user and note.author_id == current_user.id %}
+            <div class="post-actions">
+                <button class="btn-text" onclick="deleteNote({{ note.id }})">删除</button>
+            </div>
+            {% endif %}
+        </article>
+        {% endfor %}
+    </div>
+    {% else %}
+    <div class="notes-empty">
+        <p>暂无笔记</p>
+        <a href="/notes/new" class="link">创建第一篇笔记</a>
+    </div>
+    {% endif %}
+</div>
+{% endblock %}
+
+{% block scripts %}
+{{ super() }}
+<script>
+async function deleteNote(id) {
+    if (!confirm('确定删除这条笔记吗？')) return;
+    
+    const response = await fetch('/notes/' + id, {
+        method: 'DELETE'
+    });
+    
+    if (response.ok) {
+        window.location.reload();
+    }
+}
+</script>
+{% endblock %}
