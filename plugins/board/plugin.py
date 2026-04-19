@@ -296,8 +296,9 @@ class BoardPlugin(Plugin):
         await self._init_cron_tables()
 
         # 查询各类型数量
+        # 注意：blog/note 用 status='published'，microblog 用 status='public'
         rows = await self.engine.fetchall(
-            "SELECT plugin_type, COUNT(*) AS cnt FROM contents WHERE status='published' GROUP BY plugin_type"
+            "SELECT plugin_type, COUNT(*) AS cnt FROM contents WHERE status IN ('published', 'public') GROUP BY plugin_type"
         )
         counts = {r["plugin_type"]: int(r["cnt"]) for r in rows}
         blog_count    = counts.get("blog",       0)
@@ -343,7 +344,7 @@ class BoardPlugin(Plugin):
                    COUNT(*) AS total_count
             FROM contents c
             LEFT JOIN users u ON c.author_id = u.id
-            WHERE c.status = 'published'
+            WHERE c.status IN ('published', 'public')
               AND c.author_id IS NOT NULL
               AND c.created_at >= ?
             GROUP BY c.author_id
