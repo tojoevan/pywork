@@ -40,6 +40,7 @@
     {% if note.is_owner %}
     <footer class="post-footer">
         <a href="/notes" class="btn btn-secondary">返回列表</a>
+        <a href="/notes/edit/{{ note.id }}" class="btn btn-primary">编辑</a>
         <button class="btn btn-danger" onclick="deleteNote({{ note.id }})">删除笔记</button>
     </footer>
     {% endif %}

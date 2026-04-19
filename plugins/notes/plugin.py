@@ -32,6 +32,7 @@ class NotesPlugin(Plugin):
         return [
             Route("/notes", "GET", self.list_notes_page, "notes.list"),
             Route("/notes/new", "GET", self.new_note_page, "notes.new"),
+            Route("/notes/edit/{note_id}", "GET", self.edit_note_page, "notes.edit"),
             Route("/notes", "POST", self.create_note_api, "notes.create"),
             Route("/notes/{note_id}", "GET", self.get_note_page, "notes.view"),
             Route("/notes/{note_id}", "PUT", self.update_note_api, "notes.update"),
@@ -274,6 +275,33 @@ class NotesPlugin(Plugin):
         
         html = await self.ctx.template_engine.render("new-note.html", {
             "nav_page": "notes"
+        })
+        return HTMLResponse(content=html)
+    
+    async def edit_note_page(self, request, **kwargs):
+        """编辑笔记页面"""
+        from starlette.responses import HTMLResponse, RedirectResponse
+        
+        user = await self._get_current_user(request)
+        if not user:
+            return RedirectResponse(url="/login", status_code=302)
+        
+        note_id = int(kwargs.get("note_id", 0))
+        note = await self.engine.get("contents", note_id)
+        
+        if not note or note.get("plugin_type") != "note":
+            return HTMLResponse(content="<h1>笔记不存在</h1>", status_code=404)
+        
+        # 权限检查
+        is_owner = user["id"] == note.get("author_id")
+        is_admin = user.get("role") == "admin"
+        if not is_owner and not is_admin:
+            return HTMLResponse(content="<h1>无权编辑此笔记</h1>", status_code=403)
+        
+        html = await self.ctx.template_engine.render("new-note.html", {
+            "nav_page": "notes",
+            "note": note,
+            "is_edit": True
         })
         return HTMLResponse(content=html)
     

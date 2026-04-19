@@ -33,6 +33,12 @@
             </div>
             {% endif %}
         </div>
+        <!-- 编辑按钮（作者或管理员可见） -->
+        {% if current_user and (current_user.id == post.author_id or current_user.role == 'admin') %}
+        <div class="post-edit-actions" style="margin-top: 12px;">
+            <a href="/blog/edit/{{ post.id }}" class="btn btn-secondary" style="font-size: 14px;">编辑</a>
+        </div>
+        {% endif %}
     </header>
 
     <!-- 文章内容 -->

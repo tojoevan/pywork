@@ -39,6 +39,8 @@ class MicroblogPlugin(Plugin):
             Route("/microblog", "GET", self.home, "microblog.home"),
             Route("/microblog", "POST", self.create_api, "microblog.create"),
             Route("/api/microblog", "GET", self.list_api, "microblog.list"),
+            Route("/api/microblog/{post_id}", "GET", self.get_api, "microblog.get"),
+            Route("/api/microblog/{post_id}", "PUT", self.update_api, "microblog.update"),
             Route("/api/microblog/{post_id}", "DELETE", self.delete_api, "microblog.delete"),
             Route("/api/microblog/{post_id}/approve", "POST", self.approve_post_api, "microblog.approve"),
             Route("/api/microblog/{post_id}/reject", "POST", self.reject_post_api, "microblog.reject"),
@@ -321,6 +323,55 @@ class MicroblogPlugin(Plugin):
         
         author_id = await self._get_author_id(request)
         return await self.create_post(content=content, author_id=author_id, is_anonymous=is_anonymous)
+
+    async def get_api(self, post_id: int, **kwargs):
+        """获取单条微博"""
+        post = await self.engine.get("contents", post_id)
+        if not post or post.get("plugin_type") != "microblog":
+            return {"error": "微博不存在"}
+        post["content"] = post.pop("body", "")
+        return post
+
+    async def update_api(self, post_id: int, request, **kwargs):
+        """更新微博"""
+        # 鉴权
+        token = request.cookies.get("auth_token", "")
+        auth = self._auth()
+        current_user = None
+        if token and auth:
+            current_user = await auth.get_user_by_token(token)
+        
+        post = await self.engine.get("contents", post_id)
+        if not post or post.get("plugin_type") != "microblog":
+            return {"error": "微博不存在"}
+        
+        if not current_user:
+            return {"error": "请先登录"}
+        
+        if post.get("author_id") != current_user["id"] and current_user.get("role") != "admin":
+            return {"error": "无权限修改他人的微博"}
+        
+        # 获取新内容
+        content = kwargs.get("content")
+        if not content:
+            try:
+                body = await request.json()
+                content = body.get("content")
+            except:
+                pass
+        
+        if not content or not content.strip():
+            return {"error": "内容不能为空"}
+        
+        if len(content) > self.MAX_LENGTH:
+            return {"error": f"内容不能超过{self.MAX_LENGTH}字"}
+        
+        # 更新
+        post["body"] = content.strip()
+        post["updated_at"] = int(time.time())
+        await self.engine.put("contents", post_id, post)
+        
+        return {"id": post_id, "updated": True}
 
     async def delete_api(self, post_id: int, request, **kwargs):
         # 鉴权：只有作者或 admin 才能删除

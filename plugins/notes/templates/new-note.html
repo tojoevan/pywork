@@ -1,6 +1,6 @@
 {% extends "base.html" %}
 
-{% block title %}写笔记 - {{ Site.title | default('pyWork') }}{% endblock %}
+{% block title %}{% if is_edit %}编辑笔记{% else %}写笔记{% endif %} - {{ Site.title | default('pyWork') }}{% endblock %}
 
 {% block head %}
 <link rel="stylesheet" href="/static/css/notes.css">
@@ -10,18 +10,18 @@
 {% block content %}
 <div class="editor-container">
     <div class="editor-header">
-        <h1>写笔记</h1>
+        <h1>{% if is_edit %}编辑笔记{% else %}写笔记{% endif %}</h1>
         <div class="editor-actions">
-            <a href="/notes" class="btn btn-secondary">取消</a>
+            <a href="{% if is_edit %}/notes/{{ note.id }}{% else %}/notes{% endif %}" class="btn btn-secondary">取消</a>
             <button class="btn btn-primary" onclick="saveNote()">保存</button>
         </div>
     </div>
 
-    <input type="text" class="title-input" id="note-title" placeholder="笔记标题" maxlength="200">
+    <input type="text" class="title-input" id="note-title" placeholder="笔记标题" maxlength="200" value="{{ note.title | default('') }}">
     
     <div class="meta-row">
         <div class="visibility-toggle">
-            <input type="checkbox" id="note-public">
+            <input type="checkbox" id="note-public" {% if note.visibility == 'public' %}checked{% endif %}>
             <label for="note-public">公开笔记</label>
         </div>
     </div>
@@ -48,6 +48,9 @@
 <script>
 let vditor;
 let autoSaveTimer;
+const isEdit = {{ is_edit | default('false') | lower }};
+const noteId = {{ note.id | default('0') }};
+const existingContent = {{ note.body | tojson | default('""') }};
 
 function initEditor() {
     vditor = new Vditor('vditor', {
@@ -55,9 +58,17 @@ function initEditor() {
         placeholder: '开始记录...',
         theme: 'classic',
         counter: { enable: true, after: (count) => { document.getElementById('word-count').textContent = count; } },
-        cache: { enable: true, id: 'pywork-note-editor' },
+        cache: { enable: !isEdit, id: 'pywork-note-editor' },
         mode: 'wysiwyg',
         toolbar: ['headings', 'bold', 'italic', 'strike', '|', 'line', 'quote', '|', 'list', 'ordered-list', 'check', '|', 'code', 'inline-code', '|', 'link', 'table', '|', 'undo', 'redo', '|', 'preview', 'fullscreen'],
+        after: () => {
+            if (isEdit && existingContent) {
+                vditor.setValue(existingContent);
+            }
+            if (!isEdit) startAutoSave();
+        }
+    });
+}
         after: () => { startAutoSave(); }
     });
 }
@@ -88,21 +99,32 @@ async function saveNote() {
     statusEl.innerHTML = '<span>保存中...</span>';
 
     try {
-        const response = await fetch('/notes', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-            body: 'title=' + encodeURIComponent(title) + 
-                  '&content=' + encodeURIComponent(content) + 
-                  '&visibility=' + visibility
-        });
-        const result = await response.json();
+        let response, result;
+        if (isEdit) {
+            // 编辑模式：PUT更新
+            response = await fetch('/notes/' + noteId, {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ title, content, visibility })
+            });
+        } else {
+            // 新建模式：POST创建
+            response = await fetch('/notes', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+                body: 'title=' + encodeURIComponent(title) + 
+                      '&content=' + encodeURIComponent(content) + 
+                      '&visibility=' + visibility
+            });
+        }
+        result = await response.json();
 
-        if (result.id) {
+        if (result.id || result.updated) {
             showToast('保存成功！', 'success');
             statusEl.className = 'save-status saved';
             statusEl.innerHTML = '<span>✓ 已保存</span>';
-            localStorage.removeItem('pywork-note-draft');
-            setTimeout(() => { window.location.href = '/notes/' + result.id; }, 1000);
+            if (!isEdit) localStorage.removeItem('pywork-note-draft');
+            setTimeout(() => { window.location.href = '/notes/' + (isEdit ? noteId : result.id); }, 1000);
         } else {
             showToast(result.error || '保存失败', 'error');
             statusEl.innerHTML = '<span>保存失败</span>';
@@ -152,7 +174,7 @@ async function init() {
     const loggedIn = await checkAuth();
     if (loggedIn) {
         initEditor();
-        setTimeout(loadDraft, 500);
+        if (!isEdit) setTimeout(loadDraft, 500);
     }
 }
 

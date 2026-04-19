@@ -37,6 +37,7 @@ class BlogPlugin(Plugin):
         """HTTP routes"""
         return [
             Route("/blog/new", "GET", self.new_post_page, "blog.new_post"),
+            Route("/blog/edit/{post_id}", "GET", self.edit_post_page, "blog.edit_post"),
             Route("/blog/posts", "GET", self.list_posts, "blog.list_posts"),
             Route("/blog/posts", "POST", self.create_post_api, "blog.create_post"),
             Route("/blog/view/{post_id}", "GET", self.get_post_page, "blog.view_post"),
@@ -363,11 +364,63 @@ Requirements:
                 post["author_name"] = author.get("username", "匿名")
                 post["author_avatar"] = author.get("avatar")
         
+        # 获取当前用户（用于判断是否显示编辑按钮）
+        current_user = None
+        token = request.cookies.get("auth_token", "")
+        if token:
+            auth = self._get_auth_plugin()
+            if auth:
+                current_user = await auth.get_user_by_token(token)
+        
         html = await self.ctx.template_engine.render("post.html", {
             "nav_page": "blog",
-            "post": post
+            "post": post,
+            "current_user": current_user
         })
         from starlette.responses import HTMLResponse
+        return HTMLResponse(content=html)
+    
+    async def edit_post_page(self, request, **kwargs):
+        """编辑博客页面"""
+        from starlette.responses import HTMLResponse, RedirectResponse
+        
+        # 检查登录
+        token = request.cookies.get("auth_token", "")
+        if not token:
+            return RedirectResponse(url="/login", status_code=302)
+        
+        auth = self._get_auth_plugin()
+        current_user = None
+        if auth:
+            current_user = await auth.get_user_by_token(token)
+        
+        if not current_user:
+            return RedirectResponse(url="/login", status_code=302)
+        
+        # 获取博客内容
+        post_id = int(kwargs.get("post_id", 0))
+        post = await self.engine.get("contents", post_id)
+        if not post or post.get("plugin_type") != "blog":
+            return HTMLResponse(content="<h1>文章不存在</h1>", status_code=404)
+        
+        # 权限检查：作者或管理员
+        is_author = post.get("author_id") == current_user["id"]
+        is_admin = current_user.get("role") == "admin"
+        if not is_author and not is_admin:
+            return HTMLResponse(content="<h1>无权编辑此文章</h1>", status_code=403)
+        
+        # 解析 tags
+        if post.get("tags"):
+            try:
+                post["tags"] = json.loads(post["tags"])
+            except:
+                post["tags"] = []
+        
+        html = await self.ctx.template_engine.render("new.html", {
+            "nav_page": "blog",
+            "post": post,  # 预填充数据
+            "is_edit": True
+        })
         return HTMLResponse(content=html)
     
     async def create_post_api(self, request, **kwargs):

@@ -31,8 +31,22 @@
     </div>
 </div>
 
+<!-- 编辑弹窗 -->
+<div class="edit-modal" id="editModal" style="display:none;">
+    <div class="edit-modal-content">
+        <h3>编辑微博</h3>
+        <textarea id="editText" maxlength="500" rows="4"></textarea>
+        <div class="edit-modal-actions">
+            <button class="btn-cancel" onclick="closeEditModal()">取消</button>
+            <button class="btn-save" onclick="updatePost()">保存</button>
+        </div>
+    </div>
+</div>
+
 <script>
     const currentAuthorId = {{ current_author_id if current_author_id else 'null' }};
+    let editingPostId = null;
+
     async function loadFeed() {
         try {
             const response = await fetch('/api/microblog?limit=50');
@@ -58,6 +72,7 @@
                             </div>
                             <div class="post-content">${escapeHtml(post.content || post.body || '')}</div>
                             <div class="post-actions">
+                                ${isOwner ? `<button class="btn-edit" onclick="openEditModal(${post.id}, '${escapeHtml(post.content || post.body || '').replace(/'/g, "\\'")}')">编辑</button>` : ''}
                                 ${isOwner ? `<button class="btn-delete" onclick="deletePost(${post.id})">删除</button>` : ''}
                             </div>
                         </div>
@@ -120,6 +135,43 @@
             if (el) el.remove();
         } catch (e) {
             alert('删除失败');
+        }
+    }
+
+    function openEditModal(postId, content) {
+        editingPostId = postId;
+        document.getElementById('editText').value = content;
+        document.getElementById('editModal').style.display = 'flex';
+    }
+
+    function closeEditModal() {
+        editingPostId = null;
+        document.getElementById('editModal').style.display = 'none';
+    }
+
+    async function updatePost() {
+        if (!editingPostId) return;
+        const content = document.getElementById('editText').value.trim();
+        if (!content) {
+            alert('内容不能为空');
+            return;
+        }
+
+        try {
+            const response = await fetch(`/api/microblog/${editingPostId}`, {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ content })
+            });
+            const result = await response.json();
+            if (result.error) {
+                alert(result.error);
+                return;
+            }
+            closeEditModal();
+            loadFeed();
+        } catch (e) {
+            alert('保存失败');
         }
     }
 
