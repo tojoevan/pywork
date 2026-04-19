@@ -471,6 +471,72 @@ a:hover {
     }
 }
 
+/* 汉堡菜单按钮 - 默认隐藏 */
+.menu-toggle {
+    display: none;
+    background: none;
+    border: none;
+    cursor: pointer;
+    padding: 8px;
+    z-index: 110;
+}
+
+.hamburger {
+    display: block;
+    width: 24px;
+    height: 2px;
+    background: var(--gray-700);
+    position: relative;
+    transition: background 0.2s;
+}
+
+.hamburger::before,
+.hamburger::after {
+    content: '';
+    position: absolute;
+    left: 0;
+    width: 24px;
+    height: 2px;
+    background: var(--gray-700);
+    transition: transform 0.3s;
+}
+
+.hamburger::before {
+    top: -7px;
+}
+
+.hamburger::after {
+    top: 7px;
+}
+
+/* 汉堡菜单激活状态 */
+.menu-toggle.active .hamburger {
+    background: transparent;
+}
+
+.menu-toggle.active .hamburger::before {
+    transform: rotate(45deg) translate(5px, 5px);
+}
+
+.menu-toggle.active .hamburger::after {
+    transform: rotate(-45deg) translate(5px, -5px);
+}
+
+@media (max-width: 900px) {
+    .nav {
+        gap: 16px;
+    }
+    .nav a {
+        font-size: 13px;
+    }
+    .topbar .container {
+        height: 56px;
+    }
+    .brand {
+        font-size: 18px;
+    }
+}
+
 @media (max-width: 768px) {
     .three-columns {
         grid-template-columns: 1fr;
@@ -481,8 +547,54 @@ a:hover {
         display: none;
     }
     
+    /* 汉堡菜单在小屏幕时显示 */
+    .menu-toggle {
+        display: block;
+        order: 2;
+    }
+    
+    /* 导航菜单在小屏幕时隐藏，点击后显示 */
     .nav {
-        gap: 20px;
+        display: none;
+        position: fixed;
+        top: 56px;
+        left: 0;
+        right: 0;
+        background: var(--bg-card);
+        border-bottom: 1px solid var(--border-color);
+        padding: 16px;
+        flex-direction: column;
+        gap: 0;
+        z-index: 105;
+        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+    }
+    
+    .nav.open {
+        display: flex;
+    }
+    
+    .nav a {
+        display: block;
+        padding: 12px 16px;
+        font-size: 15px;
+        border-bottom: 1px solid var(--border-color);
+    }
+    
+    .nav a:last-child {
+        border-bottom: none;
+    }
+    
+    /* 调整顶部栏布局 */
+    .topbar .container {
+        flex-wrap: wrap;
+    }
+    
+    .brand {
+        flex: 1;
+    }
+    
+    .actions {
+        order: 3;
     }
 }
 

@@ -6,6 +6,7 @@ document.addEventListener('DOMContentLoaded', function() {
     initTimeFormatting();
     initTagClicks();
     initSmoothScroll();
+    initMobileMenu();
 });
 
 // 时间格式化
@@ -71,6 +72,35 @@ function initSmoothScroll() {
             }
         });
     });
+}
+
+// 移动端汉堡菜单
+function initMobileMenu() {
+    const menuToggle = document.getElementById('menu-toggle');
+    const navMenu = document.getElementById('nav-menu');
+    
+    if (menuToggle && navMenu) {
+        menuToggle.addEventListener('click', function() {
+            this.classList.toggle('active');
+            navMenu.classList.toggle('open');
+        });
+        
+        // 点击导航链接后关闭菜单
+        navMenu.querySelectorAll('a').forEach(link => {
+            link.addEventListener('click', function() {
+                menuToggle.classList.remove('active');
+                navMenu.classList.remove('open');
+            });
+        });
+        
+        // 点击页面其他区域关闭菜单
+        document.addEventListener('click', function(e) {
+            if (!menuToggle.contains(e.target) && !navMenu.contains(e.target)) {
+                menuToggle.classList.remove('active');
+                navMenu.classList.remove('open');
+            }
+        });
+    }
 }
 
 // 工具函数
