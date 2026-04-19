@@ -55,7 +55,7 @@
     <!-- 页脚 -->
     <footer class="footer">
         <div class="container">
-            <p>{{ Site.footer_text | default('© 2026 pyWork. All rights reserved.') }}</p>
+            <p>{{ Site.footer_text | safe if Site.footer_text else '© 2026 pyWork. All rights reserved.' }}</p>
         </div>
     </footer>
 
