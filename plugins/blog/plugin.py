@@ -39,6 +39,7 @@ class BlogPlugin(Plugin):
             Route("/blog/new", "GET", self.new_post_page, "blog.new_post"),
             Route("/blog/posts", "GET", self.list_posts, "blog.list_posts"),
             Route("/blog/posts", "POST", self.create_post_api, "blog.create_post"),
+            Route("/blog/view/{post_id}", "GET", self.get_post_page, "blog.view_post"),
             Route("/blog/posts/{post_id}", "GET", self.get_post_api, "blog.get_post"),
             Route("/blog/posts/{post_id}", "PUT", self.update_post_api, "blog.update_post"),
             Route("/blog/posts/{post_id}", "DELETE", self.delete_post_api, "blog.delete_post"),
@@ -337,6 +338,36 @@ Requirements:
     async def new_post_page(self, request):
         """新建博客页面"""
         html = await self.ctx.template_engine.render("new.html", {"nav_page": "blog"})
+        return HTMLResponse(content=html)
+    
+    async def get_post_page(self, request, **kwargs):
+        """博客详情页面（HTML）"""
+        post_id = int(kwargs.get("post_id", 0))
+        post = await self.engine.get("contents", post_id)
+        if not post or post.get("plugin_type") != "blog":
+            from starlette.responses import HTMLResponse
+            return HTMLResponse(content="<h1>文章不存在</h1>", status_code=404)
+        
+        # 解析 tags
+        if post.get("tags"):
+            try:
+                post["tags"] = json.loads(post["tags"])
+            except:
+                post["tags"] = []
+        
+        # 获取作者信息
+        author_id = post.get("author_id")
+        if author_id:
+            author = await self.engine.get("users", author_id)
+            if author:
+                post["author_name"] = author.get("username", "匿名")
+                post["author_avatar"] = author.get("avatar")
+        
+        html = await self.ctx.template_engine.render("post.html", {
+            "nav_page": "blog",
+            "post": post
+        })
+        from starlette.responses import HTMLResponse
         return HTMLResponse(content=html)
     
     async def create_post_api(self, request, **kwargs):
