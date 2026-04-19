@@ -52,7 +52,7 @@ let autoSaveTimer;
 let currentUser = null;
 const isEdit = {{ is_edit | default('false') | lower }};
 const postId = {{ post.id | default('0') }};
-const existingContent = {{ post.body | tojson | default('""') }};
+const existingContent = {{ post.body | default('') | tojson }};
 
 function initEditor() {
     vditor = new Vditor('vditor', {

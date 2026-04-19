@@ -338,7 +338,11 @@ Requirements:
     
     async def new_post_page(self, request):
         """新建博客页面"""
-        html = await self.ctx.template_engine.render("new.html", {"nav_page": "blog"})
+        html = await self.ctx.template_engine.render("new.html", {
+            "nav_page": "blog",
+            "is_edit": False,
+            "post": {}
+        })
         return HTMLResponse(content=html)
     
     async def get_post_page(self, request, **kwargs):
