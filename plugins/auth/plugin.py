@@ -454,12 +454,12 @@ class AuthPlugin(Plugin):
             return None
         
         # 检查是否过期
-        if session[1] < int(time.time()):
+        if session["expires_at"] < int(time.time()):
             # 过期则删除
             await self.engine.execute("DELETE FROM sessions WHERE token = ?", (token,))
             return None
         
-        user = await self.get_user(session[0])
+        user = await self.get_user(session["user_id"])
         if user:
             user["token"] = token
         return user
