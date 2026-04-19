@@ -98,7 +98,11 @@
     <aside class="col-right">
         <section class="card highlight">
             <h3 class="card-title">公告</h3>
+            {% if Site.announcement %}
+            <div>{{ Site.announcement | safe }}</div>
+            {% else %}
             <p>欢迎来到 pyWork 多用户博客平台。分享知识，记录成长。</p>
+            {% endif %}
         </section>
         
         <section class="card">

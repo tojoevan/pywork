@@ -105,6 +105,12 @@
         </div>
 
         <div class="form-group">
+            <label for="announcement">网站公告</label>
+            <textarea id="announcement" name="announcement" rows="3" placeholder="支持 HTML 标签，留空则不显示公告" style="width: 100%; padding: 0.625rem 0.75rem; border: 1px solid var(--border-color); border-radius: 0.375rem; font-size: 0.9375rem; resize: vertical; font-family: inherit;"></textarea>
+            <div class="hint">支持 HTML 标签，如 &lt;strong&gt;、&lt;a href="..."&gt; 等</div>
+        </div>
+
+        <div class="form-group">
             <label for="primary_color">主题色</label>
             <input type="color" id="primary_color" name="primary_color" value="#10b981">
             <div class="hint">按钮、链接等主色调</div>
@@ -128,6 +134,7 @@ async function loadSettings() {
         document.getElementById('logo_text').value = data.logo_text || '';
         document.getElementById('footer_text').value = data.footer_text || '';
         document.getElementById('description').value = data.description || '';
+        document.getElementById('announcement').value = data.announcement || '';
         document.getElementById('primary_color').value = data.primary_color || '#10b981';
     } catch (e) {
         console.error('加载设置失败:', e);
@@ -149,6 +156,7 @@ document.getElementById('settingsForm').addEventListener('submit', async (e) => 
         logo_text: document.getElementById('logo_text').value,
         footer_text: document.getElementById('footer_text').value,
         description: document.getElementById('description').value,
+        announcement: document.getElementById('announcement').value,
         primary_color: document.getElementById('primary_color').value,
     };
 

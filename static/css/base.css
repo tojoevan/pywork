@@ -81,6 +81,24 @@ a:hover {
     font-weight: 500;
 }
 
+/* 公告栏 */
+.announcement-bar {
+    background: linear-gradient(135deg, #fef3c7 0%, #fde68a 100%);
+    border-bottom: 1px solid #f59e0b;
+    padding: 0.75rem 0;
+    font-size: 0.9375rem;
+    color: #78350f;
+}
+
+.announcement-bar a {
+    color: #b45309;
+    text-decoration: underline;
+}
+
+.announcement-bar a:hover {
+    color: #92400e;
+}
+
 /* 主内容 */
 .main-content {
     min-height: calc(100vh - 200px);

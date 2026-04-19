@@ -641,6 +641,7 @@ class BoardPlugin(Plugin):
             "logo_text": "pyWork",
             "footer_text": "© 2026 pyWork. All rights reserved.",
             "description": "多用户数字工作台",
+            "announcement": "",
         }
         try:
             rows = await self.engine.fetchall("SELECT key, value FROM site_config")
@@ -653,7 +654,7 @@ class BoardPlugin(Plugin):
 
     async def _update_site_settings(self, data: Dict[str, str]):
         """更新网站设置到数据库"""
-        allowed_keys = ["title", "logo_text", "footer_text", "description", "primary_color"]
+        allowed_keys = ["title", "logo_text", "footer_text", "description", "primary_color", "announcement"]
         # 确保表存在
         await self.engine.execute("""
             CREATE TABLE IF NOT EXISTS site_config (
