@@ -274,7 +274,9 @@ class NotesPlugin(Plugin):
             return HTMLResponse(content="<script>window.location.href='/login';</script>")
         
         html = await self.ctx.template_engine.render("new-note.html", {
-            "nav_page": "notes"
+            "nav_page": "notes",
+            "is_edit": False,
+            "note": {}
         })
         return HTMLResponse(content=html)
     
