@@ -488,39 +488,43 @@ class WorkbenchApp:
         """
         
         if route.method in ("POST", "PUT"):
-            async def post_handler(request: Request, _route=route):
-                ct = request.headers.get("content-type", "")
-                if "application/json" in ct:
-                    body = await request.json()
-                else:
-                    # Support form-encoded data
-                    try:
-                        body = await request.form()
-                        body = dict(body)
-                    except Exception:
-                        body = {}
-                # Merge path params into body
-                params = dict(request.path_params)
-                params.update(body)
-                # Pass request for handlers that need it
-                return await _route.handler(request=request, **params)
+            def make_post_handler(r):
+                async def post_handler(request: Request):
+                    ct = request.headers.get("content-type", "")
+                    if "application/json" in ct:
+                        body = await request.json()
+                    else:
+                        # Support form-encoded data
+                        try:
+                            body = await request.form()
+                            body = dict(body)
+                        except Exception:
+                            body = {}
+                    # Merge path params into body
+                    params = dict(request.path_params)
+                    params.update(body)
+                    # Pass request for handlers that need it
+                    return await r.handler(request=request, **params)
+                return post_handler
             self.app.add_api_route(
                 route.path,
-                post_handler,
+                make_post_handler(route),
                 methods=[route.method],
                 name=route.name or f"{route.path}_{id(route)}"
             )
         else:
-            async def get_handler(request: Request, _route=route):
-                params = dict(request.path_params)
-                params.update(dict(request.query_params))
-                if params:
-                    return await _route.handler(request=request, **params)
-                else:
-                    return await _route.handler(request=request)
+            def make_get_handler(r):
+                async def get_handler(request: Request):
+                    params = dict(request.path_params)
+                    params.update(dict(request.query_params))
+                    if params:
+                        return await r.handler(request=request, **params)
+                    else:
+                        return await r.handler(request=request)
+                return get_handler
             self.app.add_api_route(
                 route.path,
-                get_handler,
+                make_get_handler(route),
                 methods=[route.method],
                 name=route.name or f"{route.path}_{id(route)}"
             )
