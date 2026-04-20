@@ -201,12 +201,30 @@ class SQLiteEngine(Engine):
         value TEXT
     );
     
-    -- Full-text search (commented out for now, enable when needed)
-    -- CREATE VIRTUAL TABLE IF NOT EXISTS contents_fts USING fts5(
-    --     title, body, tags,
-    --     content=contents,
-    --     content_rowid=id
-    -- );
+    -- Full-text search index for blog_posts
+    CREATE VIRTUAL TABLE IF NOT EXISTS blog_posts_fts USING fts5(
+        title, body, tags,
+        content='blog_posts',
+        content_rowid='id'
+    );
+    
+    -- Triggers to keep FTS in sync with blog_posts
+    CREATE TRIGGER IF NOT EXISTS blog_posts_fts_insert AFTER INSERT ON blog_posts BEGIN
+        INSERT INTO blog_posts_fts(rowid, title, body, tags)
+            VALUES (new.id, new.title, new.body, new.tags);
+    END;
+    
+    CREATE TRIGGER IF NOT EXISTS blog_posts_fts_update AFTER UPDATE ON blog_posts BEGIN
+        INSERT INTO blog_posts_fts(blog_posts_fts, rowid, title, body, tags)
+            VALUES ('delete', old.id, old.title, old.body, old.tags);
+        INSERT INTO blog_posts_fts(rowid, title, body, tags)
+            VALUES (new.id, new.title, new.body, new.tags);
+    END;
+    
+    CREATE TRIGGER IF NOT EXISTS blog_posts_fts_delete AFTER DELETE ON blog_posts BEGIN
+        INSERT INTO blog_posts_fts(blog_posts_fts, rowid, title, body, tags)
+            VALUES ('delete', old.id, old.title, old.body, old.tags);
+    END;
     
     -- Indexes for blog_posts
     CREATE INDEX IF NOT EXISTS idx_blog_posts_author ON blog_posts(author_id);
@@ -298,6 +316,9 @@ class SQLiteEngine(Engine):
                     print("✓ Migration 003: added author_id column to guestbook_entries")
         except Exception as e:
             print(f"⚠ Migration 003 skipped: {e}")
+
+        # Migration 004: create FTS5 index for blog_posts
+        await self._migrate_fts5()
     
     async def _migrate_contents_split(self) -> None:
         """Migration 002: split contents table into blog_posts, microblog_posts, notes, guestbook_entries.
@@ -377,6 +398,88 @@ class SQLiteEngine(Engine):
             print("✓ Migration 002: contents table split complete")
         except Exception as e:
             print(f"⚠ Migration 002 failed: {e}")
+            await self._db.rollback()
+
+    async def _migrate_fts5(self) -> None:
+        """Migration 004: create FTS5 index for blog_posts and populate from existing data.
+        
+        Idempotent — checks a flag in _meta before running.
+        
+        Important: SCHEMA already creates blog_posts_fts + triggers on fresh DBs.
+        This migration handles OLD databases that pre-date the FTS addition.
+        
+        For old DBs, Migration 002 runs first (contents → blog_posts), and the
+        SCHEMA triggers will have already populated FTS from those INSERTs.
+        So here we do a clean rebuild to avoid duplicates.
+        """
+        # Check if already migrated
+        async with self._db.execute(
+            "SELECT value FROM _meta WHERE key = 'migration_004_fts5_blog_posts'"
+        ) as cursor:
+            row = await cursor.fetchone()
+            if row:
+                return  # Already done
+        
+        try:
+            # Check if FTS table already exists (created by SCHEMA on fresh DB)
+            async with self._db.execute(
+                "SELECT name FROM sqlite_master WHERE type='table' AND name='blog_posts_fts'"
+            ) as cursor:
+                fts_exists = await cursor.fetchone() is not None
+            
+            if not fts_exists:
+                # Old DB: create FTS table (triggers already created by SCHEMA)
+                await self._db.execute("""
+                    CREATE VIRTUAL TABLE IF NOT EXISTS blog_posts_fts USING fts5(
+                        title, body, tags,
+                        content='blog_posts',
+                        content_rowid='id'
+                    )
+                """)
+            
+            # Rebuild FTS index from scratch to guarantee consistency.
+            # This clears any partial data (e.g. from Migration 002 trigger writes)
+            # and re-indexes from the authoritative blog_posts table.
+            await self._db.execute("""
+                DELETE FROM blog_posts_fts
+            """)
+            await self._db.execute("""
+                INSERT INTO blog_posts_fts(rowid, title, body, tags)
+                SELECT id, title, body, tags FROM blog_posts
+            """)
+            
+            # Ensure sync triggers exist (idempotent via IF NOT EXISTS)
+            await self._db.execute("""
+                CREATE TRIGGER IF NOT EXISTS blog_posts_fts_insert AFTER INSERT ON blog_posts BEGIN
+                    INSERT INTO blog_posts_fts(rowid, title, body, tags)
+                        VALUES (new.id, new.title, new.body, new.tags);
+                END
+            """)
+            await self._db.execute("""
+                CREATE TRIGGER IF NOT EXISTS blog_posts_fts_update AFTER UPDATE ON blog_posts BEGIN
+                    INSERT INTO blog_posts_fts(blog_posts_fts, rowid, title, body, tags)
+                        VALUES ('delete', old.id, old.title, old.body, old.tags);
+                    INSERT INTO blog_posts_fts(rowid, title, body, tags)
+                        VALUES (new.id, new.title, new.body, new.tags);
+                END
+            """)
+            await self._db.execute("""
+                CREATE TRIGGER IF NOT EXISTS blog_posts_fts_delete AFTER DELETE ON blog_posts BEGIN
+                    INSERT INTO blog_posts_fts(blog_posts_fts, rowid, title, body, tags)
+                        VALUES ('delete', old.id, old.title, old.body, old.tags);
+                END
+            """)
+            
+            await self._db.commit()
+            
+            # Mark migration as done
+            await self._db.execute(
+                "INSERT OR REPLACE INTO _meta (key, value) VALUES ('migration_004_fts5_blog_posts', '1')"
+            )
+            await self._db.commit()
+            print("✓ Migration 004: FTS5 index for blog_posts rebuilt")
+        except Exception as e:
+            print(f"⚠ Migration 004 failed: {e}")
             await self._db.rollback()
 
     async def _load_index(self) -> None:
