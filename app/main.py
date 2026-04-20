@@ -340,16 +340,20 @@ class WorkbenchApp:
             # 获取 token id (前16位)
             token_id = request.path_params.get("token_id", "")
 
-            # 查找并删除该用户的 token
-            deleted = False
-            for token, info in list(auth_plugin.mcp_tokens.items()):
-                if info["user_id"] == user["id"] and token.startswith(token_id):
-                    del auth_plugin.mcp_tokens[token]
-                    deleted = True
-                    break
+            # 通过 auth plugin 的 revoke 方法删除
+            # list_mcp_tokens 返回脱敏的 prefix，需要遍历匹配
+            tokens = await auth_plugin.list_mcp_tokens(user["id"])
+            for t in tokens:
+                if t["id"] == token_id or t["prefix"] == token_id[:8]:
+                    # 查找完整 token 并撤销
+                    row = await auth_plugin.engine.fetchone(
+                        "SELECT token FROM mcp_tokens WHERE user_id = ? AND token LIKE ?",
+                        (user["id"], f"{token_id}%")
+                    )
+                    if row:
+                        await auth_plugin.revoke_mcp_token(dict(row)["token"])
+                        return {"success": True}
 
-            if deleted:
-                return {"success": True}
             return {"error": "Token 不存在或无权撤销"}
 
         # GitHub OAuth 路由
@@ -476,10 +480,15 @@ class WorkbenchApp:
             }}
     
     def _register_route(self, route):
-        """Register a single route"""
+        """Register a single route
+        
+        Note: 使用默认参数 _route=route 进行值捕获，避免闭包引用问题。
+        Python 闭包通过引用捕获外层变量，循环中多次调用会导致所有 handler
+        共享同一个 route 变量引用，最终全部指向最后一个注册的 route。
+        """
         
         if route.method in ("POST", "PUT"):
-            async def post_handler(request: Request):
+            async def post_handler(request: Request, _route=route):
                 ct = request.headers.get("content-type", "")
                 if "application/json" in ct:
                     body = await request.json()
@@ -494,7 +503,7 @@ class WorkbenchApp:
                 params = dict(request.path_params)
                 params.update(body)
                 # Pass request for handlers that need it
-                return await route.handler(request=request, **params)
+                return await _route.handler(request=request, **params)
             self.app.add_api_route(
                 route.path,
                 post_handler,
@@ -502,13 +511,13 @@ class WorkbenchApp:
                 name=route.name or f"{route.path}_{id(route)}"
             )
         else:
-            async def get_handler(request: Request):
+            async def get_handler(request: Request, _route=route):
                 params = dict(request.path_params)
                 params.update(dict(request.query_params))
                 if params:
-                    return await route.handler(request=request, **params)
+                    return await _route.handler(request=request, **params)
                 else:
-                    return await route.handler(request=request)
+                    return await _route.handler(request=request)
             self.app.add_api_route(
                 route.path,
                 get_handler,

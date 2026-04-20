@@ -73,6 +73,9 @@ class PluginContext:
 class Plugin(ABC):
     """Plugin base class"""
     
+    def __init__(self):
+        self._ctx: PluginContext = None
+    
     @property
     @abstractmethod
     def name(self) -> str:
@@ -93,6 +96,60 @@ class Plugin(ABC):
     async def init(self, ctx: PluginContext) -> None:
         """Initialize plugin"""
         pass
+    
+    # ========================================================
+    #  通用鉴权方法
+    # ========================================================
+    
+    async def get_current_user(self, request) -> Optional[Dict]:
+        """从 HTTP 请求 cookie 或 Authorization header 中获取当前用户"""
+        token = request.cookies.get("auth_token", "")
+        if not token:
+            auth_header = request.headers.get("Authorization", "")
+            if auth_header.startswith("Bearer "):
+                token = auth_header[7:]
+        if not token:
+            return None
+        auth = self._ctx.get_plugin("auth") if self._ctx else None
+        if not auth:
+            return None
+        return await auth.get_user_by_token(token)
+    
+    async def get_current_user_mcp(self, mcp_token: str = None) -> Optional[Dict]:
+        """从 MCP token 中获取当前用户"""
+        if not mcp_token:
+            return None
+        auth = self._ctx.get_plugin("auth") if self._ctx else None
+        if not auth:
+            return None
+        return await auth.get_user_by_mcp_token(mcp_token)
+    
+    async def is_admin(self, request) -> bool:
+        """检查当前用户是否为管理员"""
+        user = await self.get_current_user(request)
+        return user is not None and user.get("role") == "admin"
+    
+    async def require_admin(self, request):
+        """要求管理员权限，否则返回 403 JSON 响应"""
+        if not await self.is_admin(request):
+            from starlette.responses import JSONResponse
+            return JSONResponse({"error": "Forbidden"}, status_code=403)
+        return None
+    
+    async def require_admin_or_redirect(self, request):
+        """要求管理员权限，否则重定向到首页"""
+        if not await self.is_admin(request):
+            from starlette.responses import RedirectResponse
+            return RedirectResponse(url="/", status_code=302)
+        return None
+    
+    async def require_login_or_redirect(self, request):
+        """要求登录，否则重定向到首页"""
+        user = await self.get_current_user(request)
+        if not user:
+            from starlette.responses import RedirectResponse
+            return RedirectResponse(url="/", status_code=302)
+        return None
     
     @abstractmethod
     def routes(self) -> List[Route]:

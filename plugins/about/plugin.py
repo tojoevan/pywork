@@ -15,6 +15,7 @@ class AboutPlugin(Plugin):
         self.engine = ctx.engine
         self.template_engine = ctx.template_engine
         self.ctx = ctx
+        self._ctx = ctx  # 供基类鉴权方法使用
 
     def routes(self) -> List[Route]:
         return [
@@ -25,24 +26,6 @@ class AboutPlugin(Plugin):
             Route("/about/admin/comments", "GET", self.admin_comments, "about.admin"),
         ]
 
-    def _auth(self):
-        return self.ctx.get_plugin("auth")
-
-    async def _get_current_user(self, request) -> Optional[Dict]:
-        """从 cookie 获取当前用户"""
-        token = request.cookies.get("auth_token", "")
-        if not token:
-            return None
-        auth = self._auth()
-        if not auth:
-            return None
-        return await auth.get_user_by_token(token)
-
-    async def _is_admin(self, request) -> bool:
-        """判断当前用户是否为管理员"""
-        user = await self._get_current_user(request)
-        return user is not None and user.get("role") == "admin"
-
     # === 页面 ===
 
     async def about_page(self, request, **kwargs):
@@ -51,7 +34,7 @@ class AboutPlugin(Plugin):
 
         # 获取已审核通过的留言
         comments = await self._list_approved_comments()
-        current_user = await self._get_current_user(request)
+        current_user = await self.get_current_user(request)
 
         html = await self.template_engine.render(
             "about.html",
@@ -67,7 +50,7 @@ class AboutPlugin(Plugin):
         """管理员留言审核页面"""
         from starlette.responses import HTMLResponse
 
-        if not await self._is_admin(request):
+        if not await self.is_admin(request):
             return HTMLResponse(content="<h1>403 Forbidden</h1>", status_code=403)
 
         pending = await self._list_pending_comments()
@@ -112,7 +95,7 @@ class AboutPlugin(Plugin):
             nickname = "匿名"
 
         # 获取当前登录用户（可选）
-        current_user = await self._get_current_user(request)
+        current_user = await self.get_current_user(request)
         author_id = current_user["id"] if current_user else 0
 
         now = int(time.time())
@@ -134,7 +117,7 @@ class AboutPlugin(Plugin):
 
     async def approve_comment(self, comment_id: int, request, **kwargs):
         """审核通过留言"""
-        if not await self._is_admin(request):
+        if not await self.is_admin(request):
             return {"error": "无权限操作"}
 
         comment = await self.engine.get("contents", comment_id)
@@ -147,7 +130,7 @@ class AboutPlugin(Plugin):
 
     async def delete_comment(self, comment_id: int, request, **kwargs):
         """删除留言（管理员）"""
-        if not await self._is_admin(request):
+        if not await self.is_admin(request):
             return {"error": "无权限操作"}
 
         comment = await self.engine.get("contents", comment_id)

@@ -50,11 +50,15 @@ class BoardPlugin(Plugin):
         self.engine = ctx.engine
         self.template_engine = ctx.template_engine
         self.ctx = ctx
+        self._ctx = ctx  # 供基类鉴权方法使用
         # 任务处理器注册表
         self._handlers: Dict[str, callable] = {
             "run_stats_collection": self._handle_stats_collection,
             "run_active_authors":    self._handle_active_authors,
         }
+        # 统一初始化所有表（一次性）
+        self._tables_initialized = False
+        await self._ensure_tables()
 
     def routes(self) -> List[Route]:
         return [
@@ -78,41 +82,17 @@ class BoardPlugin(Plugin):
         ]
 
     # ========================================================
-    #  认证辅助
-    # ========================================================
-
-    def _auth(self):
-        return self.ctx.get_plugin("auth")
-
-    async def _get_current_user(self, request) -> Optional[Dict]:
-        token = request.cookies.get("auth_token", "")
-        if not token:
-            return None
-        auth = self._auth()
-        if not auth:
-            return None
-        return await auth.get_user_by_token(token)
-
-    async def _is_admin(self, request) -> bool:
-        user = await self._get_current_user(request)
-        return user is not None and user.get("role") == "admin"
-
-    async def _check_admin(self, request):
-        """非管理员返回 403 JSON"""
-        if not await self._is_admin(request):
-            from starlette.responses import JSONResponse
-            return JSONResponse({"error": "Forbidden"}, status_code=403)
-        return None
-
-    async def _check_admin_or_redirect(self, request):
-        from starlette.responses import RedirectResponse
-        if not await self._is_admin(request):
-            return RedirectResponse(url="/", status_code=302)
-        return None
-
-    # ========================================================
     #  看板表初始化
     # ========================================================
+
+    async def _ensure_tables(self) -> None:
+        """确保所有表已创建，仅执行一次"""
+        if self._tables_initialized:
+            return
+        await self._init_board_table()
+        await self._init_cron_tables()
+        await self._init_active_authors_table()
+        self._tables_initialized = True
 
     async def _init_board_table(self):
         sql = """
@@ -194,14 +174,12 @@ class BoardPlugin(Plugin):
     # ========================================================
 
     async def _list_cron_jobs(self) -> List[Dict]:
-        await self._init_cron_tables()
         rows = await self.engine.fetchall(
             "SELECT * FROM cron_jobs ORDER BY created_at DESC"
         )
         return [dict(r) for r in rows]
 
     async def _get_cron_job(self, job_id: int) -> Optional[Dict]:
-        await self._init_cron_tables()
         row = await self.engine.fetchone(
             "SELECT * FROM cron_jobs WHERE id = ?", (job_id,)
         )
@@ -211,7 +189,6 @@ class BoardPlugin(Plugin):
                                 interval_sec: int = 3600,
                                 cron_expr: str = "",
                                 description: str = "") -> int:
-        await self._init_cron_tables()
         now = int(time.time())
         row_id = await self.engine.put("cron_jobs", 0, {
             "name": name,
@@ -230,12 +207,10 @@ class BoardPlugin(Plugin):
         return row_id
 
     async def _update_cron_job(self, job_id: int, data: Dict) -> None:
-        await self._init_cron_tables()
         data["updated_at"] = int(time.time())
         await self.engine.put("cron_jobs", job_id, data)
 
     async def _delete_cron_job(self, job_id: int) -> None:
-        await self._init_cron_tables()
         await self.engine.delete("cron_jobs", job_id)
 
     # ========================================================
@@ -273,7 +248,7 @@ class BoardPlugin(Plugin):
         """手动触发执行一个定时任务"""
         from starlette.responses import JSONResponse
 
-        redirect = await self._check_admin_or_redirect(request)
+        redirect = await self.require_admin_or_redirect(request)
         if redirect:
             return redirect
 
@@ -293,7 +268,6 @@ class BoardPlugin(Plugin):
 
     async def _handle_stats_collection(self) -> str:
         """统计博客/微博/笔记数量，写入 cron_stats"""
-        await self._init_cron_tables()
 
         # 查询各类型数量
         # 注意：blog/note 用 status='published'，microblog 用 status='public'
@@ -329,7 +303,6 @@ class BoardPlugin(Plugin):
 
     async def _handle_active_authors(self) -> str:
         """统计最近 7 天内活跃作者（按内容数量排名），写入 active_authors 表"""
-        await self._init_active_authors_table()
         now = int(time.time())
         # 7 天时间窗口
         week_ago = now - 7 * 86400
@@ -384,7 +357,6 @@ class BoardPlugin(Plugin):
 
     async def get_active_authors(self) -> List[Dict[str, Any]]:
         """获取活跃作者列表，优先从 active_authors 读取，否则实时计算"""
-        await self._init_active_authors_table()
         now = int(time.time())
         rows = await self.engine.fetchall(
             "SELECT author_name, author_avatar, "
@@ -412,7 +384,6 @@ class BoardPlugin(Plugin):
 
     async def get_stats(self) -> Dict[str, Any]:
         """获取统计数字，优先从 cron_stats 读取，否则实时查"""
-        await self._init_cron_tables()
         rows = await self.engine.fetchall("SELECT stat_key, stat_value FROM cron_stats")
         if rows:
             stats = {r["stat_key"]: r["stat_value"] for r in rows}
@@ -454,11 +425,11 @@ class BoardPlugin(Plugin):
         """定时任务管理页面"""
         from starlette.responses import HTMLResponse
 
-        redirect = await self._check_admin_or_redirect(request)
+        redirect = await self.require_admin_or_redirect(request)
         if redirect:
             return redirect
 
-        current_user = await self._get_current_user(request)
+        current_user = await self.get_current_user(request)
         jobs = await self._list_cron_jobs()
 
         html = await self.template_engine.render(
@@ -482,7 +453,7 @@ class BoardPlugin(Plugin):
     async def list_cron_jobs_api(self, request, **kwargs):
         """GET /board/cron/jobs"""
         from starlette.responses import JSONResponse
-        redirect = await self._check_admin_or_redirect(request)
+        redirect = await self.require_admin_or_redirect(request)
         if redirect:
             return redirect
         jobs = await self._list_cron_jobs()
@@ -492,7 +463,7 @@ class BoardPlugin(Plugin):
         """POST /board/cron/jobs"""
         from starlette.responses import JSONResponse, RedirectResponse
 
-        redirect = await self._check_admin_or_redirect(request)
+        redirect = await self.require_admin_or_redirect(request)
         if redirect:
             return redirect
 
@@ -525,7 +496,7 @@ class BoardPlugin(Plugin):
         """PUT /board/cron/jobs/{job_id}"""
         from starlette.responses import JSONResponse
 
-        redirect = await self._check_admin_or_redirect(request)
+        redirect = await self.require_admin_or_redirect(request)
         if redirect:
             return redirect
 
@@ -552,7 +523,7 @@ class BoardPlugin(Plugin):
         """DELETE /board/cron/jobs/{job_id}"""
         from starlette.responses import JSONResponse
 
-        redirect = await self._check_admin_or_redirect(request)
+        redirect = await self.require_admin_or_redirect(request)
         if redirect:
             return redirect
 
@@ -568,7 +539,7 @@ class BoardPlugin(Plugin):
         """网站设置页面"""
         from starlette.responses import HTMLResponse
 
-        redirect = await self._check_admin_or_redirect(request)
+        redirect = await self.require_admin_or_redirect(request)
         if redirect:
             return redirect
 
@@ -582,7 +553,7 @@ class BoardPlugin(Plugin):
         """微博审核页面"""
         from starlette.responses import HTMLResponse
 
-        redirect = await self._check_admin_or_redirect(request)
+        redirect = await self.require_admin_or_redirect(request)
         if redirect:
             return redirect
 
@@ -606,7 +577,7 @@ class BoardPlugin(Plugin):
         """GET /board/settings/api - 获取当前设置"""
         from starlette.responses import JSONResponse
 
-        redirect = await self._check_admin_or_redirect(request)
+        redirect = await self.require_admin_or_redirect(request)
         if redirect:
             return redirect
 
@@ -617,7 +588,7 @@ class BoardPlugin(Plugin):
         """PUT /board/settings/api - 更新设置"""
         from starlette.responses import JSONResponse
 
-        redirect = await self._check_admin_or_redirect(request)
+        redirect = await self.require_admin_or_redirect(request)
         if redirect:
             return redirect
 
@@ -681,12 +652,11 @@ class BoardPlugin(Plugin):
         """看板页面 + 定时任务入口"""
         from starlette.responses import HTMLResponse
 
-        redirect = await self._check_admin_or_redirect(request)
+        redirect = await self.require_admin_or_redirect(request)
         if redirect:
             return redirect
 
-        current_user = await self._get_current_user(request)
-        await self._init_board_table()
+        current_user = await self.get_current_user(request)
 
         # 读取看板任务
         rows = await self.engine.fetchall(
@@ -731,7 +701,7 @@ class BoardPlugin(Plugin):
 
     async def create_task(self, request, **kwargs):
         from starlette.responses import RedirectResponse
-        redirect = await self._check_admin_or_redirect(request)
+        redirect = await self.require_admin_or_redirect(request)
         if redirect:
             return redirect
         form = await request.form()
@@ -742,7 +712,6 @@ class BoardPlugin(Plugin):
         if not title:
             return RedirectResponse(url="/board", status_code=302)
         now = int(time.time())
-        await self._init_board_table()
         await self.engine.put("board_tasks", 0, {
             "title": title, "description": description,
             "status": status, "priority": priority,
@@ -752,7 +721,7 @@ class BoardPlugin(Plugin):
 
     async def update_task(self, request, **kwargs):
         from starlette.responses import JSONResponse
-        redirect = await self._check_admin_or_redirect(request)
+        redirect = await self.require_admin_or_redirect(request)
         if redirect:
             return redirect
         task_id = int(kwargs.get("task_id", 0))
@@ -772,7 +741,7 @@ class BoardPlugin(Plugin):
 
     async def delete_task(self, request, **kwargs):
         from starlette.responses import JSONResponse
-        redirect = await self._check_admin_or_redirect(request)
+        redirect = await self.require_admin_or_redirect(request)
         if redirect:
             return redirect
         task_id = int(kwargs.get("task_id", 0))

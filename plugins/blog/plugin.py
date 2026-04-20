@@ -23,15 +23,10 @@ class BlogPlugin(Plugin):
         self.engine = ctx.engine
         self.config = ctx.config
         self.ctx = ctx  # 保存 ctx 以便获取其他 plugin
+        self._ctx = ctx  # 供基类鉴权方法使用
         
         # Create blog-specific tables if needed
         # (contents table is shared, but we can add indexes)
-    
-    def _get_auth_plugin(self):
-        """Get auth plugin if available"""
-        if self.ctx:
-            return self.ctx.get_plugin("auth")
-        return None
     
     def routes(self) -> List[Route]:
         """HTTP routes"""
@@ -163,13 +158,11 @@ Requirements:
         """Create a blog post"""
         # 如果提供了 MCP token，验证并获取用户
         if mcp_token:
-            auth_plugin = self._get_auth_plugin()
-            if auth_plugin:
-                user = await auth_plugin.get_user_by_mcp_token(mcp_token)
-                if user:
-                    author_id = user["id"]
-                else:
-                    return {"error": "无效的 MCP Token"}
+            user = await self.get_current_user_mcp(mcp_token)
+            if user:
+                author_id = user["id"]
+            else:
+                return {"error": "无效的 MCP Token"}
 
         now = int(time.time())
 
@@ -202,27 +195,23 @@ Requirements:
         elif tool_name == "update_post":
             # 更新需要验证权限
             if mcp_token:
-                auth_plugin = self._get_auth_plugin()
-                if auth_plugin:
-                    user = await auth_plugin.get_user_by_mcp_token(mcp_token)
-                    if user:
-                        # 检查是否是作者或管理员
-                        post = await self.engine.get("contents", arguments.get("id"))
-                        if post and (post.get("author_id") == user["id"] or user.get("role") == "admin"):
-                            return await self.update_post(**arguments)
-                        return {"error": "无权修改此文章"}
+                user = await self.get_current_user_mcp(mcp_token)
+                if user:
+                    # 检查是否是作者或管理员
+                    post = await self.engine.get("contents", arguments.get("id"))
+                    if post and (post.get("author_id") == user["id"] or user.get("role") == "admin"):
+                        return await self.update_post(**arguments)
+                    return {"error": "无权修改此文章"}
                 return {"error": "无效的 MCP Token"}
             return {"error": "需要 MCP Token 进行认证"}
         elif tool_name == "delete_post":
             if mcp_token:
-                auth_plugin = self._get_auth_plugin()
-                if auth_plugin:
-                    user = await auth_plugin.get_user_by_mcp_token(mcp_token)
-                    if user:
-                        post = await self.engine.get("contents", arguments.get("id"))
-                        if post and (post.get("author_id") == user["id"] or user.get("role") == "admin"):
-                            return await self.delete_post_mcp(**arguments)
-                        return {"error": "无权删除此文章"}
+                user = await self.get_current_user_mcp(mcp_token)
+                if user:
+                    post = await self.engine.get("contents", arguments.get("id"))
+                    if post and (post.get("author_id") == user["id"] or user.get("role") == "admin"):
+                        return await self.delete_post_mcp(**arguments)
+                    return {"error": "无权删除此文章"}
                 return {"error": "无效的 MCP Token"}
             return {"error": "需要 MCP Token 进行认证"}
         else:
@@ -285,19 +274,25 @@ Requirements:
         id: int,
         title: Optional[str] = None,
         content: Optional[str] = None,
-        status: Optional[str] = None
+        status: Optional[str] = None,
+        tags: Optional[Any] = None
     ) -> Dict[str, Any]:
         """Update a blog post"""
         existing = await self.engine.get("contents", id)
         if not existing:
             return {"error": "Post not found"}
         
-        if title:
+        if title is not None:
             existing["title"] = title
-        if content:
+        if content is not None:
             existing["body"] = content
-        if status:
+        if status is not None:
             existing["status"] = status
+        if tags is not None:
+            if isinstance(tags, list):
+                existing["tags"] = json.dumps(tags, ensure_ascii=False)
+            elif isinstance(tags, str):
+                existing["tags"] = tags
         
         existing["updated_at"] = int(time.time())
         
@@ -369,12 +364,7 @@ Requirements:
                 post["author_avatar"] = author.get("avatar")
         
         # 获取当前用户（用于判断是否显示编辑按钮）
-        current_user = None
-        token = request.cookies.get("auth_token", "")
-        if token:
-            auth = self._get_auth_plugin()
-            if auth:
-                current_user = await auth.get_user_by_token(token)
+        current_user = await self.get_current_user(request)
         
         
         html = await self.ctx.template_engine.render("post.html", {
@@ -390,14 +380,7 @@ Requirements:
         from starlette.responses import HTMLResponse, RedirectResponse
         
         # 检查登录
-        token = request.cookies.get("auth_token", "")
-        if not token:
-            return RedirectResponse(url="/login", status_code=302)
-        
-        auth = self._get_auth_plugin()
-        current_user = None
-        if auth:
-            current_user = await auth.get_user_by_token(token)
+        current_user = await self.get_current_user(request)
         
         if not current_user:
             return RedirectResponse(url="/login", status_code=302)
@@ -447,14 +430,9 @@ Requirements:
         
         # 获取当前用户
         author_id = 1  # 默认作者
-        token = request.cookies.get("auth_token", "")
-        if token:
-            # 通过 auth plugin 验证 token
-            auth_plugin = self._get_auth_plugin()
-            if auth_plugin:
-                user = await auth_plugin.get_user_by_token(token)
-                if user:
-                    author_id = user["id"]
+        user = await self.get_current_user(request)
+        if user:
+            author_id = user["id"]
         
         return await self.create_post(
             title=title,
@@ -490,28 +468,33 @@ Requirements:
             
         return post
     
-    async def update_post_api(self, post_id: int, **kwargs):
+    async def update_post_api(self, post_id: int, request=None, **kwargs):
         """Update post API"""
-        kwargs["id"] = post_id
-        return await self.update_post(**kwargs)
+        # 解析请求体，兼容 body/content 字段名
+        data = kwargs
+        if request:
+            content_type = request.headers.get("content-type", "")
+            if "application/json" in content_type:
+                try:
+                    body = await request.json()
+                    data = body
+                except Exception:
+                    pass
+
+        title = data.get("title")
+        content = data.get("body", data.get("content"))
+        status = data.get("status")
+        tags = data.get("tags")
+
+        return await self.update_post(id=post_id, title=title, content=content, status=status, tags=tags)
     
     async def delete_post_api(self, post_id: int, request=None, **kwargs):
         """Delete post API"""
         # 鉴权：检查用户是否登录
-        token = request.cookies.get("auth_token", "") if request else ""
-        if not token:
-            from starlette.responses import JSONResponse
-            return JSONResponse({"error": "请先登录"}, status_code=401)
-        
-        auth_plugin = self._get_auth_plugin()
-        if not auth_plugin:
-            from starlette.responses import JSONResponse
-            return JSONResponse({"error": "认证服务不可用"}, status_code=500)
-        
-        user = await auth_plugin.get_user_by_token(token)
+        user = await self.get_current_user(request)
         if not user:
             from starlette.responses import JSONResponse
-            return JSONResponse({"error": "无效的登录状态"}, status_code=401)
+            return JSONResponse({"error": "请先登录"}, status_code=401)
         
         # 获取文章，检查权限
         post = await self.engine.get("contents", post_id)

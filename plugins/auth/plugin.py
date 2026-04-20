@@ -16,7 +16,6 @@ class AuthPlugin(Plugin):
     
     def __init__(self):
         self.sessions: Dict[str, Dict] = {}  # 简单内存session，生产环境应使用Redis
-        self.mcp_tokens: Dict[str, Dict] = {}  # MCP API tokens
         self.captcha_codes: Dict[str, Dict] = {}  # 验证码缓存: {code_id: {code, expires}}
         self.engine = None
         self.config = None
@@ -38,6 +37,7 @@ class AuthPlugin(Plugin):
         """Initialize auth plugin"""
         self.engine = ctx.engine
         self.config = ctx.config
+        self._ctx = ctx  # 供基类鉴权方法使用
         
         # 加载 OAuth 配置
         import os
@@ -47,6 +47,8 @@ class AuthPlugin(Plugin):
         
         # 初始化 sessions 表
         await self._init_sessions_table()
+        # 初始化 mcp_tokens 表
+        await self._init_mcp_tokens_table()
     
     async def _init_sessions_table(self):
         """创建 sessions 表"""
@@ -61,6 +63,18 @@ class AuthPlugin(Plugin):
         # 清理过期 session
         import time
         await self.engine.execute("DELETE FROM sessions WHERE expires_at < ?", (int(time.time()),))
+    
+    async def _init_mcp_tokens_table(self):
+        """创建 mcp_tokens 表"""
+        await self.engine.execute("""
+            CREATE TABLE IF NOT EXISTS mcp_tokens (
+                token TEXT PRIMARY KEY,
+                user_id INTEGER NOT NULL,
+                name TEXT NOT NULL DEFAULT '',
+                created_at INTEGER NOT NULL,
+                last_used INTEGER DEFAULT 0
+            )
+        """)
     
     def routes(self):
         """HTTP routes"""
@@ -466,12 +480,20 @@ class AuthPlugin(Plugin):
     
     async def update_user(self, user_id: int, **kwargs) -> Dict:
         """更新用户信息"""
-        # 不允许直接修改密码
+        # 不允许直接修改密码和 id
         if "password_hash" in kwargs:
             del kwargs["password_hash"]
+        if "id" in kwargs:
+            del kwargs["id"]
         
-        kwargs["id"] = user_id
-        return await self.engine.update("users", kwargs)
+        # 读取现有记录，合并更新
+        existing = await self.engine.get("users", user_id)
+        if not existing:
+            return {"error": "用户不存在"}
+        
+        existing.update(kwargs)
+        await self.engine.put("users", user_id, existing)
+        return {"success": True}
     
     async def change_password(self, user_id: int, old_password: str, new_password: str) -> Dict:
         """修改密码"""
@@ -481,25 +503,29 @@ class AuthPlugin(Plugin):
         
         # 验证旧密码
         try:
-            salt, hash_val = user["password_hash"].split("$")
+            salt, hash_val = self._split_password_hash(user["password_hash"])
+            if not salt:
+                return {"error": "用户数据异常"}
         except:
             return {"error": "用户数据异常"}
         
         if not self._verify_password(old_password, salt, hash_val):
             return {"error": "原密码错误"}
         
-        # 设置新密码
+        # 设置新密码（统一使用 salt:hash 格式）
         new_salt, new_hash = self._hash_password(new_password)
-        await self.engine.update("users", {
-            "id": user_id,
-            "password_hash": f"{new_salt}:${new_hash}"
-        })
+        user["password_hash"] = f"{new_salt}:{new_hash}"
+        await self.engine.put("users", user_id, user)
         
         return {"success": True}
     
     async def list_users(self, limit: int = 20, offset: int = 0) -> List[Dict]:
         """列出用户"""
-        users = await self.engine.list("users", limit=limit, offset=offset)
+        rows = await self.engine.fetchall(
+            "SELECT * FROM users ORDER BY created_at DESC LIMIT ? OFFSET ?",
+            (limit, offset)
+        )
+        users = [dict(r) for r in rows]
         for user in users:
             if "password_hash" in user:
                 del user["password_hash"]
@@ -840,16 +866,14 @@ class AuthPlugin(Plugin):
     # === MCP Token 管理 ===
 
     async def create_mcp_token(self, user_id: int, name: str = "MCP Client") -> Dict:
-        """创建 MCP API Token"""
+        """创建 MCP API Token（持久化到 SQLite）"""
         token = secrets.token_urlsafe(32)
         created_at = int(time.time())
 
-        self.mcp_tokens[token] = {
-            "user_id": user_id,
-            "name": name,
-            "created_at": created_at,
-            "last_used": None
-        }
+        await self.engine.execute(
+            "INSERT INTO mcp_tokens (token, user_id, name, created_at) VALUES (?, ?, ?, ?)",
+            (token, user_id, name, created_at)
+        )
 
         return {
             "token": token,
@@ -859,41 +883,51 @@ class AuthPlugin(Plugin):
 
     async def revoke_mcp_token(self, token: str) -> bool:
         """撤销 MCP Token"""
-        if token in self.mcp_tokens:
-            del self.mcp_tokens[token]
-            return True
-        return False
+        cursor = await self.engine.execute(
+            "DELETE FROM mcp_tokens WHERE token = ?", (token,)
+        )
+        return cursor.rowcount > 0
 
     async def list_mcp_tokens(self, user_id: int) -> List[Dict]:
         """列出用户的 MCP Tokens"""
-        tokens = []
-        for token, info in self.mcp_tokens.items():
-            if info["user_id"] == user_id:
-                tokens.append({
-                    "id": token[:16],  # 用于前端识别和删除
-                    "prefix": token[:8],  # 显示前8位
-                    "name": info["name"],
-                    "created_at": info["created_at"],
-                    "last_used": info["last_used"]
-                })
-        return tokens
+        rows = await self.engine.fetchall(
+            "SELECT token, name, created_at, last_used FROM mcp_tokens WHERE user_id = ? ORDER BY created_at DESC",
+            (user_id,)
+        )
+        return [
+            {
+                "id": dict(r)["token"][:16],
+                "prefix": dict(r)["token"][:8],
+                "name": dict(r)["name"],
+                "created_at": dict(r)["created_at"],
+                "last_used": dict(r)["last_used"]
+            }
+            for r in rows
+        ]
 
     async def get_user_by_mcp_token(self, token: str) -> Optional[Dict]:
         """通过 MCP Token 获取用户"""
-        if token not in self.mcp_tokens:
+        row = await self.engine.fetchone(
+            "SELECT user_id, last_used FROM mcp_tokens WHERE token = ?",
+            (token,)
+        )
+        if not row:
             return None
 
-        info = self.mcp_tokens[token]
         # 更新最后使用时间
-        info["last_used"] = int(time.time())
+        await self.engine.execute(
+            "UPDATE mcp_tokens SET last_used = ? WHERE token = ?",
+            (int(time.time()), token)
+        )
 
         # 获取用户详情
-        user = await self.get_user(info["user_id"])
+        row_dict = dict(row)
+        user = await self.get_user(row_dict["user_id"])
         if user:
             return {
                 "id": user["id"],
                 "username": user["username"],
                 "role": user.get("role", "user"),
-                "token_name": info["name"]
+                "token_name": row_dict.get("name", "")
             }
         return None

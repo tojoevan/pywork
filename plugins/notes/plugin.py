@@ -22,11 +22,7 @@ class NotesPlugin(Plugin):
         self.engine = ctx.engine
         self.config = ctx.config
         self.ctx = ctx
-    
-    def _get_auth_plugin(self):
-        if self.ctx:
-            return self.ctx.get_plugin("auth")
-        return None
+        self._ctx = ctx  # 供基类鉴权方法使用
     
     def routes(self) -> List[Route]:
         return [
@@ -71,26 +67,6 @@ class NotesPlugin(Plugin):
             ),
         ]
     
-    # Auth helpers
-    async def _get_current_user(self, request) -> Optional[Dict]:
-        """Get current user from cookie"""
-        token = request.cookies.get("auth_token", "")
-        if not token:
-            return None
-        auth_plugin = self._get_auth_plugin()
-        if auth_plugin:
-            return await auth_plugin.get_user_by_token(token)
-        return None
-    
-    async def _get_current_user_mcp(self, mcp_token: str = None) -> Optional[Dict]:
-        """Get current user from MCP token"""
-        if not mcp_token:
-            return None
-        auth_plugin = self._get_auth_plugin()
-        if auth_plugin:
-            return await auth_plugin.get_user_by_mcp_token(mcp_token)
-        return None
-    
     # Core methods
     async def create_note(
         self,
@@ -101,7 +77,7 @@ class NotesPlugin(Plugin):
         mcp_token: str = None
     ) -> Dict[str, Any]:
         if mcp_token:
-            user = await self._get_current_user_mcp(mcp_token)
+            user = await self.get_current_user_mcp(mcp_token)
             if user:
                 author_id = user["id"]
             else:
@@ -138,7 +114,7 @@ class NotesPlugin(Plugin):
         mcp_token: str = None
     ) -> List[Dict[str, Any]]:
         if mcp_token:
-            user = await self._get_current_user_mcp(mcp_token)
+            user = await self.get_current_user_mcp(mcp_token)
             if user:
                 author_id = user["id"]
         
@@ -173,8 +149,15 @@ class NotesPlugin(Plugin):
         title: str = None,
         content: str = None,
         visibility: str = None,
-        author_id: int = None
+        author_id: int = None,
+        mcp_token: str = None
     ) -> Dict[str, Any]:
+        if mcp_token:
+            user = await self.get_current_user_mcp(mcp_token)
+            if user:
+                author_id = user["id"]
+            else:
+                return {"error": "无效的 MCP Token"}
         existing = await self.engine.get("contents", note_id)
         if not existing:
             return {"error": "笔记不存在"}
@@ -183,11 +166,11 @@ class NotesPlugin(Plugin):
         if author_id and existing.get("author_id") != author_id:
             return {"error": "无权修改此笔记"}
         
-        if title:
+        if title is not None:
             existing["title"] = title
-        if content:
+        if content is not None:
             existing["body"] = content
-        if visibility:
+        if visibility is not None:
             existing["visibility"] = visibility
         
         existing["updated_at"] = int(time.time())
@@ -197,7 +180,7 @@ class NotesPlugin(Plugin):
     
     async def delete_note(self, note_id: int, author_id: int = None, mcp_token: str = None) -> Dict[str, Any]:
         if mcp_token:
-            user = await self._get_current_user_mcp(mcp_token)
+            user = await self.get_current_user_mcp(mcp_token)
             if user:
                 author_id = user["id"]
             else:
@@ -211,32 +194,6 @@ class NotesPlugin(Plugin):
         
         await self.engine.delete("contents", note_id)
         return {"id": note_id, "deleted": True}
-
-    async def update_note(self, note_id: int, title: str = None, content: str = None,
-                          visibility: str = None, author_id: int = None, mcp_token: str = None) -> Dict[str, Any]:
-        if mcp_token:
-            user = await self._get_current_user_mcp(mcp_token)
-            if user:
-                author_id = user["id"]
-            else:
-                return {"error": "无效的 MCP Token"}
-        existing = await self.engine.get("contents", note_id)
-        if not existing:
-            return {"error": "笔记不存在"}
-        if author_id and existing.get("author_id") != author_id:
-            return {"error": "无权修改此笔记"}
-        
-        now = int(time.time())
-        data = {"updated_at": now}
-        if title is not None:
-            data["title"] = title
-        if content is not None:
-            data["body"] = content
-        if visibility is not None:
-            data["visibility"] = visibility
-        
-        await self.engine.put("contents", note_id, data)
-        return {"id": note_id, "updated": True}
 
     async def mcp_call(self, tool_name: str, arguments: Dict, mcp_token: str = None) -> Any:
         """MCP call dispatcher for notes plugin"""
@@ -253,7 +210,7 @@ class NotesPlugin(Plugin):
     # HTTP handlers
     async def list_notes_page(self, request, **kwargs):
         """笔记列表页面"""
-        user = await self._get_current_user(request)
+        user = await self.get_current_user(request)
         
         if user:
             notes = await self.list_notes(author_id=user["id"], limit=50)
@@ -269,7 +226,7 @@ class NotesPlugin(Plugin):
     
     async def new_note_page(self, request):
         """新建笔记页面"""
-        user = await self._get_current_user(request)
+        user = await self.get_current_user(request)
         if not user:
             return HTMLResponse(content="<script>window.location.href='/login';</script>")
         
@@ -284,7 +241,7 @@ class NotesPlugin(Plugin):
         """编辑笔记页面"""
         from starlette.responses import HTMLResponse, RedirectResponse
         
-        user = await self._get_current_user(request)
+        user = await self.get_current_user(request)
         if not user:
             return RedirectResponse(url="/login", status_code=302)
         
@@ -309,7 +266,7 @@ class NotesPlugin(Plugin):
     
     async def create_note_api(self, request, **kwargs):
         """创建笔记 API"""
-        user = await self._get_current_user(request)
+        user = await self.get_current_user(request)
         if not user:
             return {"error": "请先登录", "code": "unauthorized"}
         
@@ -336,7 +293,7 @@ class NotesPlugin(Plugin):
     
     async def get_note_api(self, note_id: int, request, **kwargs):
         """获取笔记详情"""
-        user = await self._get_current_user(request)
+        user = await self.get_current_user(request)
         note = await self.engine.get("contents", note_id)
         
         if not note or note.get("plugin_type") != "note":
@@ -361,7 +318,7 @@ class NotesPlugin(Plugin):
     
     async def get_note_page(self, note_id: int, request, **kwargs):
         """笔记详情页面"""
-        user = await self._get_current_user(request)
+        user = await self.get_current_user(request)
         note = await self.engine.get("contents", note_id)
         
         if not note or note.get("plugin_type") != "note":
@@ -392,7 +349,7 @@ class NotesPlugin(Plugin):
     
     async def update_note_api(self, note_id: int, request, **kwargs):
         """更新笔记 API"""
-        user = await self._get_current_user(request)
+        user = await self.get_current_user(request)
         if not user:
             return {"error": "请先登录", "code": "unauthorized"}
         
@@ -412,7 +369,7 @@ class NotesPlugin(Plugin):
     
     async def delete_note_api(self, note_id: int, request, **kwargs):
         """删除笔记 API"""
-        user = await self._get_current_user(request)
+        user = await self.get_current_user(request)
         if not user:
             return {"error": "请先登录", "code": "unauthorized"}
         
@@ -420,7 +377,7 @@ class NotesPlugin(Plugin):
     
     async def list_my_notes_api(self, request, **kwargs):
         """获取我的笔记列表 API"""
-        user = await self._get_current_user(request)
+        user = await self.get_current_user(request)
         if not user:
             return {"error": "请先登录", "code": "unauthorized"}
         

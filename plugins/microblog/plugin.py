@@ -10,10 +10,13 @@ class MicroblogPlugin(Plugin):
     """微博插件 - 快速分享"""
 
     MAX_LENGTH = 500
-    # 频率控制：IP -> 最后发布时间（秒）
-    _ip_rate_limit: Dict[str, float] = {}
     # 匿名发布间隔：60秒
     ANONYMOUS_RATE_LIMIT = 60
+
+    def __init__(self):
+        super().__init__()
+        # 频率控制：IP -> 最后发布时间（秒）
+        self._ip_rate_limit: Dict[str, float] = {}
 
     @property
     def name(self) -> str:
@@ -27,12 +30,8 @@ class MicroblogPlugin(Plugin):
         self.engine = ctx.engine
         self.config = ctx.config
         self.ctx = ctx
+        self._ctx = ctx  # 供基类鉴权方法使用
         self.template_engine = ctx.template_engine
-
-    def _auth(self):
-        if self.ctx:
-            return self.ctx.get_plugin("auth")
-        return None
 
     def routes(self) -> List[Route]:
         return [
@@ -100,17 +99,9 @@ class MicroblogPlugin(Plugin):
 
     async def _get_author_id(self, request) -> int:
         """从请求中获取当前用户 ID"""
-        token = request.cookies.get("auth_token", "")
-        if not token:
-            auth = self._auth()
-            if auth:
-                token = request.headers.get("Authorization", "").replace("Bearer ", "")
-        if token:
-            auth = self._auth()
-            if auth:
-                user = await auth.get_user_by_token(token)
-                if user:
-                    return user["id"]
+        user = await self.get_current_user(request)
+        if user:
+            return user["id"]
         return 1  # 默认匿名
 
     async def create_post(
@@ -126,9 +117,8 @@ class MicroblogPlugin(Plugin):
         if len(content) > self.MAX_LENGTH:
             return {"error": f"内容不能超过{self.MAX_LENGTH}字"}
 
-        auth = self._auth()
-        if mcp_token and auth:
-            user = await auth.get_user_by_mcp_token(mcp_token)
+        if mcp_token:
+            user = await self.get_current_user_mcp(mcp_token)
             if user:
                 author_id = user["id"]
             else:
@@ -178,12 +168,11 @@ class MicroblogPlugin(Plugin):
         return rows
 
     async def delete_post(self, id: int, mcp_token: str = None) -> Dict:
-        auth = self._auth()
         post = await self.engine.get("contents", id)
         if not post:
             return {"error": "微博不存在"}
-        if mcp_token and auth:
-            user = await auth.get_user_by_mcp_token(mcp_token)
+        if mcp_token:
+            user = await self.get_current_user_mcp(mcp_token)
             if user:
                 if post.get("author_id") != user["id"] and user.get("role") != "admin":
                     return {"error": "无权删除"}
@@ -230,22 +219,14 @@ class MicroblogPlugin(Plugin):
 
     async def approve_post_api(self, post_id: int, request, **kwargs):
         """POST /api/microblog/{post_id}/approve"""
-        token = request.cookies.get("auth_token", "")
-        auth = self._auth()
-        if not token or not auth:
-            return {"error": "请先登录"}
-        user = await auth.get_user_by_token(token)
+        user = await self.get_current_user(request)
         if not user or user.get("role") != "admin":
             return {"error": "需要管理员权限"}
         return await self.approve_post(post_id)
 
     async def reject_post_api(self, post_id: int, request, **kwargs):
         """POST /api/microblog/{post_id}/reject"""
-        token = request.cookies.get("auth_token", "")
-        auth = self._auth()
-        if not token or not auth:
-            return {"error": "请先登录"}
-        user = await auth.get_user_by_token(token)
+        user = await self.get_current_user(request)
         if not user or user.get("role") != "admin":
             return {"error": "需要管理员权限"}
         return await self.reject_post(post_id)
@@ -268,13 +249,9 @@ class MicroblogPlugin(Plugin):
         
         # 获取当前登录用户
         current_author_id = None
-        token = request.cookies.get("auth_token", "")
-        if token:
-            auth = self._auth()
-            if auth:
-                user = await auth.get_user_by_token(token)
-                if user:
-                    current_author_id = user["id"]
+        user = await self.get_current_user(request)
+        if user:
+            current_author_id = user["id"]
         
         html = await self.template_engine.render(
             "microblog.html",
@@ -304,9 +281,9 @@ class MicroblogPlugin(Plugin):
         if "x-forwarded-for" in request.headers:
             client_ip = request.headers["x-forwarded-for"].split(",")[0].strip()
         
-        # 检测是否匿名：没有 auth_token
-        token = request.cookies.get("auth_token", "")
-        is_anonymous = not token
+        # 检测是否匿名
+        current_user = await self.get_current_user(request)
+        is_anonymous = not current_user
         
         # 匿名用户频率控制
         if is_anonymous:
@@ -335,20 +312,16 @@ class MicroblogPlugin(Plugin):
     async def update_api(self, post_id: int, request, **kwargs):
         """更新微博"""
         # 鉴权
-        token = request.cookies.get("auth_token", "")
-        auth = self._auth()
-        current_user = None
-        if token and auth:
-            current_user = await auth.get_user_by_token(token)
+        user = await self.get_current_user(request)
         
         post = await self.engine.get("contents", post_id)
         if not post or post.get("plugin_type") != "microblog":
             return {"error": "微博不存在"}
         
-        if not current_user:
+        if not user:
             return {"error": "请先登录"}
         
-        if post.get("author_id") != current_user["id"] and current_user.get("role") != "admin":
+        if post.get("author_id") != user["id"] and user.get("role") != "admin":
             return {"error": "无权限修改他人的微博"}
         
         # 获取新内容
@@ -375,20 +348,16 @@ class MicroblogPlugin(Plugin):
 
     async def delete_api(self, post_id: int, request, **kwargs):
         # 鉴权：只有作者或 admin 才能删除
-        token = request.cookies.get("auth_token", "")
-        auth = self._auth()
-        current_user = None
-        if token and auth:
-            current_user = await auth.get_user_by_token(token)
+        user = await self.get_current_user(request)
         
         post = await self.engine.get("contents", post_id)
         if not post:
             return {"error": "微博不存在"}
         
-        if not current_user:
+        if not user:
             return {"error": "请先登录"}
         
-        if post.get("author_id") != current_user["id"] and current_user.get("role") != "admin":
+        if post.get("author_id") != user["id"] and user.get("role") != "admin":
             return {"error": "无权限删除他人的微博"}
         
         await self.engine.delete("contents", post_id)

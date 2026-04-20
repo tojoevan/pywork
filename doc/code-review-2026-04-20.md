@@ -1,8 +1,60 @@
 # pyWork 项目代码审查报告
 
 > 审查日期：2026-04-20
+> P0 修复日期：2026-04-20
+> P1 修复日期：2026-04-20 ~ 2026-04-21
 > 审查范围：pyWork v0.1 全部源码
 > 技术栈：Python 3.11+ / FastAPI / SQLite / Jinja2 / MCP
+
+## P0 修复记录（2026-04-20）
+
+### ✅ P0-1. 闭包变量捕获 Bug — 已修复
+- **文件：** `app/main.py` — `_register_route` 方法
+- **修复：** `post_handler` 和 `get_handler` 闭包参数改为 `_route=route`（默认参数值捕获）
+- **验证：** `grep '_route=route' app/main.py` 匹配 3 处
+
+### ✅ P0-2. visibility 字段缺失 — 已修复
+- **文件：** `app/storage/sqlite_engine.py`
+- **修复：** SCHEMA 中 contents 表添加 `visibility TEXT DEFAULT 'private'`；新增 `_run_migrations()` 方法，启动时自动检测并 ALTER TABLE 添加缺失列
+- **验证：** 新数据库直接建表包含字段；旧数据库启动时自动迁移
+
+### ✅ P0-3. 不存在的 Engine 方法 — 已修复
+- **文件：** `plugins/auth/plugin.py`
+- **修复：**
+  - `update_user()`: 改用 `engine.get()` + 合并 + `engine.put()`
+  - `change_password()`: 改用 `engine.put()` + 统一密码格式为 `salt:hash`
+  - `list_users()`: 改用 `engine.fetchall()` + SQL
+- **附带修复：** 密码哈希格式统一为 `salt:hash`（原 `change_password` 用 `$` 分隔）
+
+---
+
+## P1 修复记录（2026-04-20 ~ 2026-04-21）
+
+### ✅ P1-1. SQL 注入 — 表名白名单 — 已修复
+- **文件：** `app/storage/sqlite_engine.py`
+- **修复：** 新增 `ALLOWED_TABLES` 集合 + `_validate_table()` 方法，在 `get`/`put`/`delete`/`query` 四个入口加校验；`execute`/`fetchone`/`fetchall` 不限制（调用者已有完整 SQL 控制权）；`mcp_tokens` 表已加入白名单
+
+### ✅ P1-2. MCP Token 持久化 — 已修复
+- **文件：** `plugins/auth/plugin.py`
+- **修复：** 删除内存 dict `self.mcp_tokens`，新增 `mcp_tokens` SQLite 表（token TEXT PK, user_id, name, created_at, last_used），重写 `create_mcp_token`/`revoke_mcp_token`/`list_mcp_tokens`/`get_user_by_mcp_token` 四个方法为 SQL 操作
+
+### ✅ P1-3. Raft 日志清理 — 已修复
+- **文件：** `app/storage/sqlite_engine.py`
+- **修复：** 新增 `compact()` 方法，在 `put()` 中达到阈值后自动清理旧日志；启动时也会执行一次
+
+### ✅ P1-4. `_init_*_table` 重复执行 — 已修复
+- **文件：** `plugins/board/plugin.py`
+- **修复：** 新增 `_ensure_tables()` 统一入口，设 `self._tables_initialized` flag 防重，删除 11 处方法内冗余调用
+
+### ✅ P1-5. 密码哈希格式不一致 — 已修复（P0 修复时顺带完成）
+- 统一为 `salt:hash` 格式，删除 `$` 前缀逻辑
+
+### ✅ P1-6. 鉴权逻辑去重 — 已修复
+- **文件：** `app/plugin/interface.py` + 所有插件
+- **修复：**
+  - Plugin 基类新增 6 个统一鉴权方法：`get_current_user`、`get_current_user_mcp`、`is_admin`、`require_admin`、`require_admin_or_redirect`、`require_login_or_redirect`
+  - 所有插件添加 `self._ctx = ctx`，删除本地 `_auth()`/`_get_auth_plugin()`/`_get_current_user()`/`_get_current_user_mcp()`/`_is_admin()`/`_check_admin()`/`_check_admin_or_redirect()` 等重复方法
+  - 调用方全部改为使用基类方法
 
 ---
 

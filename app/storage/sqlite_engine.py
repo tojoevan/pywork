@@ -12,6 +12,14 @@ from .interface import Engine, LogEntry, RaftIndex
 class SQLiteEngine(Engine):
     """SQLite storage engine - Phase 1 implementation"""
     
+    # Table name whitelist — all SQL-accepting methods validate against this
+    ALLOWED_TABLES = frozenset({
+        'users', 'contents', 'objects', 'tasks', 'plugins', 'templates',
+        'site_config', 'site_template_bindings', 'sessions', 'cron_jobs',
+        'cron_stats', 'board_tasks', 'active_authors', 'mcp_tokens',
+        '_meta', '_raft_log',
+    })
+    
     # Core business tables
     SCHEMA = """
     -- Users
@@ -39,6 +47,7 @@ class SQLiteEngine(Engine):
         body TEXT,
         meta_json TEXT,
         tags TEXT,
+        visibility TEXT DEFAULT 'private',
         created_at INTEGER NOT NULL,
         updated_at INTEGER NOT NULL,
         status TEXT DEFAULT 'draft',
@@ -117,6 +126,16 @@ class SQLiteEngine(Engine):
         UNIQUE(site_id, plugin_type)
     );
     
+    -- MCP Tokens (persistent, replaces in-memory dict)
+    CREATE TABLE IF NOT EXISTS mcp_tokens (
+        token TEXT PRIMARY KEY,
+        user_id INTEGER NOT NULL,
+        name TEXT DEFAULT 'MCP Client',
+        created_at INTEGER NOT NULL,
+        last_used INTEGER,
+        FOREIGN KEY (user_id) REFERENCES users(id)
+    );
+    
     -- Raft log (reserved for Phase 2+)
     CREATE TABLE IF NOT EXISTS _raft_log (
         term INTEGER NOT NULL,
@@ -170,8 +189,37 @@ class SQLiteEngine(Engine):
         await self._db.executescript(self.SCHEMA)
         await self._db.commit()
         
+        # Run migrations for existing databases
+        await self._run_migrations()
+        
+        # Compact raft log (keep last 1000 entries)
+        deleted = await self.compact_log(keep_last=1000)
+        if deleted > 0:
+            print(f"✓ Raft log compacted: removed {deleted} old entries")
+        
         # Load current index
         await self._load_index()
+    
+    async def _run_migrations(self) -> None:
+        """Run schema migrations for existing databases.
+        
+        Uses pragma_table_info to detect missing columns and ALTER TABLE to add them.
+        Safe to run on every startup — only adds columns that don't exist yet.
+        """
+        # Migration 001: add visibility column to contents
+        try:
+            async with self._db.execute(
+                "SELECT name FROM pragma_table_info('contents') WHERE name = 'visibility'"
+            ) as cursor:
+                row = await cursor.fetchone()
+                if not row:
+                    await self._db.execute(
+                        "ALTER TABLE contents ADD COLUMN visibility TEXT DEFAULT 'private'"
+                    )
+                    await self._db.commit()
+                    print("✓ Migration 001: added visibility column to contents")
+        except Exception as e:
+            print(f"⚠ Migration 001 failed: {e}")
     
     async def _load_index(self) -> None:
         """Load current Raft index from meta"""
@@ -206,8 +254,14 @@ class SQLiteEngine(Engine):
             await self._db.close()
             self._db = None
     
+    def _validate_table(self, table: str) -> None:
+        """Validate table name against whitelist to prevent SQL injection."""
+        if table not in self.ALLOWED_TABLES:
+            raise ValueError(f"Table not allowed: {table}")
+    
     async def get(self, table: str, record_id: int) -> Optional[Dict[str, Any]]:
         """Read single record"""
+        self._validate_table(table)
         async with self._db.execute(
             f"SELECT * FROM {table} WHERE id = ?", (record_id,)
         ) as cursor:
@@ -216,6 +270,7 @@ class SQLiteEngine(Engine):
     
     async def put(self, table: str, record_id: int, data: Dict[str, Any]) -> int:
         """Write record with log tracking"""
+        self._validate_table(table)
         now = int(time.time())
         
         # Prepare data
@@ -268,6 +323,7 @@ class SQLiteEngine(Engine):
     
     async def delete(self, table: str, record_id: int) -> None:
         """Delete record"""
+        self._validate_table(table)
         now = int(time.time())
         
         await self._db.execute(f"DELETE FROM {table} WHERE id = ?", (record_id,))
@@ -284,6 +340,7 @@ class SQLiteEngine(Engine):
     
     async def query(self, table: str, **filters) -> List[Dict[str, Any]]:
         """Query records"""
+        self._validate_table(table)
         if filters:
             where_clause = ' AND '.join([f"{k} = ?" for k in filters.keys()])
             params = tuple(filters.values())
@@ -360,6 +417,45 @@ class SQLiteEngine(Engine):
     def current_index(self) -> RaftIndex:
         """Current log position"""
         return RaftIndex(term=self._term, index=self._index)
+    
+    async def compact_log(self, keep_last: int = 1000) -> int:
+        """Compact raft log by removing old entries.
+        
+        Keeps the most recent `keep_last` entries to support:
+        - Recent change replay
+        - Migration export
+        
+        Safe to call periodically (e.g. on startup or via cron).
+        Returns the number of deleted entries.
+        """
+        # Find the cutoff index
+        async with self._db.execute(
+            "SELECT MAX(term * 1000000000 + idx) as max_key FROM _raft_log"
+        ) as cursor:
+            row = await cursor.fetchone()
+            if not row or row['max_key'] is None:
+                return 0
+        
+        # Get current max term+idx for cutoff calculation
+        async with self._db.execute(
+            "SELECT term, idx FROM _raft_log ORDER BY term DESC, idx DESC LIMIT 1 OFFSET ?",
+            (keep_last,)
+        ) as cursor:
+            cutoff = await cursor.fetchone()
+            if not cutoff:
+                return 0  # Less than keep_last entries, nothing to compact
+        
+        # Delete entries before the cutoff
+        await self._db.execute(
+            "DELETE FROM _raft_log WHERE term < ? OR (term = ? AND idx < ?)",
+            (cutoff['term'], cutoff['term'], cutoff['idx'])
+        )
+        await self._db.commit()
+        
+        # Return count of deleted entries
+        async with self._db.execute("SELECT changes()") as cursor:
+            row = await cursor.fetchone()
+            return row[0] if row else 0
     
     @property
     def mode(self) -> str:
