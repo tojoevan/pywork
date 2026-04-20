@@ -46,19 +46,31 @@
 <script>
     const currentAuthorId = {{ current_author_id | tojson }};
     let editingPostId = null;
+    let currentOffset = 0;
+    const pageSize = 20;
+    let hasMore = true;
 
-    async function loadFeed() {
+    async function loadFeed(append = false) {
         try {
-            const response = await fetch('/api/microblog?limit=50');
+            const response = await fetch(`/api/microblog?limit=${pageSize + 1}&offset=${currentOffset}`);
             const posts = await response.json();
 
+            hasMore = posts.length > pageSize;
+            const displayPosts = posts.slice(0, pageSize);
+
             const feed = document.getElementById('feed');
-            if (!posts || posts.length === 0) {
+            
+            if (!append) {
+                feed.innerHTML = '';
+            }
+
+            if (!append && (!displayPosts || displayPosts.length === 0)) {
                 feed.innerHTML = '<div class="feed-empty">还没有微博，快来发布第一条吧</div>';
+                document.getElementById('loadMoreBtn')?.remove();
                 return;
             }
 
-            feed.innerHTML = posts.map(post => {
+            const html = displayPosts.map(post => {
                 const avatar = post.author_avatar || post.author_name?.charAt(0).toUpperCase() || '?';
                 const time = formatTime(post.created_at);
                 const isOwner = post.author_id === currentAuthorId;
@@ -79,6 +91,27 @@
                     </div>
                 `;
             }).join('');
+            
+            feed.insertAdjacentHTML('beforeend', html);
+            
+            // 更新加载更多按钮
+            let loadMoreBtn = document.getElementById('loadMoreBtn');
+            if (hasMore) {
+                if (!loadMoreBtn) {
+                    loadMoreBtn = document.createElement('button');
+                    loadMoreBtn.id = 'loadMoreBtn';
+                    loadMoreBtn.className = 'btn-load-more';
+                    loadMoreBtn.textContent = '加载更多';
+                    loadMoreBtn.onclick = () => {
+                        currentOffset += pageSize;
+                        loadFeed(true);
+                        if (!hasMore) loadMoreBtn.remove();
+                    };
+                    feed.parentElement.appendChild(loadMoreBtn);
+                }
+            } else {
+                loadMoreBtn?.remove();
+            }
         } catch (e) {
             document.getElementById('feed').innerHTML = '<div class="feed-error">加载失败</div>';
         }

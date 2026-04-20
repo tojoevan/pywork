@@ -200,10 +200,11 @@ class WorkbenchApp:
             """博客首页"""
             blog_plugin = self.plugin_manager.plugins.get("blog")
             if blog_plugin:
-                posts = await blog_plugin.list_posts()
+                page = int(request.query_params.get("page", "1"))
+                result = await blog_plugin.search_posts_paginated(page=page, per_page=10)
                 html = await self.template_engine.render("index.html", {
-                    "posts": posts,
-                    "pagination": None,
+                    "posts": result["posts"],
+                    "pagination": result["pagination"],
                     "nav_page": "blog"
                 })
                 return HTMLResponse(content=html)

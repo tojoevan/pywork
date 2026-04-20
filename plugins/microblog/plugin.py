@@ -144,7 +144,7 @@ class MicroblogPlugin(Plugin):
             return {"id": record_id, "created_at": now, "status": "pending", "message": "发布成功，待管理员审核通过后显示"}
         return {"id": record_id, "created_at": now}
 
-    async def list_posts(self, limit: int = 20, mcp_token: str = None, include_pending: bool = False) -> List[Dict]:
+    async def list_posts(self, limit: int = 20, offset: int = 0, mcp_token: str = None, include_pending: bool = False) -> List[Dict]:
         # 默认只显示已审核通过的微博，include_pending=True 时显示 pending 状态
         if include_pending:
             status_filter = "c.status IN ('public', 'pending')"
@@ -156,9 +156,9 @@ class MicroblogPlugin(Plugin):
             LEFT JOIN users u ON c.author_id = u.id
             WHERE {status_filter}
             ORDER BY c.created_at DESC
-            LIMIT ?
+            LIMIT ? OFFSET ?
         """
-        rows = await self.engine.fetchall(sql, (limit,))
+        rows = await self.engine.fetchall(sql, (limit, offset))
         for row in rows:
             if not row.get("author_name"):
                 row["author_name"] = "匿名"
@@ -358,5 +358,5 @@ class MicroblogPlugin(Plugin):
         await self.engine.delete("microblog_posts", post_id)
         return {"deleted": True}
 
-    async def list_api(self, limit: int = 20, **kwargs):
-        return await self.list_posts(limit=limit)
+    async def list_api(self, limit: int = 20, offset: int = 0, **kwargs):
+        return await self.list_posts(limit=limit, offset=offset)

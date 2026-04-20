@@ -109,6 +109,7 @@ class NotesPlugin(Plugin):
         self,
         visibility: str = "private",
         limit: int = 20,
+        offset: int = 0,
         author_id: int = None,
         mcp_token: str = None
     ) -> List[Dict[str, Any]]:
@@ -136,11 +137,39 @@ class NotesPlugin(Plugin):
             LEFT JOIN users u ON c.author_id = u.id
             WHERE {' AND '.join(conditions)}
             ORDER BY c.updated_at DESC
-            LIMIT ?
+            LIMIT ? OFFSET ?
         """
         params.append(limit)
+        params.append(offset)
         
         return await self.engine.fetchall(sql, tuple(params))
+    
+    async def count_notes(
+        self,
+        visibility: str = "private",
+        author_id: int = None,
+        mcp_token: str = None
+    ) -> int:
+        if mcp_token:
+            user = await self.get_current_user_mcp(mcp_token)
+            if user:
+                author_id = user["id"]
+        
+        conditions = []
+        params = []
+        
+        if author_id:
+            conditions.append("(author_id = ? OR visibility = 'public')")
+            params.append(author_id)
+        elif visibility == "private":
+            return 0
+        elif visibility == "public":
+            conditions.append("visibility = 'public'")
+        
+        where_clause = f"WHERE {' AND '.join(conditions)}" if conditions else ""
+        sql = f"SELECT COUNT(*) as cnt FROM notes c {where_clause}"
+        row = await self.engine.fetchone(sql, tuple(params))
+        return row["cnt"] if row else 0
     
     async def update_note(
         self,
@@ -210,16 +239,31 @@ class NotesPlugin(Plugin):
     async def list_notes_page(self, request, **kwargs):
         """笔记列表页面"""
         user = await self.get_current_user(request)
+        page = int(request.query_params.get("page", "1")) if hasattr(request, 'query_params') else 1
+        per_page = 20
         
         if user:
-            notes = await self.list_notes(author_id=user["id"], limit=50)
+            total = await self.count_notes(author_id=user["id"])
+            notes = await self.list_notes(author_id=user["id"], limit=per_page, offset=(page - 1) * per_page)
         else:
-            notes = await self.list_notes(visibility="public", limit=50)
+            total = await self.count_notes(visibility="public")
+            notes = await self.list_notes(visibility="public", limit=per_page, offset=(page - 1) * per_page)
+        
+        total_pages = max(1, (total + per_page - 1) // per_page)
+        pagination = {
+            "current": page,
+            "total": total_pages,
+            "has_prev": page > 1,
+            "has_next": page < total_pages,
+            "prev": page - 1 if page > 1 else None,
+            "next": page + 1 if page < total_pages else None,
+        }
         
         html = await self.ctx.template_engine.render("notes.html", {
             "nav_page": "notes",
             "notes": notes,
-            "current_user": user
+            "current_user": user,
+            "pagination": pagination,
         })
         return HTMLResponse(content=html)
     

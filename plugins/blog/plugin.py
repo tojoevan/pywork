@@ -221,7 +221,8 @@ Requirements:
         query: Optional[str] = None,
         tag: Optional[str] = None,
         status: Optional[str] = None,
-        limit: int = 10
+        limit: int = 10,
+        offset: int = 0
     ) -> List[Dict[str, Any]]:
         """Search blog posts"""
         conditions = []
@@ -250,9 +251,10 @@ Requirements:
             LEFT JOIN users u ON c.author_id = u.id
             {where_clause}
             ORDER BY c.created_at DESC
-            LIMIT ?
+            LIMIT ? OFFSET ?
         """
         params.append(limit)
+        params.append(offset)
         
         rows = await self.engine.fetchall(sql, tuple(params))
         
@@ -269,6 +271,57 @@ Requirements:
         
         return rows
     
+    async def count_posts(
+        self,
+        query: Optional[str] = None,
+        tag: Optional[str] = None,
+        status: Optional[str] = None
+    ) -> int:
+        """Count blog posts matching filters"""
+        conditions = []
+        params = []
+        
+        if query:
+            conditions.append("id IN (SELECT rowid FROM blog_posts_fts WHERE blog_posts_fts MATCH ?)")
+            params.append(query)
+        if tag:
+            conditions.append("tags LIKE ?")
+            params.append(f'%"{tag}"%')
+        if status:
+            conditions.append("status = ?")
+            params.append(status)
+        
+        where_clause = f"WHERE {' AND '.join(conditions)}" if conditions else ""
+        sql = f"SELECT COUNT(*) as cnt FROM blog_posts c {where_clause}"
+        row = await self.engine.fetchone(sql, tuple(params))
+        return row["cnt"] if row else 0
+    
+    async def search_posts_paginated(
+        self,
+        page: int = 1,
+        per_page: int = 10,
+        **kwargs
+    ) -> Dict[str, Any]:
+        """Search posts with pagination info"""
+        offset = (page - 1) * per_page
+        posts = await self.search_posts(limit=per_page + 1, offset=offset, **kwargs)
+        has_more = len(posts) > per_page
+        posts = posts[:per_page]
+        total = await self.count_posts(**kwargs)
+        total_pages = max(1, (total + per_page - 1) // per_page)
+        
+        return {
+            "posts": posts,
+            "pagination": {
+                "current": page,
+                "total": total_pages,
+                "has_prev": page > 1,
+                "has_next": has_more,
+                "prev": page - 1 if page > 1 else None,
+                "next": page + 1 if has_more else None,
+            }
+        }
+
     async def update_post(
         self,
         id: int,
