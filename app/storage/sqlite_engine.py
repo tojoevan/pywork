@@ -283,6 +283,21 @@ class SQLiteEngine(Engine):
 
         # Migration 002: split contents table into dedicated tables
         await self._migrate_contents_split()
+
+        # Migration 003: add author_id to guestbook_entries
+        try:
+            async with self._db.execute(
+                "SELECT name FROM pragma_table_info('guestbook_entries') WHERE name = 'author_id'"
+            ) as cursor:
+                row = await cursor.fetchone()
+                if not row:
+                    await self._db.execute(
+                        "ALTER TABLE guestbook_entries ADD COLUMN author_id INTEGER DEFAULT 0"
+                    )
+                    await self._db.commit()
+                    print("✓ Migration 003: added author_id column to guestbook_entries")
+        except Exception as e:
+            print(f"⚠ Migration 003 skipped: {e}")
     
     async def _migrate_contents_split(self) -> None:
         """Migration 002: split contents table into blog_posts, microblog_posts, notes, guestbook_entries.
@@ -363,7 +378,7 @@ class SQLiteEngine(Engine):
         except Exception as e:
             print(f"⚠ Migration 002 failed: {e}")
             await self._db.rollback()
-    
+
     async def _load_index(self) -> None:
         """Load current Raft index from meta"""
         # Load term
