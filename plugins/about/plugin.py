@@ -100,18 +100,14 @@ class AboutPlugin(Plugin):
 
         now = int(time.time())
         data = {
-            "tenant_id": 0,
-            "plugin_type": "guestbook",
-            "author_id": author_id,
-            "title": nickname,
+            "nickname": nickname,
             "body": content,
-            "meta_json": json.dumps({"nickname": nickname, "email": email}),
-            "tags": "",
+            "email": email,
             "created_at": now,
             "updated_at": now,
             "status": "pending",  # 待审核
         }
-        record_id = await self.engine.put("contents", 0, data)
+        record_id = await self.engine.put("guestbook_entries", 0, data)
 
         return {"id": record_id, "status": "pending", "message": "留言已提交，等待管理员审核"}
 
@@ -120,12 +116,12 @@ class AboutPlugin(Plugin):
         if not await self.is_admin(request):
             return {"error": "无权限操作"}
 
-        comment = await self.engine.get("contents", comment_id)
-        if not comment or comment.get("plugin_type") != "guestbook":
+        comment = await self.engine.get("guestbook_entries", comment_id)
+        if not comment:
             return {"error": "留言不存在"}
 
         comment["status"] = "public"
-        await self.engine.put("contents", comment_id, comment)
+        await self.engine.put("guestbook_entries", comment_id, comment)
         return {"approved": True}
 
     async def delete_comment(self, comment_id: int, request, **kwargs):
@@ -133,11 +129,11 @@ class AboutPlugin(Plugin):
         if not await self.is_admin(request):
             return {"error": "无权限操作"}
 
-        comment = await self.engine.get("contents", comment_id)
-        if not comment or comment.get("plugin_type") != "guestbook":
+        comment = await self.engine.get("guestbook_entries", comment_id)
+        if not comment:
             return {"error": "留言不存在"}
 
-        await self.engine.delete("contents", comment_id)
+        await self.engine.delete("guestbook_entries", comment_id)
         return {"deleted": True}
 
     # === 数据查询 ===
@@ -145,44 +141,33 @@ class AboutPlugin(Plugin):
     async def _list_approved_comments(self) -> List[Dict]:
         """获取已审核通过的留言"""
         sql = """
-            SELECT c.id, c.title as nickname, c.body as content, c.created_at,
-                   c.author_id, u.username, u.avatar
-            FROM contents c
-            LEFT JOIN users u ON c.author_id = u.id
-            WHERE c.plugin_type = 'guestbook' AND c.status = 'public'
-            ORDER BY c.created_at DESC
+            SELECT g.id, g.nickname, g.body as content, g.email, g.created_at,
+                   u.username, u.avatar
+            FROM guestbook_entries g
+            LEFT JOIN users u ON g.author_id = u.id
+            WHERE g.status = 'public'
+            ORDER BY g.created_at DESC
         """
         rows = await self.engine.fetchall(sql)
         for row in rows:
             if not row.get("nickname"):
-                # 尝试从 meta_json 获取
-                import json
-                try:
-                    meta = json.loads(row.get("meta_json") or "{}")
-                    row["nickname"] = meta.get("nickname", "匿名")
-                except:
-                    row["nickname"] = "匿名"
+                row["nickname"] = "匿名"
         return rows
 
     async def _list_pending_comments(self) -> List[Dict]:
         """获取待审核留言"""
         sql = """
-            SELECT c.id, c.title as nickname, c.body as content, c.created_at,
-                   c.author_id, u.username, u.avatar
-            FROM contents c
-            LEFT JOIN users u ON c.author_id = u.id
-            WHERE c.plugin_type = 'guestbook' AND c.status = 'pending'
-            ORDER BY c.created_at DESC
+            SELECT g.id, g.nickname, g.body as content, g.email, g.created_at,
+                   u.username, u.avatar
+            FROM guestbook_entries g
+            LEFT JOIN users u ON g.author_id = u.id
+            WHERE g.status = 'pending'
+            ORDER BY g.created_at DESC
         """
         rows = await self.engine.fetchall(sql)
         for row in rows:
             if not row.get("nickname"):
-                import json
-                try:
-                    meta = json.loads(row.get("meta_json") or "{}")
-                    row["nickname"] = meta.get("nickname", "匿名")
-                except:
-                    row["nickname"] = "匿名"
+                row["nickname"] = "匿名"
         return rows
 
     # === MCP ===

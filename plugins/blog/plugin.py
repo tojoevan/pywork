@@ -26,7 +26,7 @@ class BlogPlugin(Plugin):
         self._ctx = ctx  # 供基类鉴权方法使用
         
         # Create blog-specific tables if needed
-        # (contents table is shared, but we can add indexes)
+        # (blog_posts table is dedicated to blog)
     
     def routes(self) -> List[Route]:
         """HTTP routes"""
@@ -167,7 +167,6 @@ Requirements:
         now = int(time.time())
 
         data = {
-            "plugin_type": "blog",
             "author_id": author_id,
             "title": title,
             "body": content,
@@ -177,7 +176,7 @@ Requirements:
             "updated_at": now
         }
 
-        record_id = await self.engine.put("contents", 0, data)
+        record_id = await self.engine.put("blog_posts", 0, data)
 
         return {
             "id": record_id,
@@ -198,7 +197,7 @@ Requirements:
                 user = await self.get_current_user_mcp(mcp_token)
                 if user:
                     # 检查是否是作者或管理员
-                    post = await self.engine.get("contents", arguments.get("id"))
+                    post = await self.engine.get("blog_posts", arguments.get("id"))
                     if post and (post.get("author_id") == user["id"] or user.get("role") == "admin"):
                         return await self.update_post(**arguments)
                     return {"error": "无权修改此文章"}
@@ -208,7 +207,7 @@ Requirements:
             if mcp_token:
                 user = await self.get_current_user_mcp(mcp_token)
                 if user:
-                    post = await self.engine.get("contents", arguments.get("id"))
+                    post = await self.engine.get("blog_posts", arguments.get("id"))
                     if post and (post.get("author_id") == user["id"] or user.get("role") == "admin"):
                         return await self.delete_post_mcp(**arguments)
                     return {"error": "无权删除此文章"}
@@ -225,12 +224,12 @@ Requirements:
         limit: int = 10
     ) -> List[Dict[str, Any]]:
         """Search blog posts"""
-        conditions = ["plugin_type = 'blog'"]
+        conditions = []
         params = []
         
         if query:
             # Use FTS for full-text search
-            conditions.append("id IN (SELECT rowid FROM contents_fts WHERE contents_fts MATCH ?)")
+            conditions.append("id IN (SELECT rowid FROM blog_posts_fts WHERE blog_posts_fts MATCH ?)")
             params.append(query)
         
         if tag:
@@ -241,14 +240,15 @@ Requirements:
             conditions.append("status = ?")
             params.append(status)
         
+        where_clause = f"WHERE {' AND '.join(conditions)}" if conditions else ""
         sql = f"""
             SELECT 
                 c.*,
                 u.username as author_name,
                 u.avatar as author_avatar
-            FROM contents c
+            FROM blog_posts c
             LEFT JOIN users u ON c.author_id = u.id
-            WHERE {' AND '.join(conditions)}
+            {where_clause}
             ORDER BY c.created_at DESC
             LIMIT ?
         """
@@ -278,7 +278,7 @@ Requirements:
         tags: Optional[Any] = None
     ) -> Dict[str, Any]:
         """Update a blog post"""
-        existing = await self.engine.get("contents", id)
+        existing = await self.engine.get("blog_posts", id)
         if not existing:
             return {"error": "Post not found"}
         
@@ -296,13 +296,13 @@ Requirements:
         
         existing["updated_at"] = int(time.time())
         
-        await self.engine.put("contents", id, existing)
+        await self.engine.put("blog_posts", id, existing)
         
         return {"id": id, "updated": True}
     
     async def delete_post_mcp(self, id: int) -> Dict[str, Any]:
         """Delete a blog post (MCP handler)"""
-        await self.engine.delete("contents", id)
+        await self.engine.delete("blog_posts", id)
         return {"id": id, "deleted": True}
     
     async def list_all_posts(self) -> str:
@@ -312,7 +312,7 @@ Requirements:
     
     async def get_post_resource(self, id: int) -> str:
         """Get post as markdown (MCP resource)"""
-        post = await self.engine.get("contents", id)
+        post = await self.engine.get("blog_posts", id)
         if not post:
             return "# Post not found"
         
@@ -343,8 +343,8 @@ Requirements:
     async def get_post_page(self, request, **kwargs):
         """博客详情页面（HTML）"""
         post_id = int(kwargs.get("post_id", 0))
-        post = await self.engine.get("contents", post_id)
-        if not post or post.get("plugin_type") != "blog":
+        post = await self.engine.get("blog_posts", post_id)
+        if not post:
             from starlette.responses import HTMLResponse
             return HTMLResponse(content="<h1>文章不存在</h1>", status_code=404)
         
@@ -387,8 +387,8 @@ Requirements:
         
         # 获取博客内容
         post_id = int(kwargs.get("post_id", 0))
-        post = await self.engine.get("contents", post_id)
-        if not post or post.get("plugin_type") != "blog":
+        post = await self.engine.get("blog_posts", post_id)
+        if not post:
             return HTMLResponse(content="<h1>文章不存在</h1>", status_code=404)
         
         # 权限检查：作者或管理员
@@ -444,7 +444,7 @@ Requirements:
     
     async def get_post_api(self, post_id: int, **kwargs):
         """Get post API"""
-        post = await self.engine.get("contents", post_id)
+        post = await self.engine.get("blog_posts", post_id)
         if not post:
             return None
             
@@ -497,7 +497,7 @@ Requirements:
             return JSONResponse({"error": "请先登录"}, status_code=401)
         
         # 获取文章，检查权限
-        post = await self.engine.get("contents", post_id)
+        post = await self.engine.get("blog_posts", post_id)
         if not post:
             from starlette.responses import JSONResponse
             return JSONResponse({"error": "文章不存在"}, status_code=404)
@@ -507,7 +507,7 @@ Requirements:
             from starlette.responses import JSONResponse
             return JSONResponse({"error": "无权删除此文章"}, status_code=403)
         
-        await self.engine.delete("contents", post_id)
+        await self.engine.delete("blog_posts", post_id)
         return {"deleted": True}
     
     async def search_posts_api(self, query: Optional[str] = None, tag: Optional[str] = None, status: Optional[str] = None, limit: int = 10, **kwargs):

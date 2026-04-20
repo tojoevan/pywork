@@ -337,23 +337,15 @@ class WorkbenchApp:
             if user.get("error"):
                 return {"error": "未登录"}
 
-            # 获取 token id (前16位)
-            token_id = request.path_params.get("token_id", "")
+            # 获取 token 前缀（路径参数，8或16位）
+            token_prefix = request.path_params.get("token_id", "")
+            if not token_prefix:
+                return {"error": "缺少 token_id"}
 
-            # 通过 auth plugin 的 revoke 方法删除
-            # list_mcp_tokens 返回脱敏的 prefix，需要遍历匹配
-            tokens = await auth_plugin.list_mcp_tokens(user["id"])
-            for t in tokens:
-                if t["id"] == token_id or t["prefix"] == token_id[:8]:
-                    # 查找完整 token 并撤销
-                    row = await auth_plugin.engine.fetchone(
-                        "SELECT token FROM mcp_tokens WHERE user_id = ? AND token LIKE ?",
-                        (user["id"], f"{token_id}%")
-                    )
-                    if row:
-                        await auth_plugin.revoke_mcp_token(dict(row)["token"])
-                        return {"success": True}
-
+            # 直接通过 auth plugin 按前缀删除，限制只能删自己的
+            ok = await auth_plugin.revoke_mcp_token_by_prefix(user["id"], token_prefix)
+            if ok:
+                return {"success": True}
             return {"error": "Token 不存在或无权撤销"}
 
         # GitHub OAuth 路由

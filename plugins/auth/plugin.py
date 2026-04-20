@@ -882,11 +882,31 @@ class AuthPlugin(Plugin):
         }
 
     async def revoke_mcp_token(self, token: str) -> bool:
-        """撤销 MCP Token"""
-        cursor = await self.engine.execute(
+        """撤销 MCP Token（完整 token）"""
+        row = await self.engine.fetchone(
+            "SELECT token FROM mcp_tokens WHERE token = ?", (token,)
+        )
+        if not row:
+            return False
+        await self.engine.execute(
             "DELETE FROM mcp_tokens WHERE token = ?", (token,)
         )
-        return cursor.rowcount > 0
+        return True
+
+    async def revoke_mcp_token_by_prefix(self, user_id: int, token_prefix: str) -> bool:
+        """通过 token 前缀撤销 MCP Token（用户只能撤销自己的）"""
+        if len(token_prefix) < 8:
+            return False
+        row = await self.engine.fetchone(
+            "SELECT token FROM mcp_tokens WHERE user_id = ? AND token LIKE ?",
+            (user_id, f"{token_prefix}%")
+        )
+        if not row:
+            return False
+        await self.engine.execute(
+            "DELETE FROM mcp_tokens WHERE token = ?", (row["token"],)
+        )
+        return True
 
     async def list_mcp_tokens(self, user_id: int) -> List[Dict]:
         """列出用户的 MCP Tokens"""

@@ -269,15 +269,14 @@ class BoardPlugin(Plugin):
     async def _handle_stats_collection(self) -> str:
         """统计博客/微博/笔记数量，写入 cron_stats"""
 
-        # 查询各类型数量
-        # 注意：blog/note 用 status='published'，microblog 用 status='public'
-        rows = await self.engine.fetchall(
-            "SELECT plugin_type, COUNT(*) AS cnt FROM contents WHERE status IN ('published', 'public') GROUP BY plugin_type"
-        )
-        counts = {r["plugin_type"]: int(r["cnt"]) for r in rows}
-        blog_count    = counts.get("blog",       0)
-        microblog_count = counts.get("microblog", 0)
-        note_count    = counts.get("note",       0)
+        # 分别查询各独立表
+        blog_rows = await self.engine.fetchall("SELECT COUNT(*) AS cnt FROM blog_posts WHERE status IN ('published', 'draft')")
+        microblog_rows = await self.engine.fetchall("SELECT COUNT(*) AS cnt FROM microblog_posts WHERE status IN ('public', 'pending')")
+        note_rows = await self.engine.fetchall("SELECT COUNT(*) AS cnt FROM notes WHERE status = 'published'")
+        
+        blog_count = blog_rows[0]["cnt"] if blog_rows else 0
+        microblog_count = microblog_rows[0]["cnt"] if microblog_rows else 0
+        note_count = note_rows[0]["cnt"] if note_rows else 0
         total_count   = blog_count + microblog_count + note_count
 
         now = int(time.time())
@@ -308,22 +307,28 @@ class BoardPlugin(Plugin):
         week_ago = now - 7 * 86400
 
         rows = await self.engine.fetchall("""
-            SELECT c.author_id,
+            SELECT sub.author_id,
                    u.username AS author_name,
                    u.avatar AS author_avatar,
-                   SUM(CASE WHEN c.plugin_type = 'blog' THEN 1 ELSE 0 END) AS blog_count,
-                   SUM(CASE WHEN c.plugin_type = 'microblog' THEN 1 ELSE 0 END) AS microblog_count,
-                   SUM(CASE WHEN c.plugin_type = 'note' THEN 1 ELSE 0 END) AS note_count,
-                   COUNT(*) AS total_count
-            FROM contents c
-            LEFT JOIN users u ON c.author_id = u.id
-            WHERE c.status IN ('published', 'public')
-              AND c.author_id IS NOT NULL
-              AND c.created_at >= ?
-            GROUP BY c.author_id
+                   SUM(CASE WHEN sub.type = 'blog' THEN sub.cnt ELSE 0 END) AS blog_count,
+                   SUM(CASE WHEN sub.type = 'microblog' THEN sub.cnt ELSE 0 END) AS microblog_count,
+                   SUM(CASE WHEN sub.type = 'note' THEN sub.cnt ELSE 0 END) AS note_count,
+                   SUM(sub.cnt) AS total_count
+            FROM (
+                SELECT author_id, COUNT(*) AS cnt, 'blog' AS type FROM blog_posts
+                WHERE status IN ('published', 'draft') AND author_id IS NOT NULL AND created_at >= ?
+                UNION ALL
+                SELECT author_id, COUNT(*) AS cnt, 'microblog' AS type FROM microblog_posts
+                WHERE status IN ('public', 'pending') AND author_id IS NOT NULL AND created_at >= ?
+                UNION ALL
+                SELECT author_id, COUNT(*) AS cnt, 'note' AS type FROM notes
+                WHERE status = 'published' AND author_id IS NOT NULL AND created_at >= ?
+            ) sub
+            LEFT JOIN users u ON sub.author_id = u.id
+            GROUP BY sub.author_id
             ORDER BY total_count DESC
             LIMIT 10
-        """, (week_ago,))
+        """, (week_ago, week_ago, week_ago))
 
         if not rows:
             return "无活跃作者数据"
@@ -402,13 +407,12 @@ class BoardPlugin(Plugin):
 
     async def _compute_live_stats(self) -> Dict[str, Any]:
         """实时计算统计数字"""
-        rows = await self.engine.fetchall(
-            "SELECT plugin_type, COUNT(*) AS cnt FROM contents WHERE status='published' GROUP BY plugin_type"
-        )
-        counts = {r["plugin_type"]: int(r["cnt"]) for r in rows}
-        blog_count     = counts.get("blog",       0)
-        microblog_count = counts.get("microblog", 0)
-        note_count     = counts.get("note",       0)
+        blog_rows = await self.engine.fetchall("SELECT COUNT(*) AS cnt FROM blog_posts WHERE status='published'")
+        microblog_rows = await self.engine.fetchall("SELECT COUNT(*) AS cnt FROM microblog_posts WHERE status='public'")
+        note_rows = await self.engine.fetchall("SELECT COUNT(*) AS cnt FROM notes WHERE status='published'")
+        blog_count = blog_rows[0]["cnt"] if blog_rows else 0
+        microblog_count = microblog_rows[0]["cnt"] if microblog_rows else 0
+        note_count = note_rows[0]["cnt"] if note_rows else 0
         return {
             "blog_count":       blog_count,
             "microblog_count":  microblog_count,

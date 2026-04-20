@@ -14,7 +14,8 @@ class SQLiteEngine(Engine):
     
     # Table name whitelist — all SQL-accepting methods validate against this
     ALLOWED_TABLES = frozenset({
-        'users', 'contents', 'objects', 'tasks', 'plugins', 'templates',
+        'users', 'blog_posts', 'microblog_posts', 'notes', 'guestbook_entries',
+        'objects', 'tasks', 'plugins', 'templates',
         'site_config', 'site_template_bindings', 'sessions', 'cron_jobs',
         'cron_stats', 'board_tasks', 'active_authors', 'mcp_tokens',
         '_meta', '_raft_log',
@@ -37,20 +38,64 @@ class SQLiteEngine(Engine):
         node_id TEXT DEFAULT 'local'
     );
     
-    -- Contents (shared by plugins)
-    CREATE TABLE IF NOT EXISTS contents (
+    -- Blog posts
+    CREATE TABLE IF NOT EXISTS blog_posts (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
-        tenant_id INTEGER,
-        plugin_type TEXT NOT NULL,
         author_id INTEGER NOT NULL,
-        title TEXT,
-        body TEXT,
-        meta_json TEXT,
-        tags TEXT,
+        title TEXT NOT NULL DEFAULT '',
+        body TEXT NOT NULL DEFAULT '',
+        tags TEXT DEFAULT '[]',
         visibility TEXT DEFAULT 'private',
+        status TEXT DEFAULT 'draft',
         created_at INTEGER NOT NULL,
         updated_at INTEGER NOT NULL,
-        status TEXT DEFAULT 'draft',
+        raft_term INTEGER DEFAULT 0,
+        raft_index INTEGER DEFAULT 0,
+        version INTEGER DEFAULT 1,
+        node_id TEXT DEFAULT 'local'
+    );
+
+    -- Microblog posts
+    CREATE TABLE IF NOT EXISTS microblog_posts (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        author_id INTEGER NOT NULL,
+        content TEXT NOT NULL DEFAULT '',
+        visibility TEXT DEFAULT 'public',
+        status TEXT DEFAULT 'public',
+        created_at INTEGER NOT NULL,
+        updated_at INTEGER NOT NULL,
+        raft_term INTEGER DEFAULT 0,
+        raft_index INTEGER DEFAULT 0,
+        version INTEGER DEFAULT 1,
+        node_id TEXT DEFAULT 'local'
+    );
+
+    -- Notes
+    CREATE TABLE IF NOT EXISTS notes (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        author_id INTEGER NOT NULL,
+        title TEXT NOT NULL DEFAULT '',
+        body TEXT NOT NULL DEFAULT '',
+        tags TEXT,
+        visibility TEXT DEFAULT 'private',
+        status TEXT DEFAULT 'published',
+        created_at INTEGER NOT NULL,
+        updated_at INTEGER NOT NULL,
+        raft_term INTEGER DEFAULT 0,
+        raft_index INTEGER DEFAULT 0,
+        version INTEGER DEFAULT 1,
+        node_id TEXT DEFAULT 'local'
+    );
+
+    -- Guestbook entries
+    CREATE TABLE IF NOT EXISTS guestbook_entries (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        nickname TEXT NOT NULL DEFAULT '',
+        body TEXT NOT NULL DEFAULT '',
+        email TEXT DEFAULT '',
+        status TEXT DEFAULT 'pending',
+        created_at INTEGER NOT NULL,
+        updated_at INTEGER NOT NULL,
         raft_term INTEGER DEFAULT 0,
         raft_index INTEGER DEFAULT 0,
         version INTEGER DEFAULT 1,
@@ -162,10 +207,24 @@ class SQLiteEngine(Engine):
     --     content_rowid=id
     -- );
     
-    -- Indexes
-    CREATE INDEX IF NOT EXISTS idx_contents_plugin ON contents(plugin_type, status);
-    CREATE INDEX IF NOT EXISTS idx_contents_author ON contents(author_id);
-    CREATE INDEX IF NOT EXISTS idx_contents_created ON contents(created_at);
+    -- Indexes for blog_posts
+    CREATE INDEX IF NOT EXISTS idx_blog_posts_author ON blog_posts(author_id);
+    CREATE INDEX IF NOT EXISTS idx_blog_posts_status ON blog_posts(status);
+    CREATE INDEX IF NOT EXISTS idx_blog_posts_created ON blog_posts(created_at);
+    
+    -- Indexes for microblog_posts
+    CREATE INDEX IF NOT EXISTS idx_microblog_posts_author ON microblog_posts(author_id);
+    CREATE INDEX IF NOT EXISTS idx_microblog_posts_status ON microblog_posts(status);
+    CREATE INDEX IF NOT EXISTS idx_microblog_posts_created ON microblog_posts(created_at);
+    
+    -- Indexes for notes
+    CREATE INDEX IF NOT EXISTS idx_notes_author ON notes(author_id);
+    CREATE INDEX IF NOT EXISTS idx_notes_visibility ON notes(visibility);
+    CREATE INDEX IF NOT EXISTS idx_notes_created ON notes(created_at);
+    
+    -- Indexes for guestbook_entries
+    CREATE INDEX IF NOT EXISTS idx_guestbook_status ON guestbook_entries(status);
+    CREATE INDEX IF NOT EXISTS idx_guestbook_created ON guestbook_entries(created_at);
     """
     
     def __init__(self, db_path: str):
@@ -206,7 +265,7 @@ class SQLiteEngine(Engine):
         Uses pragma_table_info to detect missing columns and ALTER TABLE to add them.
         Safe to run on every startup — only adds columns that don't exist yet.
         """
-        # Migration 001: add visibility column to contents
+        # Migration 001: add visibility column to contents (legacy, kept for old DBs)
         try:
             async with self._db.execute(
                 "SELECT name FROM pragma_table_info('contents') WHERE name = 'visibility'"
@@ -219,7 +278,90 @@ class SQLiteEngine(Engine):
                     await self._db.commit()
                     print("✓ Migration 001: added visibility column to contents")
         except Exception as e:
-            print(f"⚠ Migration 001 failed: {e}")
+            print(f"⚠ Migration 001 skipped: {e}")
+
+        # Migration 002: split contents table into dedicated tables
+        await self._migrate_contents_split()
+    
+    async def _migrate_contents_split(self) -> None:
+        """Migration 002: split contents table into blog_posts, microblog_posts, notes, guestbook_entries.
+        
+        Idempotent — checks a flag in _meta before running.
+        """
+        # Check if already migrated
+        async with self._db.execute(
+            "SELECT value FROM _meta WHERE key = 'migration_002_contents_split'"
+        ) as cursor:
+            row = await cursor.fetchone()
+            if row:
+                return  # Already done
+        
+        # Check if legacy contents table exists
+        async with self._db.execute(
+            "SELECT name FROM sqlite_master WHERE type='table' AND name='contents'"
+        ) as cursor:
+            if not await cursor.fetchone():
+                # No legacy table, nothing to migrate
+                await self._db.execute(
+                    "INSERT OR REPLACE INTO _meta (key, value) VALUES ('migration_002_contents_split', '1')"
+                )
+                await self._db.commit()
+                return
+        
+        print("→ Migrating contents table to dedicated tables...")
+        
+        try:
+            # Migrate blog posts
+            await self._db.execute("""
+                INSERT OR IGNORE INTO blog_posts (id, author_id, title, body, tags, visibility, status, created_at, updated_at, raft_term, raft_index, version, node_id)
+                SELECT id, author_id, COALESCE(title, ''), COALESCE(body, ''), COALESCE(tags, '[]'),
+                       COALESCE(visibility, 'private'), COALESCE(status, 'draft'),
+                       created_at, updated_at, 0, 0, 1, 'local'
+                FROM contents WHERE plugin_type = 'blog'
+            """)
+            
+            # Migrate microblog posts (title is empty, body → content)
+            await self._db.execute("""
+                INSERT OR IGNORE INTO microblog_posts (id, author_id, content, visibility, status, created_at, updated_at, raft_term, raft_index, version, node_id)
+                SELECT id, author_id, COALESCE(body, ''), COALESCE(visibility, 'public'), COALESCE(status, 'public'),
+                       created_at, updated_at, 0, 0, 1, 'local'
+                FROM contents WHERE plugin_type = 'microblog'
+            """)
+            
+            # Migrate notes
+            await self._db.execute("""
+                INSERT OR IGNORE INTO notes (id, author_id, title, body, tags, visibility, status, created_at, updated_at, raft_term, raft_index, version, node_id)
+                SELECT id, author_id, COALESCE(title, ''), COALESCE(body, ''), tags,
+                       COALESCE(visibility, 'private'), COALESCE(status, 'published'),
+                       created_at, updated_at, 0, 0, 1, 'local'
+                FROM contents WHERE plugin_type = 'note'
+            """)
+            
+            # Migrate guestbook entries (title→nickname, body→body, meta_json.email→email)
+            await self._db.execute("""
+                INSERT OR IGNORE INTO guestbook_entries (id, nickname, body, email, status, created_at, updated_at, raft_term, raft_index, version, node_id)
+                SELECT id, COALESCE(title, ''), COALESCE(body, ''),
+                       COALESCE(json_extract(meta_json, '$.email'), ''),
+                       COALESCE(status, 'pending'),
+                       created_at, updated_at, 0, 0, 1, 'local'
+                FROM contents WHERE plugin_type = 'guestbook'
+            """)
+            
+            await self._db.commit()
+            
+            # Drop legacy contents table
+            await self._db.execute("DROP TABLE IF EXISTS contents")
+            await self._db.commit()
+            
+            # Mark migration as done
+            await self._db.execute(
+                "INSERT OR REPLACE INTO _meta (key, value) VALUES ('migration_002_contents_split', '1')"
+            )
+            await self._db.commit()
+            print("✓ Migration 002: contents table split complete")
+        except Exception as e:
+            print(f"⚠ Migration 002 failed: {e}")
+            await self._db.rollback()
     
     async def _load_index(self) -> None:
         """Load current Raft index from meta"""

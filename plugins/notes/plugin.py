@@ -88,7 +88,6 @@ class NotesPlugin(Plugin):
         # status: draft=草稿, published=已发布
         # visibility: private=私有, public=公开
         data = {
-            "plugin_type": "note",
             "author_id": author_id,
             "title": title,
             "body": content,
@@ -98,7 +97,7 @@ class NotesPlugin(Plugin):
             "updated_at": now
         }
 
-        record_id = await self.engine.put("contents", 0, data)
+        record_id = await self.engine.put("notes", 0, data)
         return {
             "id": record_id,
             "title": title,
@@ -118,7 +117,7 @@ class NotesPlugin(Plugin):
             if user:
                 author_id = user["id"]
         
-        conditions = ["plugin_type = 'note'"]
+        conditions = []
         params = []
         
         if author_id:
@@ -133,7 +132,7 @@ class NotesPlugin(Plugin):
         
         sql = f"""
             SELECT c.*, u.username as author_name, u.avatar as author_avatar
-            FROM contents c
+            FROM notes c
             LEFT JOIN users u ON c.author_id = u.id
             WHERE {' AND '.join(conditions)}
             ORDER BY c.updated_at DESC
@@ -158,7 +157,7 @@ class NotesPlugin(Plugin):
                 author_id = user["id"]
             else:
                 return {"error": "无效的 MCP Token"}
-        existing = await self.engine.get("contents", note_id)
+        existing = await self.engine.get("notes", note_id)
         if not existing:
             return {"error": "笔记不存在"}
         
@@ -174,7 +173,7 @@ class NotesPlugin(Plugin):
             existing["visibility"] = visibility
         
         existing["updated_at"] = int(time.time())
-        await self.engine.put("contents", note_id, existing)
+        await self.engine.put("notes", note_id, existing)
         
         return {"id": note_id, "updated": True}
     
@@ -185,14 +184,14 @@ class NotesPlugin(Plugin):
                 author_id = user["id"]
             else:
                 return {"error": "无效的 MCP Token"}
-        existing = await self.engine.get("contents", note_id)
+        existing = await self.engine.get("notes", note_id)
         if not existing:
             return {"error": "笔记不存在"}
         
         if author_id and existing.get("author_id") != author_id:
             return {"error": "无权删除此笔记"}
         
-        await self.engine.delete("contents", note_id)
+        await self.engine.delete("notes", note_id)
         return {"id": note_id, "deleted": True}
 
     async def mcp_call(self, tool_name: str, arguments: Dict, mcp_token: str = None) -> Any:
@@ -246,9 +245,9 @@ class NotesPlugin(Plugin):
             return RedirectResponse(url="/login", status_code=302)
         
         note_id = int(kwargs.get("note_id", 0))
-        note = await self.engine.get("contents", note_id)
+        note = await self.engine.get("notes", note_id)
         
-        if not note or note.get("plugin_type") != "note":
+        if not note:
             return HTMLResponse(content="<h1>笔记不存在</h1>", status_code=404)
         
         # 权限检查
@@ -294,9 +293,9 @@ class NotesPlugin(Plugin):
     async def get_note_api(self, note_id: int, request, **kwargs):
         """获取笔记详情"""
         user = await self.get_current_user(request)
-        note = await self.engine.get("contents", note_id)
+        note = await self.engine.get("notes", note_id)
         
-        if not note or note.get("plugin_type") != "note":
+        if not note:
             return {"error": "笔记不存在"}
         
         # 权限检查
@@ -319,9 +318,9 @@ class NotesPlugin(Plugin):
     async def get_note_page(self, note_id: int, request, **kwargs):
         """笔记详情页面"""
         user = await self.get_current_user(request)
-        note = await self.engine.get("contents", note_id)
+        note = await self.engine.get("notes", note_id)
         
-        if not note or note.get("plugin_type") != "note":
+        if not note:
             return HTMLResponse(content="<h1>笔记不存在</h1>", status_code=404)
         
         # 权限检查

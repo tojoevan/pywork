@@ -74,7 +74,7 @@ async def test_update_post(setup_blog):
     updated = await plugin.update_post(id=post_id, title="Updated", status="published")
     
     # Verify
-    post = await engine.get("contents", post_id)
+    post = await engine.get("blog_posts", post_id)
     assert post["title"] == "Updated"
     assert post["status"] == "published"
 

@@ -132,16 +132,14 @@ class MicroblogPlugin(Plugin):
             post_status = visibility
 
         data = {
-            "plugin_type": "microblog",
             "author_id": author_id,
-            "title": "",
-            "body": content,
+            "content": content,
+            "visibility": visibility,
             "status": post_status,
-            "tags": "",
             "created_at": now,
             "updated_at": now,
         }
-        record_id = await self.engine.put("contents", 0, data)
+        record_id = await self.engine.put("microblog_posts", 0, data)
         if is_anonymous:
             return {"id": record_id, "created_at": now, "status": "pending", "message": "发布成功，待管理员审核通过后显示"}
         return {"id": record_id, "created_at": now}
@@ -154,9 +152,9 @@ class MicroblogPlugin(Plugin):
             status_filter = "c.status = 'public'"
         sql = f"""
             SELECT c.*, u.username as author_name, u.avatar as author_avatar
-            FROM contents c
+            FROM microblog_posts c
             LEFT JOIN users u ON c.author_id = u.id
-            WHERE c.plugin_type = 'microblog' AND {status_filter}
+            WHERE {status_filter}
             ORDER BY c.created_at DESC
             LIMIT ?
         """
@@ -164,11 +162,10 @@ class MicroblogPlugin(Plugin):
         for row in rows:
             if not row.get("author_name"):
                 row["author_name"] = "匿名"
-            row["content"] = row.pop("body", "")
         return rows
 
     async def delete_post(self, id: int, mcp_token: str = None) -> Dict:
-        post = await self.engine.get("contents", id)
+        post = await self.engine.get("microblog_posts", id)
         if not post:
             return {"error": "微博不存在"}
         if mcp_token:
@@ -178,43 +175,42 @@ class MicroblogPlugin(Plugin):
                     return {"error": "无权删除"}
             else:
                 return {"error": "无效的 Token"}
-        await self.engine.delete("contents", id)
+        await self.engine.delete("microblog_posts", id)
         return {"deleted": True}
 
     async def get_pending_posts(self) -> List[Dict]:
         """获取所有待审核微博（管理员用）"""
         sql = """
             SELECT c.*, u.username as author_name, u.avatar as author_avatar
-            FROM contents c
+            FROM microblog_posts c
             LEFT JOIN users u ON c.author_id = u.id
-            WHERE c.plugin_type = 'microblog' AND c.status = 'pending'
+            WHERE c.status = 'pending'
             ORDER BY c.created_at DESC
         """
         rows = await self.engine.fetchall(sql, ())
         for row in rows:
             if not row.get("author_name"):
                 row["author_name"] = "匿名"
-            row["content"] = row.pop("body", "")
         return rows
 
     async def approve_post(self, post_id: int) -> Dict:
         """通过审核"""
-        post = await self.engine.get("contents", post_id)
-        if not post or post.get("plugin_type") != "microblog":
+        post = await self.engine.get("microblog_posts", post_id)
+        if not post:
             return {"error": "微博不存在"}
         if post.get("status") == "public":
             return {"error": "已经是审核通过状态"}
         post["status"] = "public"
         post["updated_at"] = int(time.time())
-        await self.engine.put("contents", post_id, post)
+        await self.engine.put("microblog_posts", post_id, post)
         return {"id": post_id, "status": "public"}
 
     async def reject_post(self, post_id: int) -> Dict:
         """拒绝审核，删除"""
-        post = await self.engine.get("contents", post_id)
-        if not post or post.get("plugin_type") != "microblog":
+        post = await self.engine.get("microblog_posts", post_id)
+        if not post:
             return {"error": "微博不存在"}
-        await self.engine.delete("contents", post_id)
+        await self.engine.delete("microblog_posts", post_id)
         return {"id": post_id, "deleted": True}
 
     async def approve_post_api(self, post_id: int, request, **kwargs):
@@ -303,10 +299,9 @@ class MicroblogPlugin(Plugin):
 
     async def get_api(self, post_id: int, **kwargs):
         """获取单条微博"""
-        post = await self.engine.get("contents", post_id)
-        if not post or post.get("plugin_type") != "microblog":
+        post = await self.engine.get("microblog_posts", post_id)
+        if not post:
             return {"error": "微博不存在"}
-        post["content"] = post.pop("body", "")
         return post
 
     async def update_api(self, post_id: int, request, **kwargs):
@@ -314,8 +309,8 @@ class MicroblogPlugin(Plugin):
         # 鉴权
         user = await self.get_current_user(request)
         
-        post = await self.engine.get("contents", post_id)
-        if not post or post.get("plugin_type") != "microblog":
+        post = await self.engine.get("microblog_posts", post_id)
+        if not post:
             return {"error": "微博不存在"}
         
         if not user:
@@ -340,9 +335,9 @@ class MicroblogPlugin(Plugin):
             return {"error": f"内容不能超过{self.MAX_LENGTH}字"}
         
         # 更新
-        post["body"] = content.strip()
+        post["content"] = content.strip()
         post["updated_at"] = int(time.time())
-        await self.engine.put("contents", post_id, post)
+        await self.engine.put("microblog_posts", post_id, post)
         
         return {"id": post_id, "updated": True}
 
@@ -350,7 +345,7 @@ class MicroblogPlugin(Plugin):
         # 鉴权：只有作者或 admin 才能删除
         user = await self.get_current_user(request)
         
-        post = await self.engine.get("contents", post_id)
+        post = await self.engine.get("microblog_posts", post_id)
         if not post:
             return {"error": "微博不存在"}
         
@@ -360,7 +355,7 @@ class MicroblogPlugin(Plugin):
         if post.get("author_id") != user["id"] and user.get("role") != "admin":
             return {"error": "无权限删除他人的微博"}
         
-        await self.engine.delete("contents", post_id)
+        await self.engine.delete("microblog_posts", post_id)
         return {"deleted": True}
 
     async def list_api(self, limit: int = 20, **kwargs):
