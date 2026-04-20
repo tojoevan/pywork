@@ -151,6 +151,30 @@ class Plugin(ABC):
             return RedirectResponse(url="/", status_code=302)
         return None
     
+    # ========================================================
+    #  统一错误响应
+    # ========================================================
+    
+    def error_json(self, message: str, status_code: int = 400):
+        """返回统一格式的 JSON 错误响应（用于 API handler）"""
+        from starlette.responses import JSONResponse
+        return JSONResponse({"error": message}, status_code=status_code)
+    
+    def error_html(self, message: str, status_code: int = 400):
+        """返回统一格式的 HTML 错误页面（用于页面 handler）"""
+        from starlette.responses import HTMLResponse
+        html = f'''<!DOCTYPE html>
+<html><head><meta charset="utf-8"><title>{status_code}</title>
+<style>
+body{{font-family:-apple-system,sans-serif;display:flex;justify-content:center;align-items:center;min-height:100vh;margin:0;background:#f5f5f5;color:#333}}
+.card{{background:#fff;border-radius:8px;padding:2rem 3rem;box-shadow:0 2px 8px rgba(0,0,0,.1);text-align:center;max-width:400px}}
+h1{{margin:0 0 .5rem;font-size:3rem;color:#e74c3c}}
+p{{margin:0 0 1.5rem;color:#666}}
+a{{color:#3498db;text-decoration:none}}a:hover{{text-decoration:underline}}
+</style></head>
+<body><div class="card"><h1>{status_code}</h1><p>{message}</p><a href="/">← 返回首页</a></div></body></html>'''
+        return HTMLResponse(content=html, status_code=status_code)
+    
     @abstractmethod
     def routes(self) -> List[Route]:
         """HTTP routes"""

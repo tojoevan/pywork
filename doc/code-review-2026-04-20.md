@@ -369,3 +369,52 @@ class MicroblogPlugin(Plugin):
 | `plugins/notes/plugin.py` | 笔记插件 |
 | `plugins/board/plugin.py` | 看板+定时任务+设置 |
 | `plugins/about/plugin.py` | 关于页面+留言板 |
+
+---
+
+## 修复进度总表
+
+> 更新日期：2026-04-21
+
+| 编号 | 级别 | 问题 | 状态 | 修复日期 | 修改文件 |
+|------|------|------|------|----------|----------|
+| P0-1 | 🔴 P0 | 闭包变量捕获 Bug | ✅ 已修复 | 2026-04-20 | `app/main.py` |
+| P0-2 | 🔴 P0 | visibility 字段缺失 | ✅ 已修复 | 2026-04-20 | `app/storage/sqlite_engine.py` |
+| P0-3 | 🔴 P0 | 调用不存在的 Engine 方法 | ✅ 已修复 | 2026-04-20 | `plugins/auth/plugin.py` |
+| P1-1 | 🟠 P1 | SQL 注入 — 表名白名单 | ✅ 已修复 | 2026-04-20 | `app/storage/sqlite_engine.py` |
+| P1-2 | 🟠 P1 | MCP Token 纯内存存储 | ✅ 已修复 | 2026-04-20 | `plugins/auth/plugin.py` |
+| P1-3 | 🟠 P1 | Raft 日志无限膨胀 | ✅ 已修复 | 2026-04-20 | `app/storage/sqlite_engine.py` |
+| P1-4 | 🟠 P1 | `_init_*_table` 重复执行 | ✅ 已修复 | 2026-04-20 | `plugins/board/plugin.py` |
+| P1-5 | 🟠 P1 | 密码哈希格式不一致 | ✅ 已修复 | 2026-04-20 | `plugins/auth/plugin.py` |
+| P1-6 | 🟠 P1 | 鉴权逻辑重复 | ✅ 已修复 | 2026-04-21 | `app/plugin/interface.py` + 所有插件 |
+| P2-1 | 🟡 P2 | `contents` 表职责过载 | ✅ 已修复 | 2026-04-21 | `app/storage/sqlite_engine.py` (Migration 002 拆表) |
+| P2-2 | 🟡 P2 | 分页缺失 | ✅ 已修复 | 2026-04-21 | 各插件 list 方法 |
+| P2-3 | 🟡 P2 | FTS5 全文搜索被注释 | ✅ 已修复 | 2026-04-21 | `app/storage/sqlite_engine.py` (Migration 004) |
+| P2-4 | 🟡 P2 | `notes/plugin.py` 方法重定义 | ✅ 已有修复 | 2026-04-21 | 确认 commit 993758a 已删除重复定义 |
+| P2-5 | 🟡 P2 | 类变量可变状态 | ✅ 已有修复 | 2026-04-21 | 确认 `_ip_rate_limit` 已改为实例变量 |
+| P3-1 | 🟢 P3 | 错误处理不一致 | ✅ 已修复 | 2026-04-21 | `interface.py` + `main.py` + 4个插件 |
+| P3-2 | 🟢 P3 | 无日志框架 | ❌ 未修复 | — | 需架构设计，引入 loguru/logging |
+| P3-3 | 🟢 P3 | 无配置验证层 | ❌ 未修复 | — | 需引入 pydantic Settings |
+| P3-4 | 🟢 P3 | 测试覆盖不足 | ❌ 未修复 | — | 需逐步补充，auth/MCP/插件无测试 |
+| P3-5 | 🟢 P3 | 依赖不一致 | ✅ 已修复 | 2026-04-21 | `pyproject.toml` + `requirements.txt` |
+| P3-6 | 🟢 P3 | Markdown XSS | ✅ 已修复 | 2026-04-21 | `app/template/engine.py` (白名单过滤) |
+| P3-7 | 🟢 P3 | Session 双写 | ✅ 已修复 | 2026-04-21 | `plugins/auth/plugin.py` (删除内存写) |
+| P3-8 | 🟢 P3 | 重复路由注册 | ✅ 已修复 | 2026-04-21 | `app/main.py` (删除手动注册) |
+| P3-9 | 🟢 P3 | 首页逻辑内联 | ❌ 未修复 | — | 需拆分到独立 service/plugin |
+
+### 统计
+
+| 级别 | 总数 | 已修复 | 未修复 |
+|------|------|--------|--------|
+| P0 | 3 | 3 | 0 |
+| P1 | 6 | 6 | 0 |
+| P2 | 5 | 5 | 0 |
+| P3 | 9 | 5 | 4 |
+| **合计** | **23** | **19** | **4** |
+
+### 未修复项说明
+
+- **P3-2 无日志框架**：全项目 `print()` → 结构化日志，涉及所有模块，需统一设计日志级别、格式、输出目标
+- **P3-3 无配置验证层**：需引入 pydantic Settings 做环境变量/配置文件的 Schema 校验，改动面广
+- **P3-4 测试覆盖不足**：auth / MCP / 各插件零测试，需逐模块补充，工作量大
+- **P3-9 首页逻辑内联**：`/` 路由耦合 blog + microblog + notes + stats 等查询，需拆分为独立 service

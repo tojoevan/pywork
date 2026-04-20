@@ -292,13 +292,13 @@ class NotesPlugin(Plugin):
         note = await self.engine.get("notes", note_id)
         
         if not note:
-            return HTMLResponse(content="<h1>笔记不存在</h1>", status_code=404)
+            return self.error_html("笔记不存在", 404)
         
         # 权限检查
         is_owner = user["id"] == note.get("author_id")
         is_admin = user.get("role") == "admin"
         if not is_owner and not is_admin:
-            return HTMLResponse(content="<h1>无权编辑此笔记</h1>", status_code=403)
+            return self.error_html("无权编辑此笔记", 403)
         
         html = await self.ctx.template_engine.render("new-note.html", {
             "nav_page": "notes",
@@ -311,7 +311,7 @@ class NotesPlugin(Plugin):
         """创建笔记 API"""
         user = await self.get_current_user(request)
         if not user:
-            return {"error": "请先登录", "code": "unauthorized"}
+            return self.error_json("请先登录", 401)
         
         # 解析表单或 JSON
         content_type = request.headers.get("content-type", "")
@@ -325,7 +325,7 @@ class NotesPlugin(Plugin):
         visibility = body.get("visibility", "private")
         
         if not title or not content:
-            return {"error": "标题和内容不能为空"}
+            return self.error_json("标题和内容不能为空")
         
         return await self.create_note(
             title=title,
@@ -340,14 +340,14 @@ class NotesPlugin(Plugin):
         note = await self.engine.get("notes", note_id)
         
         if not note:
-            return {"error": "笔记不存在"}
+            return self.error_json("笔记不存在", 404)
         
         # 权限检查
         is_owner = user and user["id"] == note.get("author_id")
         is_public = note.get("visibility") == "public"
         
         if not is_owner and not is_public:
-            return {"error": "无权访问此笔记"}
+            return self.error_json("无权访问此笔记", 403)
         
         # 获取作者信息
         if note.get("author_id"):
@@ -365,14 +365,14 @@ class NotesPlugin(Plugin):
         note = await self.engine.get("notes", note_id)
         
         if not note:
-            return HTMLResponse(content="<h1>笔记不存在</h1>", status_code=404)
+            return self.error_html("笔记不存在", 404)
         
         # 权限检查
         is_owner = user and user["id"] == note.get("author_id")
         is_public = note.get("visibility") == "public"
         
         if not is_owner and not is_public:
-            return HTMLResponse(content="<h1>无权访问此笔记</h1>", status_code=403)
+            return self.error_html("无权访问此笔记", 403)
         
         # 获取作者信息
         if note.get("author_id"):
@@ -394,7 +394,7 @@ class NotesPlugin(Plugin):
         """更新笔记 API"""
         user = await self.get_current_user(request)
         if not user:
-            return {"error": "请先登录", "code": "unauthorized"}
+            return self.error_json("请先登录", 401)
         
         content_type = request.headers.get("content-type", "")
         if "application/json" in content_type:
@@ -414,7 +414,7 @@ class NotesPlugin(Plugin):
         """删除笔记 API"""
         user = await self.get_current_user(request)
         if not user:
-            return {"error": "请先登录", "code": "unauthorized"}
+            return self.error_json("请先登录", 401)
         
         return await self.delete_note(note_id=note_id, author_id=user["id"])
     
@@ -422,6 +422,6 @@ class NotesPlugin(Plugin):
         """获取我的笔记列表 API"""
         user = await self.get_current_user(request)
         if not user:
-            return {"error": "请先登录", "code": "unauthorized"}
+            return self.error_json("请先登录", 401)
         
         return await self.list_notes(author_id=user["id"], limit=50)

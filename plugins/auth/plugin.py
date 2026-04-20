@@ -15,7 +15,7 @@ class AuthPlugin(Plugin):
     """认证插件"""
     
     def __init__(self):
-        self.sessions: Dict[str, Dict] = {}  # 简单内存session，生产环境应使用Redis
+        self.sessions: Dict[str, Dict] = {}  # deprecated: session 已迁移到 SQLite，保留空 dict 以防外部引用
         self.captcha_codes: Dict[str, Dict] = {}  # 验证码缓存: {code_id: {code, expires}}
         self.engine = None
         self.config = None
@@ -224,24 +224,12 @@ class AuthPlugin(Plugin):
             (token, user["id"], int(time.time()), expires_at)
         )
         
-        # 同时保留内存缓存（可选，用于快速访问）
-        self.sessions[token] = {
-            "user_id": user["id"],
-            "username": user["username"],
-            "role": user["role"],
-            "created_at": int(time.time())
-        }
-        
         del user["password_hash"]
         return {"success": True, "token": token, "user": user}
     
     async def logout(self, token: str) -> Dict:
         """用户登出"""
-        # 从数据库删除
         await self.engine.execute("DELETE FROM sessions WHERE token = ?", (token,))
-        # 从内存删除
-        if token in self.sessions:
-            del self.sessions[token]
         return {"success": True}
     
     # === GitHub OAuth ===
@@ -298,15 +286,6 @@ class AuthPlugin(Plugin):
                 "INSERT INTO sessions (token, user_id, created_at, expires_at) VALUES (?, ?, ?, ?)",
                 (token, user["id"], int(time.time()), expires_at)
             )
-            
-            # 同时保留内存缓存
-            self.sessions[token] = {
-                "user_id": user["id"],
-                "username": user["username"],
-                "role": user["role"],
-                "github_id": github_user.get("id"),
-                "created_at": int(time.time())
-            }
             
             return {"success": True, "token": token, "user": user}
             

@@ -51,7 +51,7 @@ class AboutPlugin(Plugin):
         from starlette.responses import HTMLResponse
 
         if not await self.is_admin(request):
-            return HTMLResponse(content="<h1>403 Forbidden</h1>", status_code=403)
+            return self.error_html("403 Forbidden", 403)
 
         pending = await self._list_pending_comments()
         approved = await self._list_approved_comments()
@@ -85,12 +85,12 @@ class AboutPlugin(Plugin):
         content = (body.get("content") or "").strip()[:1000]
 
         if not content:
-            return {"error": "留言内容不能为空"}
+            return self.error_json("留言内容不能为空")
         if not email:
-            return {"error": "邮箱地址不能为空"}
+            return self.error_json("邮箱地址不能为空")
         import re
         if not re.match(r"^[^\s@]+@[^\s@]+\.[^\s@]+$", email):
-            return {"error": "请输入有效的邮箱地址"}
+            return self.error_json("请输入有效的邮箱地址")
         if not nickname:
             nickname = "匿名"
 
@@ -114,11 +114,11 @@ class AboutPlugin(Plugin):
     async def approve_comment(self, comment_id: int, request, **kwargs):
         """审核通过留言"""
         if not await self.is_admin(request):
-            return {"error": "无权限操作"}
+            return self.error_json("无权限操作", 403)
 
         comment = await self.engine.get("guestbook_entries", comment_id)
         if not comment:
-            return {"error": "留言不存在"}
+            return self.error_json("留言不存在", 404)
 
         comment["status"] = "public"
         await self.engine.put("guestbook_entries", comment_id, comment)
@@ -127,11 +127,11 @@ class AboutPlugin(Plugin):
     async def delete_comment(self, comment_id: int, request, **kwargs):
         """删除留言（管理员）"""
         if not await self.is_admin(request):
-            return {"error": "无权限操作"}
+            return self.error_json("无权限操作", 403)
 
         comment = await self.engine.get("guestbook_entries", comment_id)
         if not comment:
-            return {"error": "留言不存在"}
+            return self.error_json("留言不存在", 404)
 
         await self.engine.delete("guestbook_entries", comment_id)
         return {"deleted": True}

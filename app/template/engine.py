@@ -57,13 +57,101 @@ def excerpt_filter(text: str, length: int = 200) -> str:
     return text
 
 
+def _sanitize_html_input(text: str) -> str:
+    """预处理用户输入，移除危险的 HTML 标签和属性，保留安全的 Markdown 内容。
+    
+    策略：对原始输入中的 HTML 标签做白名单过滤，只允许 markdown extra 需要的
+    安全标签通过，其余一律转义。这比过滤输出更安全，因为不会误杀 markdown
+    扩展生成的合法 HTML。
+    """
+    from markupsafe import escape
+    
+    # 允许的标签（markdown extra / codehilite 会用到的）
+    safe_tags = {
+        'br', 'hr', 'p', 'div', 'span',
+        'pre', 'code',
+        'em', 'strong', 'b', 'i', 'u', 'del', 's', 'sub', 'sup',
+        'h1', 'h2', 'h3', 'h4', 'h5', 'h6',
+        'ul', 'ol', 'li', 'dl', 'dt', 'dd',
+        'table', 'thead', 'tbody', 'tfoot', 'tr', 'th', 'td', 'caption', 'colgroup', 'col',
+        'blockquote', 'q', 'cite',
+        'a', 'img',
+        'abbr', 'acronym', 'kbd', 'samp', 'var', 'mark',
+        'details', 'summary',
+    }
+    # 允许的属性（仅限特定标签）
+    safe_attrs = {
+        'a': {'href', 'title'},
+        'img': {'src', 'alt', 'title', 'width', 'height'},
+        'td': {'align', 'colspan', 'rowspan'},
+        'th': {'align', 'colspan', 'rowspan'},
+        'ol': {'start', 'type'},
+        'code': {'class'},          # codehilite 用
+        'pre': {'class'},           # codehilite 用
+        'div': {'class'},           # codehilite 用
+        'span': {'class'},          # codehilite 用
+        'details': {'open'},
+    }
+    
+    # 匹配 HTML 标签
+    tag_pattern = re.compile(
+        r'<(/?)(\w+)((?:\s+[^>]*?)?)(/?)>',
+        re.DOTALL
+    )
+    
+    def _replace_tag(m):
+        closing = m.group(1)
+        tag_name = m.group(2).lower()
+        attrs_str = m.group(3)
+        self_closing = m.group(4)
+        
+        if tag_name not in safe_tags:
+            # 不在白名单 → 整个标签转义
+            return str(escape(m.group(0)))
+        
+        # 过滤属性
+        if closing or self_closing:
+            allowed = set()
+        else:
+            allowed = safe_attrs.get(tag_name, set())
+        
+        if not allowed or not attrs_str.strip():
+            # 无属性或不需要过滤
+            if not allowed and attrs_str.strip():
+                # 有属性但不允许 → 移除所有属性
+                return f'<{closing}{tag_name}{self_closing}>'
+            return m.group(0)
+        
+        # 解析并过滤属性
+        attr_pattern = re.compile(r'(\w[\w-]*)\s*=\s*(?:"([^"]*)"|\'([^\']*)\'|(\S+))')
+        safe_attr_str = ''
+        for am in attr_pattern.finditer(attrs_str):
+            attr_name = am.group(1).lower()
+            if attr_name in allowed:
+                val = am.group(2) if am.group(2) is not None else (
+                    am.group(3) if am.group(3) is not None else am.group(4)
+                )
+                # href/src 不允许 javascript: 协议
+                if attr_name in ('href', 'src') and val.lower().strip().startswith(('javascript:', 'data:', 'vbscript:')):
+                    continue
+                safe_attr_str += f' {attr_name}="{val}"'
+        
+        return f'<{closing}{tag_name}{safe_attr_str}{self_closing}>'
+    
+    return tag_pattern.sub(_replace_tag, text)
+
+
 def markdown_filter(text: str) -> str:
-    """Markdown 转 HTML"""
+    """Markdown 转 HTML（带 XSS 防护）"""
     from markupsafe import Markup
     if not text:
         return ""
+    
+    # 预处理：移除危险 HTML，保留安全标签
+    sanitized = _sanitize_html_input(str(text))
+    
     html = md.markdown(
-        str(text),
+        sanitized,
         extensions=['extra', 'codehilite', 'toc'],
         extension_configs={
             'codehilite': {'css_class': 'highlight'}

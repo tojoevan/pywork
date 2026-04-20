@@ -217,14 +217,14 @@ class MicroblogPlugin(Plugin):
         """POST /api/microblog/{post_id}/approve"""
         user = await self.get_current_user(request)
         if not user or user.get("role") != "admin":
-            return {"error": "需要管理员权限"}
+            return self.error_json("需要管理员权限", 403)
         return await self.approve_post(post_id)
 
     async def reject_post_api(self, post_id: int, request, **kwargs):
         """POST /api/microblog/{post_id}/reject"""
         user = await self.get_current_user(request)
         if not user or user.get("role") != "admin":
-            return {"error": "需要管理员权限"}
+            return self.error_json("需要管理员权限", 403)
         return await self.reject_post(post_id)
 
     async def mcp_call(self, tool_name: str, arguments: Dict, mcp_token: str = None) -> Any:
@@ -287,7 +287,7 @@ class MicroblogPlugin(Plugin):
             last_post = self._ip_rate_limit.get(client_ip, 0)
             if now - last_post < self.ANONYMOUS_RATE_LIMIT:
                 remaining = int(self.ANONYMOUS_RATE_LIMIT - (now - last_post))
-                return {"error": f"发布过于频繁，请 {remaining} 秒后再试"}
+                return self.error_json(f"发布过于频繁，请 {remaining} 秒后再试", 429)
             # 更新发布时间
             self._ip_rate_limit[client_ip] = now
             # 清理过期的记录（防止内存泄漏）
@@ -301,7 +301,7 @@ class MicroblogPlugin(Plugin):
         """获取单条微博"""
         post = await self.engine.get("microblog_posts", post_id)
         if not post:
-            return {"error": "微博不存在"}
+            return self.error_json("微博不存在", 404)
         return post
 
     async def update_api(self, post_id: int, request, **kwargs):
@@ -311,13 +311,13 @@ class MicroblogPlugin(Plugin):
         
         post = await self.engine.get("microblog_posts", post_id)
         if not post:
-            return {"error": "微博不存在"}
+            return self.error_json("微博不存在", 404)
         
         if not user:
-            return {"error": "请先登录"}
+            return self.error_json("请先登录", 401)
         
         if post.get("author_id") != user["id"] and user.get("role") != "admin":
-            return {"error": "无权限修改他人的微博"}
+            return self.error_json("无权限修改他人的微博", 403)
         
         # 获取新内容
         content = kwargs.get("content")
@@ -329,10 +329,10 @@ class MicroblogPlugin(Plugin):
                 pass
         
         if not content or not content.strip():
-            return {"error": "内容不能为空"}
+            return self.error_json("内容不能为空")
         
         if len(content) > self.MAX_LENGTH:
-            return {"error": f"内容不能超过{self.MAX_LENGTH}字"}
+            return self.error_json(f"内容不能超过{self.MAX_LENGTH}字")
         
         # 更新
         post["content"] = content.strip()
@@ -347,13 +347,13 @@ class MicroblogPlugin(Plugin):
         
         post = await self.engine.get("microblog_posts", post_id)
         if not post:
-            return {"error": "微博不存在"}
+            return self.error_json("微博不存在", 404)
         
         if not user:
-            return {"error": "请先登录"}
+            return self.error_json("请先登录", 401)
         
         if post.get("author_id") != user["id"] and user.get("role") != "admin":
-            return {"error": "无权限删除他人的微博"}
+            return self.error_json("无权限删除他人的微博", 403)
         
         await self.engine.delete("microblog_posts", post_id)
         return {"deleted": True}

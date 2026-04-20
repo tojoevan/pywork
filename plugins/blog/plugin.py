@@ -398,8 +398,7 @@ Requirements:
         post_id = int(kwargs.get("post_id", 0))
         post = await self.engine.get("blog_posts", post_id)
         if not post:
-            from starlette.responses import HTMLResponse
-            return HTMLResponse(content="<h1>文章不存在</h1>", status_code=404)
+            return self.error_html("文章不存在", 404)
         
         # 解析 tags
         if post.get("tags"):
@@ -442,13 +441,13 @@ Requirements:
         post_id = int(kwargs.get("post_id", 0))
         post = await self.engine.get("blog_posts", post_id)
         if not post:
-            return HTMLResponse(content="<h1>文章不存在</h1>", status_code=404)
+            return self.error_html("文章不存在", 404)
         
         # 权限检查：作者或管理员
         is_author = post.get("author_id") == current_user["id"]
         is_admin = current_user.get("role") == "admin"
         if not is_author and not is_admin:
-            return HTMLResponse(content="<h1>无权编辑此文章</h1>", status_code=403)
+            return self.error_html("无权编辑此文章", 403)
         
         # 解析 tags
         if post.get("tags"):
@@ -479,7 +478,7 @@ Requirements:
         tags = body.get("tags", [])
         
         if not title or not content:
-            return {"error": "标题和内容不能为空"}
+            return self.error_json("标题和内容不能为空")
         
         # 获取当前用户
         author_id = 1  # 默认作者
@@ -546,19 +545,16 @@ Requirements:
         # 鉴权：检查用户是否登录
         user = await self.get_current_user(request)
         if not user:
-            from starlette.responses import JSONResponse
-            return JSONResponse({"error": "请先登录"}, status_code=401)
+            return self.error_json("请先登录", 401)
         
         # 获取文章，检查权限
         post = await self.engine.get("blog_posts", post_id)
         if not post:
-            from starlette.responses import JSONResponse
-            return JSONResponse({"error": "文章不存在"}, status_code=404)
+            return self.error_json("文章不存在", 404)
         
         # 只有作者或管理员可以删除
         if post.get("author_id") != user["id"] and user.get("role") != "admin":
-            from starlette.responses import JSONResponse
-            return JSONResponse({"error": "无权删除此文章"}, status_code=403)
+            return self.error_json("无权删除此文章", 403)
         
         await self.engine.delete("blog_posts", post_id)
         return {"deleted": True}

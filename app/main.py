@@ -185,15 +185,6 @@ class WorkbenchApp:
                 "plugins": list(self.plugin_manager.plugins.keys())
             }
         
-        # 微博前端路由（必须在 /blog 之前，避免 /blog 捕获 /microblog）
-        @self.app.get("/microblog", response_class=HTMLResponse)
-        async def microblog_index(request: Request):
-            """微博首页"""
-            microblog_plugin = self.plugin_manager.plugins.get("microblog")
-            if microblog_plugin:
-                return await microblog_plugin.home(request)
-            return HTMLResponse(content="<h1>Microblog not loaded</h1>")
-
         # 博客前端路由
         @self.app.get("/blog", response_class=HTMLResponse)
         async def blog_index(request: Request):
@@ -231,7 +222,7 @@ class WorkbenchApp:
                         "current_user": current_user
                     })
                     return HTMLResponse(content=html)
-            return HTMLResponse(content="<h1>Post not found</h1>", status_code=404)
+            return HTMLResponse(content='<h1>Post not found</h1><p><a href="/">← 返回首页</a></p>', status_code=404)
         
         # 认证路由
         @self.app.get("/login", response_class=HTMLResponse)
@@ -258,7 +249,7 @@ class WorkbenchApp:
             auth_plugin = self.plugin_manager.plugins.get("auth")
             if auth_plugin:
                 return await auth_plugin.login_api(request)
-            return {"error": "Auth plugin not loaded"}
+            return JSONResponse({"error": "Auth plugin not loaded"}, status_code=503)
         
         @self.app.post("/auth/register")
         async def auth_register(request: Request):
@@ -266,7 +257,7 @@ class WorkbenchApp:
             auth_plugin = self.plugin_manager.plugins.get("auth")
             if auth_plugin:
                 return await auth_plugin.register_api(request)
-            return {"error": "Auth plugin not loaded"}
+            return JSONResponse({"error": "Auth plugin not loaded"}, status_code=503)
         
         @self.app.get("/auth/captcha")
         async def auth_captcha():
@@ -274,7 +265,7 @@ class WorkbenchApp:
             auth_plugin = self.plugin_manager.plugins.get("auth")
             if auth_plugin:
                 return await auth_plugin.captcha_api()
-            return {"error": "Auth plugin not loaded"}
+            return JSONResponse({"error": "Auth plugin not loaded"}, status_code=503)
         
         @self.app.post("/auth/logout")
         async def auth_logout(request: Request):
@@ -282,15 +273,18 @@ class WorkbenchApp:
             auth_plugin = self.plugin_manager.plugins.get("auth")
             if auth_plugin:
                 return await auth_plugin.logout_api(request)
-            return {"error": "Auth plugin not loaded"}
+            return JSONResponse({"error": "Auth plugin not loaded"}, status_code=503)
         
         @self.app.get("/auth/me")
         async def auth_me(request: Request):
             """当前用户"""
             auth_plugin = self.plugin_manager.plugins.get("auth")
             if auth_plugin:
-                return await auth_plugin.me_api(request)
-            return {"error": "Auth plugin not loaded"}
+                result = await auth_plugin.me_api(request)
+                if isinstance(result, dict) and result.get("error"):
+                    return JSONResponse(result, status_code=401)
+                return result
+            return JSONResponse({"error": "Auth plugin not loaded"}, status_code=503)
 
         # MCP Token 管理路由
         @self.app.get("/auth/mcp-tokens")
@@ -298,12 +292,12 @@ class WorkbenchApp:
             """获取当前用户的 MCP Token 列表"""
             auth_plugin = self.plugin_manager.plugins.get("auth")
             if not auth_plugin:
-                return {"error": "Auth plugin not loaded"}
+                return JSONResponse({"error": "Auth plugin not loaded"}, status_code=503)
 
             # 验证用户登录
             user = await auth_plugin.me_api(request)
             if user.get("error"):
-                return {"error": "未登录"}
+                return JSONResponse({"error": "未登录"}, status_code=401)
 
             tokens = await auth_plugin.list_mcp_tokens(user["id"])
             return {"tokens": tokens}
@@ -313,12 +307,12 @@ class WorkbenchApp:
             """创建新的 MCP Token"""
             auth_plugin = self.plugin_manager.plugins.get("auth")
             if not auth_plugin:
-                return {"error": "Auth plugin not loaded"}
+                return JSONResponse({"error": "Auth plugin not loaded"}, status_code=503)
 
             # 验证用户登录
             user = await auth_plugin.me_api(request)
             if user.get("error"):
-                return {"error": "未登录"}
+                return JSONResponse({"error": "未登录"}, status_code=401)
 
             data = await request.json()
             name = data.get("name", "MCP Client")
@@ -331,23 +325,23 @@ class WorkbenchApp:
             """撤销 MCP Token"""
             auth_plugin = self.plugin_manager.plugins.get("auth")
             if not auth_plugin:
-                return {"error": "Auth plugin not loaded"}
+                return JSONResponse({"error": "Auth plugin not loaded"}, status_code=503)
 
             # 验证用户登录
             user = await auth_plugin.me_api(request)
             if user.get("error"):
-                return {"error": "未登录"}
+                return JSONResponse({"error": "未登录"}, status_code=401)
 
             # 获取 token 前缀（路径参数，8或16位）
             token_prefix = request.path_params.get("token_id", "")
             if not token_prefix:
-                return {"error": "缺少 token_id"}
+                return JSONResponse({"error": "缺少 token_id"}, status_code=400)
 
             # 直接通过 auth plugin 按前缀删除，限制只能删自己的
             ok = await auth_plugin.revoke_mcp_token_by_prefix(user["id"], token_prefix)
             if ok:
                 return {"success": True}
-            return {"error": "Token 不存在或无权撤销"}
+            return JSONResponse({"error": "Token 不存在或无权撤销"}, status_code=404)
 
         # GitHub OAuth 路由
         @self.app.get("/auth/github")
@@ -360,7 +354,7 @@ class WorkbenchApp:
                     from fastapi.responses import RedirectResponse
                     return RedirectResponse(url=result["url"])
                 return result
-            return {"error": "Auth plugin not loaded"}
+            return JSONResponse({"error": "Auth plugin not loaded"}, status_code=503)
         
         @self.app.get("/auth/github/callback")
         async def github_callback(request: Request):
@@ -380,8 +374,10 @@ class WorkbenchApp:
                         max_age=7 * 24 * 3600  # 7天
                     )
                     return response
+                if isinstance(result, dict) and result.get("error"):
+                    return JSONResponse(result, status_code=400)
                 return result
-            return {"error": "Auth plugin not loaded"}
+            return JSONResponse({"error": "Auth plugin not loaded"}, status_code=503)
 
         @self.app.get("/api/mcp-config")
         async def mcp_config(request: Request):
