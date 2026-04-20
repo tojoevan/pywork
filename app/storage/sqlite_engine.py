@@ -90,6 +90,7 @@ class SQLiteEngine(Engine):
     -- Guestbook entries
     CREATE TABLE IF NOT EXISTS guestbook_entries (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
+        author_id INTEGER DEFAULT 0,
         nickname TEXT NOT NULL DEFAULT '',
         body TEXT NOT NULL DEFAULT '',
         email TEXT DEFAULT '',
@@ -339,8 +340,8 @@ class SQLiteEngine(Engine):
             
             # Migrate guestbook entries (title→nickname, body→body, meta_json.email→email)
             await self._db.execute("""
-                INSERT OR IGNORE INTO guestbook_entries (id, nickname, body, email, status, created_at, updated_at, raft_term, raft_index, version, node_id)
-                SELECT id, COALESCE(title, ''), COALESCE(body, ''),
+                INSERT OR IGNORE INTO guestbook_entries (id, author_id, nickname, body, email, status, created_at, updated_at, raft_term, raft_index, version, node_id)
+                SELECT id, author_id, COALESCE(title, ''), COALESCE(body, ''),
                        COALESCE(json_extract(meta_json, '$.email'), ''),
                        COALESCE(status, 'pending'),
                        created_at, updated_at, 0, 0, 1, 'local'
