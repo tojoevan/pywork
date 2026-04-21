@@ -244,12 +244,35 @@ class BoardPlugin(Plugin):
     #  定时任务执行
     # ========================================================
 
+    async def _ensure_cron_logs_table(self):
+        """确保 cron_logs 表存在"""
+        await self.engine.execute("""
+            CREATE TABLE IF NOT EXISTS cron_logs (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                job_id INTEGER NOT NULL,
+                job_name TEXT NOT NULL,
+                handler_key TEXT NOT NULL,
+                started_at INTEGER NOT NULL,
+                finished_at INTEGER DEFAULT 0,
+                duration_ms INTEGER DEFAULT 0,
+                success INTEGER NOT NULL DEFAULT 0,
+                result TEXT DEFAULT '',
+                error TEXT DEFAULT '',
+                trigger_type TEXT DEFAULT 'manual'
+            )
+        """)
+        await self.engine.execute("CREATE INDEX IF NOT EXISTS idx_cron_logs_job_id ON cron_logs(job_id)")
+        await self.engine.execute("CREATE INDEX IF NOT EXISTS idx_cron_logs_started ON cron_logs(started_at)")
+
     async def _execute_job(self, job: Dict, trigger_type: str = "manual") -> tuple:
         """执行单个定时任务，返回 (success, result_text)"""
         handler_key = job.get("handler_key", "")
         handler = self._handlers.get(handler_key)
         if not handler:
             return False, f"Unknown handler: {handler_key}"
+        
+        # 确保日志表存在
+        await self._ensure_cron_logs_table()
         
         started_at = int(time.time() * 1000)  # 毫秒
         success = False
@@ -961,6 +984,9 @@ class BoardPlugin(Plugin):
             return redirect
 
         job_id = int(kwargs.get("job_id", 0))
+
+        # 确保 cron_logs 表存在
+        await self._ensure_cron_logs_table()
 
         # 分页参数
         try:
