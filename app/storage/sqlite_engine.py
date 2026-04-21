@@ -17,7 +17,7 @@ class SQLiteEngine(Engine):
         'users', 'blog_posts', 'microblog_posts', 'notes', 'guestbook_entries',
         'objects', 'tasks', 'plugins', 'templates',
         'site_config', 'site_template_bindings', 'sessions', 'cron_jobs',
-        'cron_stats', 'board_tasks', 'active_authors', 'mcp_tokens',
+        'cron_logs', 'cron_stats', 'board_tasks', 'active_authors', 'mcp_tokens',
         '_meta', '_raft_log', 'app_logs',
     })
     

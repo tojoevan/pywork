@@ -26,6 +26,24 @@
     margin: 0;
 }
 
+/* 日志按钮样式 */
+.btn-log {
+    display: inline-block;
+    padding: 4px 8px;
+    background: #f3f4f6;
+    color: #6b7280;
+    border-radius: 4px;
+    text-decoration: none;
+    font-size: 14px;
+    cursor: pointer;
+    border: none;
+    margin: 0 2px;
+}
+.btn-log:hover {
+    background: #e5e7eb;
+    color: #374151;
+}
+
 /* 新建任务表单 */
 .board-add {
     margin-bottom: 24px;

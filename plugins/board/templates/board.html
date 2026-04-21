@@ -216,6 +216,7 @@
                         </td>
                         <td class="actions">
                             <button class="btn-run" data-id="{{ job.id }}" title="立即执行">▶</button>
+                            <a href="/board/cron/logs?job_id={{ job.id }}" class="btn-log" title="查看日志">📋</a>
                             <button class="btn-cron-del" data-id="{{ job.id }}" title="删除">×</button>
                         </td>
                     </tr>

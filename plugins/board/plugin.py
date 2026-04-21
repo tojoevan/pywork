@@ -74,6 +74,9 @@ class BoardPlugin(Plugin):
             Route("/board/cron/jobs/{job_id}", "PUT", self.update_cron_job, "board.cron_update"),
             Route("/board/cron/jobs/{job_id}", "DELETE", self.delete_cron_job, "board.cron_delete"),
             Route("/board/cron/jobs/{job_id}/run", "POST", self.run_cron_job_api, "board.cron_run"),
+            # 定时任务日志
+            Route("/board/cron/logs", "GET", self.cron_logs_page, "board.cron_logs_page"),
+            Route("/board/cron/jobs/{job_id}/logs", "GET", self.cron_job_logs_api, "board.cron_job_logs"),
             # 网站设置
             Route("/board/settings", "GET", self.settings_page, "board.settings_page"),
             Route("/board/settings/api", "GET", self.get_settings_api, "board.settings_get"),
@@ -119,7 +122,7 @@ class BoardPlugin(Plugin):
     # ========================================================
 
     async def _init_cron_tables(self):
-        """初始化 cron_jobs 和 cron_stats 表"""
+        """初始化 cron_jobs、cron_logs 和 cron_stats 表"""
         await self.engine.execute("""
         CREATE TABLE IF NOT EXISTS cron_jobs (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -136,6 +139,27 @@ class BoardPlugin(Plugin):
             created_at INTEGER NOT NULL,
             updated_at INTEGER NOT NULL
         )
+        """)
+        await self.engine.execute("""
+        CREATE TABLE IF NOT EXISTS cron_logs (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            job_id INTEGER NOT NULL,
+            job_name TEXT NOT NULL,
+            handler_key TEXT NOT NULL,
+            started_at INTEGER NOT NULL,
+            finished_at INTEGER DEFAULT 0,
+            duration_ms INTEGER DEFAULT 0,
+            success INTEGER NOT NULL DEFAULT 0,
+            result TEXT DEFAULT '',
+            error TEXT DEFAULT '',
+            trigger_type TEXT DEFAULT 'manual'
+        )
+        """)
+        await self.engine.execute("""
+        CREATE INDEX IF NOT EXISTS idx_cron_logs_job_id ON cron_logs(job_id)
+        """)
+        await self.engine.execute("""
+        CREATE INDEX IF NOT EXISTS idx_cron_logs_started ON cron_logs(started_at)
         """)
         await self.engine.execute("""
         CREATE TABLE IF NOT EXISTS cron_stats (
@@ -220,18 +244,48 @@ class BoardPlugin(Plugin):
     #  定时任务执行
     # ========================================================
 
-    async def _execute_job(self, job: Dict) -> str:
-        """执行单个定时任务，返回结果文本"""
+    async def _execute_job(self, job: Dict, trigger_type: str = "manual") -> tuple:
+        """执行单个定时任务，返回 (success, result_text)"""
         handler_key = job.get("handler_key", "")
         handler = self._handlers.get(handler_key)
         if not handler:
-            return f"Unknown handler: {handler_key}"
+            return False, f"Unknown handler: {handler_key}"
+        
+        started_at = int(time.time() * 1000)  # 毫秒
+        success = False
+        result = ""
+        error = ""
+        
         try:
             result = await handler()
-            return str(result) if result else "OK"
+            result = str(result) if result else "OK"
+            success = True
         except Exception as e:
             import traceback
-            return f"Error: {e}\n{traceback.format_exc()}"
+            error = f"{e}\n{traceback.format_exc()}"
+            result = f"Error: {error}"
+        
+        finished_at = int(time.time() * 1000)
+        duration_ms = finished_at - started_at
+        
+        # 写入执行日志
+        await self.engine.execute("""
+            INSERT INTO cron_logs (job_id, job_name, handler_key, started_at, finished_at, duration_ms, success, result, error, trigger_type)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        """, (
+            job.get("id"),
+            job.get("name", "unknown"),
+            handler_key,
+            started_at // 1000,  # 存储秒级时间戳
+            finished_at // 1000,
+            duration_ms,
+            1 if success else 0,
+            result[:2000] if success else "",
+            error[:2000] if not success else "",
+            trigger_type
+        ))
+        
+        return success, result
 
     async def _update_job_run(self, job_id: int, success: bool, result: str) -> None:
         """更新任务运行结果"""
@@ -260,10 +314,10 @@ class BoardPlugin(Plugin):
         if not job:
             return JSONResponse({"error": "Job not found"}, status_code=404)
 
-        result = await self._execute_job(job)
-        await self._update_job_run(job_id, True, result)
+        success, result = await self._execute_job(job, trigger_type="manual")
+        await self._update_job_run(job_id, success, result)
 
-        return JSONResponse({"success": True, "result": result, "job_id": job_id})
+        return JSONResponse({"success": success, "result": result, "job_id": job_id})
 
     # ========================================================
     #  任务处理器
@@ -873,3 +927,68 @@ class BoardPlugin(Plugin):
             params,
         )
         return JSONResponse({"total": row["total"] if row else 0})
+
+    # ========================================================
+    #  定时任务执行日志
+    # ========================================================
+
+    async def cron_logs_page(self, request, **kwargs):
+        """GET /board/cron/logs — 定时任务执行日志页面"""
+        redirect = await self.require_admin_or_redirect(request)
+        if redirect:
+            return redirect
+
+        # 获取所有任务用于下拉筛选
+        jobs = await self._list_cron_jobs()
+
+        html = await self.template_engine.render(
+            "cron_logs.html",
+            {
+                "Site": self.ctx.site_config,
+                "jobs": jobs,
+                "job_id": request.query_params.get("job_id", ""),
+            },
+        )
+        from starlette.responses import HTMLResponse
+        return HTMLResponse(html)
+
+    async def cron_job_logs_api(self, request, **kwargs):
+        """GET /board/cron/jobs/{job_id}/logs — 获取指定任务的执行日志"""
+        from starlette.responses import JSONResponse
+
+        redirect = await self.require_admin_or_redirect(request)
+        if redirect:
+            return redirect
+
+        job_id = int(kwargs.get("job_id", 0))
+
+        # 分页参数
+        try:
+            limit = min(int(request.query_params.get("limit", "50")), 200)
+            offset = max(int(request.query_params.get("offset", "0")), 0)
+        except ValueError:
+            limit, offset = 50, 0
+
+        # 查询日志
+        rows = await self.engine.fetchall(
+            """SELECT id, job_id, job_name, handler_key, started_at, finished_at,
+                      duration_ms, success, result, error, trigger_type
+               FROM cron_logs
+               WHERE job_id = ?
+               ORDER BY started_at DESC
+               LIMIT ? OFFSET ?""",
+            (job_id, limit, offset),
+        )
+
+        # 统计总数
+        count_row = await self.engine.fetchone(
+            "SELECT COUNT(*) as total FROM cron_logs WHERE job_id = ?",
+            (job_id,),
+        )
+
+        return JSONResponse({
+            "logs": [dict(r) for r in rows],
+            "total": count_row["total"] if count_row else 0,
+            "limit": limit,
+            "offset": offset,
+        })

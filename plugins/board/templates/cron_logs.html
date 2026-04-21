@@ -1,0 +1,296 @@
+{% extends "base.html" %}
+
+{% block title %}定时任务日志 - {{ Site.title | default('pyWork') }}{% endblock %}
+
+{% block head %}
+<link rel="stylesheet" href="/static/css/board.css">
+<style>
+.logs-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 1rem;
+}
+.logs-filter {
+    display: flex;
+    gap: 0.5rem;
+    align-items: center;
+}
+.logs-filter select {
+    padding: 0.5rem;
+    border: 1px solid var(--border-color);
+    border-radius: 0.375rem;
+    font-size: 0.875rem;
+}
+.logs-table {
+    width: 100%;
+    border-collapse: collapse;
+    background: white;
+    border-radius: 0.5rem;
+    overflow: hidden;
+}
+.logs-table th,
+.logs-table td {
+    padding: 0.75rem;
+    text-align: left;
+    border-bottom: 1px solid var(--border-color);
+}
+.logs-table th {
+    background: #f9fafb;
+    font-weight: 600;
+    font-size: 0.8125rem;
+    color: #6b7280;
+}
+.logs-table tr:hover {
+    background: #f9fafb;
+}
+.log-status {
+    display: inline-block;
+    padding: 0.25rem 0.5rem;
+    border-radius: 0.25rem;
+    font-size: 0.75rem;
+    font-weight: 500;
+}
+.log-status.success {
+    background: #d1fae5;
+    color: #065f46;
+}
+.log-status.failed {
+    background: #fee2e2;
+    color: #991b1b;
+}
+.log-result {
+    max-width: 300px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    font-size: 0.8125rem;
+    color: #6b7280;
+}
+.log-result-full {
+    display: none;
+    position: fixed;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    background: white;
+    border: 1px solid var(--border-color);
+    border-radius: 0.5rem;
+    padding: 1.5rem;
+    max-width: 600px;
+    max-height: 400px;
+    overflow: auto;
+    box-shadow: 0 10px 40px rgba(0,0,0,0.2);
+    z-index: 1000;
+    white-space: pre-wrap;
+    font-family: monospace;
+    font-size: 0.8125rem;
+}
+.log-result-full.show {
+    display: block;
+}
+.pagination {
+    display: flex;
+    justify-content: center;
+    gap: 0.5rem;
+    margin-top: 1rem;
+}
+.pagination button {
+    padding: 0.5rem 1rem;
+    border: 1px solid var(--border-color);
+    background: white;
+    border-radius: 0.375rem;
+    cursor: pointer;
+}
+.pagination button:hover:not(:disabled) {
+    background: #f3f4f6;
+}
+.pagination button:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+}
+.pagination .page-info {
+    padding: 0.5rem 1rem;
+    color: #6b7280;
+    font-size: 0.875rem;
+}
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="board-container">
+    <div class="board-header">
+        <h1>📋 定时任务日志</h1>
+        <p class="board-desc">查看定时任务执行历史记录</p>
+        <div class="tab-nav">
+            <a href="/board" class="tab-btn">看板</a>
+            <a href="/board/cron" class="tab-btn">定时任务</a>
+            <a href="/board/moderation" class="tab-btn">微博审核</a>
+            <a href="/board/logs" class="tab-btn">📜 日志</a>
+            <a href="/board/settings" class="tab-btn">网站设置</a>
+        </div>
+    </div>
+
+    <div class="logs-header">
+        <div class="logs-filter">
+            <label for="job-select">选择任务：</label>
+            <select id="job-select">
+                <option value="">-- 请选择 --</option>
+                {% for job in jobs %}
+                <option value="{{ job.id }}" {{ 'selected' if job_id == job.id|string else '' }}>{{ job.name }}</option>
+                {% endfor %}
+            </select>
+        </div>
+        <div>
+            <span id="total-count" class="text-muted"></span>
+        </div>
+    </div>
+
+    <div id="logs-container">
+        <div class="empty" id="empty-hint" style="display: none;">请先选择一个任务查看日志</div>
+        <table class="logs-table" id="logs-table" style="display: none;">
+            <thead>
+                <tr>
+                    <th>执行时间</th>
+                    <th>状态</th>
+                    <th>耗时</th>
+                    <th>结果</th>
+                    <th>触发方式</th>
+                </tr>
+            </thead>
+            <tbody id="logs-body"></tbody>
+        </table>
+    </div>
+
+    <div class="pagination" id="pagination" style="display: none;">
+        <button id="prev-btn" disabled>上一页</button>
+        <span class="page-info" id="page-info"></span>
+        <button id="next-btn">下一页</button>
+    </div>
+</div>
+
+<div class="log-result-full" id="log-detail"></div>
+
+<script>
+let currentJobId = {{ job_id | default('null') }};
+let currentPage = 1;
+const pageSize = 50;
+let totalCount = 0;
+
+// 初始化
+document.getElementById('job-select').addEventListener('change', function() {
+    currentJobId = this.value;
+    if (currentJobId) {
+        currentPage = 1;
+        loadLogs();
+        // 更新 URL
+        history.replaceState(null, '', `/board/cron/logs?job_id=${currentJobId}`);
+    } else {
+        document.getElementById('logs-table').style.display = 'none';
+        document.getElementById('pagination').style.display = 'none';
+        document.getElementById('empty-hint').style.display = 'block';
+        document.getElementById('total-count').textContent = '';
+    }
+});
+
+// 如果 URL 有 job_id，自动加载
+if (currentJobId) {
+    loadLogs();
+}
+
+async function loadLogs() {
+    if (!currentJobId) return;
+
+    const offset = (currentPage - 1) * pageSize;
+    const res = await fetch(`/board/cron/jobs/${currentJobId}/logs?limit=${pageSize}&offset=${offset}`);
+    const data = await res.json();
+
+    totalCount = data.total;
+    const logs = data.logs;
+
+    document.getElementById('total-count').textContent = `共 ${totalCount} 条记录`;
+
+    if (logs.length === 0) {
+        document.getElementById('logs-table').style.display = 'none';
+        document.getElementById('pagination').style.display = 'none';
+        document.getElementById('empty-hint').style.display = 'block';
+        document.getElementById('empty-hint').textContent = '该任务暂无执行记录';
+        return;
+    }
+
+    document.getElementById('logs-table').style.display = 'table';
+    document.getElementById('empty-hint').style.display = 'none';
+
+    const tbody = document.getElementById('logs-body');
+    tbody.innerHTML = logs.map(log => `
+        <tr>
+            <td>${formatTime(log.started_at)}</td>
+            <td>
+                <span class="log-status ${log.success ? 'success' : 'failed'}">
+                    ${log.success ? '✓ 成功' : '✗ 失败'}
+                </span>
+            </td>
+            <td>${log.duration_ms} ms</td>
+            <td class="log-result" onclick="showDetail('${escapeAttr(log.success ? log.result : log.error)}')">
+                ${escapeHtml(log.success ? log.result : log.error) || '-'}
+            </td>
+            <td>${log.trigger_type === 'manual' ? '手动' : '自动'}</td>
+        </tr>
+    `).join('');
+
+    // 更新分页
+    const totalPages = Math.ceil(totalCount / pageSize);
+    document.getElementById('pagination').style.display = 'flex';
+    document.getElementById('prev-btn').disabled = currentPage <= 1;
+    document.getElementById('next-btn').disabled = currentPage >= totalPages;
+    document.getElementById('page-info').textContent = `第 ${currentPage} / ${totalPages} 页`;
+}
+
+document.getElementById('prev-btn').addEventListener('click', () => {
+    if (currentPage > 1) {
+        currentPage--;
+        loadLogs();
+    }
+});
+
+document.getElementById('next-btn').addEventListener('click', () => {
+    const totalPages = Math.ceil(totalCount / pageSize);
+    if (currentPage < totalPages) {
+        currentPage++;
+        loadLogs();
+    }
+});
+
+function showDetail(text) {
+    const el = document.getElementById('log-detail');
+    el.textContent = text || '(无内容)';
+    el.classList.add('show');
+    el.onclick = () => el.classList.remove('show');
+}
+
+function formatTime(ts) {
+    const d = new Date(ts * 1000);
+    return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')} ` +
+           `${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}:${String(d.getSeconds()).padStart(2,'0')}`;
+}
+
+function escapeHtml(str) {
+    if (!str) return '';
+    return String(str)
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;');
+}
+
+function escapeAttr(str) {
+    if (!str) return '';
+    return String(str)
+        .replace(/\\/g, '\\\\')
+        .replace(/'/g, "\\'")
+        .replace(/"/g, '\\"')
+        .replace(/\n/g, '\\n')
+        .replace(/\r/g, '\\r');
+}
+</script>
+{% endblock %}
