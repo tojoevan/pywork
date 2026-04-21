@@ -7,6 +7,7 @@ import os
 import sys
 
 from app.storage import Engine
+from app.log import get_logger
 
 
 @dataclass
@@ -96,7 +97,20 @@ class Plugin(ABC):
     async def init(self, ctx: PluginContext) -> None:
         """Initialize plugin"""
         pass
-    
+
+    # ========================================================
+    #  统一日志（子类用 self.log.info(...) 等）
+    # ========================================================
+
+    @property
+    def log(self):
+        """插件 logger，按 plugin name 分类写 app_logs + 控制台 + 文件"""
+        return getattr(self, '_logger', None) or get_logger(self.name, self.name)
+
+    def _init_logger(self, name: str) -> None:
+        """由 PluginManager 在 load 后调用，初始化插件 logger"""
+        self._logger = get_logger(name, name)
+
     # ========================================================
     #  通用鉴权方法
     # ========================================================
@@ -245,7 +259,8 @@ class PluginManager:
         ctx = PluginContext(engine=self.engine, config=config or {}, plugin_manager=self, template_engine=template_engine)
 
         await plugin.init(ctx)
-        
+        plugin._init_logger(name)
+
         self.plugins[name] = plugin
         self.contexts[name] = ctx
         

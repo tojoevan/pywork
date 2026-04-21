@@ -78,6 +78,9 @@ class BoardPlugin(Plugin):
             Route("/board/settings", "GET", self.settings_page, "board.settings_page"),
             Route("/board/settings/api", "GET", self.get_settings_api, "board.settings_get"),
             Route("/board/settings/api", "PUT", self.update_settings_api, "board.settings_update"),
+            Route("/board/logs", "GET", self.logs_page, "board.logs_page"),
+            Route("/board/logs/api", "GET", self.list_logs_api, "board.logs_list"),
+            Route("/board/logs/api/count", "GET", self.count_logs_api, "board.logs_count"),
             Route("/board/moderation", "GET", self.moderation_page, "board.moderation_page"),
         ]
 
@@ -751,3 +754,122 @@ class BoardPlugin(Plugin):
         task_id = int(kwargs.get("task_id", 0))
         await self.engine.delete("board_tasks", task_id)
         return JSONResponse({"success": True})
+
+    # ========================================================
+    #  日志浏览页面（/board/logs）
+    # ========================================================
+
+    async def logs_page(self, request, **kwargs):
+        """GET /board/logs — 日志浏览页面（仅管理员）"""
+        from starlette.responses import HTMLResponse
+
+        redirect = await self.require_admin_or_redirect(request)
+        if redirect:
+            return redirect
+
+        html = await self.template_engine.render(
+            "logs.html",
+            {"nav_page": "board", "section": "logs"},
+        )
+        return HTMLResponse(html)
+
+    async def list_logs_api(self, request, **kwargs):
+        """GET /board/logs/api — 日志分页列表（支持关键词搜索）
+
+        Query params:
+          level   — DEBUG|INFO|WARNING|ERROR|CRITICAL（可选）
+          module  — 日志模块（可选）
+          keyword — 搜索关键词，匹配 message 或 traceback（可选）
+          limit   — 每页条数，默认 50
+          offset  — 起始偏移，默认 0
+          order   — asc|desc，默认 desc（按时间倒序）
+        """
+        from starlette.responses import JSONResponse
+
+        redirect = await self.require_admin_or_redirect(request)
+        if redirect:
+            return redirect
+
+        level = request.query_params.get("level", "").strip()
+        module = request.query_params.get("module", "").strip()
+        keyword = request.query_params.get("keyword", "").strip()
+        try:
+            limit = min(int(request.query_params.get("limit", "50")), 200)
+            offset = max(int(request.query_params.get("offset", "0")), 0)
+        except ValueError:
+            limit, offset = 50, 0
+        order = request.query_params.get("order", "desc").strip()
+        if order not in ("asc", "desc"):
+            order = "desc"
+
+        conditions = ["1=1"]
+        params: list = []
+
+        if level:
+            conditions.append("level = ?")
+            params.append(level.upper())
+
+        if module:
+            conditions.append("module = ?")
+            params.append(module)
+
+        if keyword:
+            # 同时搜索 message 和 traceback（大小写不敏感）
+            conditions.append("(message LIKE ? OR traceback LIKE ?)")
+            kw = f"%{keyword}%"
+            params.extend([kw, kw])
+
+        where_clause = " AND ".join(conditions)
+        order_clause = f"created_at {order.upper()}"
+
+        rows = await self.engine.fetchall(
+            f"SELECT id, level, module, message, context, traceback, created_at "
+            f"FROM app_logs WHERE {where_clause} ORDER BY {order_clause} LIMIT ? OFFSET ?",
+            params + [limit, offset],
+        )
+        logs = [dict(r) for r in rows]
+
+        return JSONResponse({
+            "logs": logs,
+            "limit": limit,
+            "offset": offset,
+            "order": order,
+        })
+
+    async def count_logs_api(self, request, **kwargs):
+        """GET /board/logs/api/count — 统计日志条目数（用于分页）
+
+        Query params 同 list_logs_api
+        """
+        from starlette.responses import JSONResponse
+
+        redirect = await self.require_admin_or_redirect(request)
+        if redirect:
+            return redirect
+
+        level = request.query_params.get("level", "").strip()
+        module = request.query_params.get("module", "").strip()
+        keyword = request.query_params.get("keyword", "").strip()
+
+        conditions = ["1=1"]
+        params: list = []
+
+        if level:
+            conditions.append("level = ?")
+            params.append(level.upper())
+
+        if module:
+            conditions.append("module = ?")
+            params.append(module)
+
+        if keyword:
+            conditions.append("(message LIKE ? OR traceback LIKE ?)")
+            kw = f"%{keyword}%"
+            params.extend([kw, kw])
+
+        where_clause = " AND ".join(conditions)
+        row = await self.engine.fetchone(
+            f"SELECT COUNT(*) as total FROM app_logs WHERE {where_clause}",
+            params,
+        )
+        return JSONResponse({"total": row["total"] if row else 0})

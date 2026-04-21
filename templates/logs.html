@@ -1,0 +1,241 @@
+{% extends "base.html" %}
+
+{% block title %}日志 - {{ Site.title | default('pyWork') }}{% endblock %}
+
+{% block head %}
+<link rel="stylesheet" href="/static/css/board.css">
+<style>
+.logs-container { max-width: 1200px; margin: 0 auto; padding: 1rem; }
+.logs-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 1.5rem; }
+.logs-header h1 { margin: 0; font-size: 1.5rem; }
+.log-count { color: #888; font-size: 0.9rem; }
+
+/* 筛选栏 */
+.log-filter { background: #f8f9fa; border-radius: 8px; padding: 1rem; margin-bottom: 1rem; display: flex; flex-wrap: wrap; gap: 0.5rem; align-items: center; }
+.log-filter select, .log-filter input { padding: 0.4rem 0.6rem; border: 1px solid #ddd; border-radius: 4px; font-size: 0.9rem; }
+.log-filter input[type="text"] { width: 220px; }
+.log-filter button { padding: 0.4rem 1rem; background: #007bff; color: #fff; border: none; border-radius: 4px; cursor: pointer; font-size: 0.9rem; }
+.log-filter button:hover { background: #0056b3; }
+.log-filter .reset-btn { background: #6c757d; }
+.log-filter .reset-btn:hover { background: #545b62; }
+
+/* 表格 */
+.log-table { width: 100%; border-collapse: collapse; font-size: 0.85rem; }
+.log-table th { background: #f1f3f5; text-align: left; padding: 0.5rem 0.75rem; border-bottom: 2px solid #dee2e6; position: sticky; top: 0; }
+.log-table td { padding: 0.4rem 0.75rem; border-bottom: 1px solid #f0f0f0; vertical-align: top; }
+.log-table tr:hover { background: #f8f9fa; }
+.log-table .msg-cell { max-width: 500px; word-break: break-all; }
+
+/* 等级颜色 */
+.level-badge { padding: 0.15rem 0.5rem; border-radius: 3px; font-size: 0.75rem; font-weight: 600; text-transform: uppercase; }
+.level-DEBUG { background: #e2e3e5; color: #495057; }
+.level-INFO  { background: #d1ecf1; color: #0c5460; }
+.level-WARNING { background: #fff3cd; color: #856404; }
+.level-ERROR { background: #f8d7da; color: #721c24; }
+.level-CRITICAL { background: #721c24; color: #fff; }
+
+/* 模块标签 */
+.module-tag { background: #e9ecef; color: #495057; padding: 0.1rem 0.4rem; border-radius: 3px; font-size: 0.75rem; }
+
+/* 时间戳 */
+.ts-cell { white-space: nowrap; color: #888; font-size: 0.8rem; }
+
+/* 折叠的 traceback */
+.tb-toggle { cursor: pointer; color: #0066cc; font-size: 0.8rem; }
+.tb-content { display: none; background: #f8f9fa; border: 1px solid #dee2e6; border-radius: 4px; padding: 0.5rem; margin-top: 0.3rem; font-family: monospace; font-size: 0.75rem; white-space: pre-wrap; color: #555; max-height: 200px; overflow-y: auto; }
+
+/* 分页 */
+.logs-pagination { display: flex; justify-content: space-between; align-items: center; margin-top: 1rem; padding: 0.5rem 0; }
+.pagination-info { color: #666; font-size: 0.85rem; }
+.pagination-btns { display: flex; gap: 0.5rem; }
+.pagination-btns button { padding: 0.3rem 0.8rem; border: 1px solid #ddd; background: #fff; border-radius: 4px; cursor: pointer; }
+.pagination-btns button:hover { background: #f0f0f0; }
+.pagination-btns button:disabled { color: #ccc; cursor: not-allowed; }
+
+/* 无数据提示 */
+.no-logs { text-align: center; color: #888; padding: 3rem; }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="logs-container">
+    <div class="logs-header">
+        <div>
+            <h1>📜 应用日志</h1>
+            <p class="log-count" id="log-count">加载中...</p>
+        </div>
+    </div>
+
+    {# 筛选栏 #}
+    <div class="log-filter">
+        <select id="level-filter">
+            <option value="">全部级别</option>
+            <option value="DEBUG">DEBUG</option>
+            <option value="INFO">INFO</option>
+            <option value="WARNING">WARNING</option>
+            <option value="ERROR">ERROR</option>
+            <option value="CRITICAL">CRITICAL</option>
+        </select>
+        <select id="module-filter">
+            <option value="">全部模块</option>
+            <option value="core">core</option>
+            <option value="auth">auth</option>
+            <option value="blog">blog</option>
+            <option value="microblog">microblog</option>
+            <option value="notes">notes</option>
+            <option value="board">board</option>
+            <option value="mcp">mcp</option>
+            <option value="storage">storage</option>
+            <option value="route">route</option>
+        </select>
+        <input type="text" id="keyword-input" placeholder="搜索关键词（message / traceback）..." value="">
+        <button onclick="loadLogs()">搜索</button>
+        <button class="reset-btn" onclick="resetFilters()">重置</button>
+    </div>
+
+    {# 日志表格 #}
+    <div id="log-table-wrap">
+        <table class="log-table">
+            <thead>
+                <tr>
+                    <th>级别</th>
+                    <th>模块</th>
+                    <th>时间</th>
+                    <th>消息</th>
+                </tr>
+            </thead>
+            <tbody id="log-tbody">
+                <tr><td colspan="4" class="no-logs">加载中...</td></tr>
+            </tbody>
+        </table>
+    </div>
+
+    {# 分页 #}
+    <div class="logs-pagination">
+        <span class="pagination-info" id="pagination-info"></span>
+        <div class="pagination-btns">
+            <button id="btn-prev" onclick="changePage(-1)" disabled>上一页</button>
+            <button id="btn-next" onclick="changePage(1)" disabled>下一页</button>
+        </div>
+    </div>
+
+    <div style="margin-top:1rem;">
+        <a href="/board" style="color:#888;">← 返回看板</a>
+    </div>
+</div>
+
+<script>
+const PAGE_SIZE = 50;
+let _offset = 0;
+let _total = 0;
+
+function buildParams() {
+    const params = new URLSearchParams();
+    const level = document.getElementById('level-filter').value;
+    const module = document.getElementById('module-filter').value;
+    const keyword = document.getElementById('keyword-input').value.trim();
+    if (level) params.set('level', level);
+    if (module) params.set('module', module);
+    if (keyword) params.set('keyword', keyword);
+    params.set('limit', PAGE_SIZE);
+    params.set('offset', _offset);
+    params.set('order', 'desc');
+    return params;
+}
+
+async function loadLogs() {
+    const params = buildParams();
+    try {
+        const [logsRes, countRes] = await Promise.all([
+            fetch('/board/logs/api?' + params.toString()),
+            fetch('/board/logs/api/count?' + params.toString()),
+        ]);
+        const logsData = await logsRes.json();
+        const countData = await countRes.json();
+        _total = countData.total || 0;
+        renderTable(logsData.logs);
+        renderPagination();
+    } catch (e) {
+        document.getElementById('log-tbody').innerHTML = '<tr><td colspan="4" class="no-logs">加载失败: ' + e.message + '</td></tr>';
+    }
+}
+
+function renderTable(logs) {
+    const tbody = document.getElementById('log-tbody');
+    if (!logs || logs.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="4" class="no-logs">暂无日志记录</td></tr>';
+        return;
+    }
+    const ts = s => {
+        const d = new Date(s * 1000);
+        return d.toLocaleString('zh-CN', { year:'numeric', month:'2-digit', day:'2-digit',
+            hour:'2-digit', minute:'2-digit', second:'2-digit' });
+    };
+    tbody.innerHTML = logs.map(log => {
+        const hasTB = log.traceback && log.traceback.trim();
+        const msg = escapeHtml(log.message || '');
+        const levelCls = 'level-' + (log.level || 'INFO');
+        return `<tr>
+            <td><span class="level-badge ${levelCls}">${log.level || 'INFO'}</span></td>
+            <td><span class="module-tag">${escapeHtml(log.module || 'core')}</span></td>
+            <td class="ts-cell">${ts(log.created_at)}</td>
+            <td class="msg-cell">
+                ${msg}
+                ${hasTB ? `<span class="tb-toggle" onclick="toggleTB(this)"> [查看堆栈]</span><div class="tb-content">${escapeHtml(log.traceback)}</div>` : ''}
+            </td>
+        </tr>`;
+    }).join('');
+}
+
+function renderPagination() {
+    const from = _offset + 1;
+    const to = Math.min(_offset + PAGE_SIZE, _total);
+    document.getElementById('log-count').textContent = `共 ${_total} 条记录`;
+    document.getElementById('pagination-info').textContent = to > 0
+        ? `显示 ${from} - ${to} / 共 ${_total} 条`
+        : '';
+    document.getElementById('btn-prev').disabled = _offset <= 0;
+    document.getElementById('btn-next').disabled = _offset + PAGE_SIZE >= _total;
+}
+
+function changePage(delta) {
+    _offset = Math.max(0, _offset + delta * PAGE_SIZE);
+    loadLogs();
+}
+
+function toggleTB(el) {
+    const content = el.nextElementSibling;
+    if (content.style.display === 'block') {
+        content.style.display = 'none';
+        el.textContent = ' [查看堆栈]';
+    } else {
+        content.style.display = 'block';
+        el.textContent = ' [隐藏堆栈]';
+    }
+}
+
+function resetFilters() {
+    document.getElementById('level-filter').value = '';
+    document.getElementById('module-filter').value = '';
+    document.getElementById('keyword-input').value = '';
+    _offset = 0;
+    loadLogs();
+}
+
+function escapeHtml(s) {
+    return String(s)
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;');
+}
+
+// 回车搜索
+document.getElementById('keyword-input').addEventListener('keydown', e => {
+    if (e.key === 'Enter') loadLogs();
+});
+
+// 初始加载
+loadLogs();
+</script>
+{% endblock %}

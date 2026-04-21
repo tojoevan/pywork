@@ -18,7 +18,7 @@ class SQLiteEngine(Engine):
         'objects', 'tasks', 'plugins', 'templates',
         'site_config', 'site_template_bindings', 'sessions', 'cron_jobs',
         'cron_stats', 'board_tasks', 'active_authors', 'mcp_tokens',
-        '_meta', '_raft_log',
+        '_meta', '_raft_log', 'app_logs',
     })
     
     # Core business tables
@@ -244,6 +244,20 @@ class SQLiteEngine(Engine):
     -- Indexes for guestbook_entries
     CREATE INDEX IF NOT EXISTS idx_guestbook_status ON guestbook_entries(status);
     CREATE INDEX IF NOT EXISTS idx_guestbook_created ON guestbook_entries(created_at);
+
+    -- Application logs
+    CREATE TABLE IF NOT EXISTS app_logs (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        level TEXT NOT NULL DEFAULT 'INFO',
+        module TEXT NOT NULL DEFAULT 'core',
+        message TEXT NOT NULL,
+        context TEXT DEFAULT '',
+        traceback TEXT DEFAULT '',
+        created_at INTEGER NOT NULL
+    );
+    CREATE INDEX IF NOT EXISTS idx_app_logs_level ON app_logs(level);
+    CREATE INDEX IF NOT EXISTS idx_app_logs_module ON app_logs(module);
+    CREATE INDEX IF NOT EXISTS idx_app_logs_created ON app_logs(created_at);
     """
     
     def __init__(self, db_path: str):
