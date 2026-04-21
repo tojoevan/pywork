@@ -967,7 +967,6 @@ class BoardPlugin(Plugin):
         html = await self.template_engine.render(
             "cron_logs.html",
             {
-                "Site": self.ctx.site_config,
                 "jobs": jobs,
                 "job_id": request.query_params.get("job_id", ""),
             },
