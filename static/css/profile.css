@@ -510,3 +510,94 @@ body.profile-page .nav a[href="/profile"] {
     color: #10b981;
     font-weight: 600;
 }
+
+/* 移动端适配 */
+@media (max-width: 768px) {
+    .profile-container {
+        padding: 20px 12px;
+    }
+    
+    .profile-header {
+        padding: 16px;
+        margin-bottom: 20px;
+    }
+    
+    .profile-avatar {
+        width: 56px;
+        height: 56px;
+        font-size: 24px;
+    }
+    
+    .profile-info h1 {
+        font-size: 18px;
+    }
+    
+    .profile-section {
+        padding: 16px;
+        margin-bottom: 16px;
+    }
+    
+    .profile-section h2 {
+        font-size: 14px;
+    }
+    
+    /* 创作中心：单列布局 */
+    .create-actions {
+        grid-template-columns: 1fr;
+        gap: 10px;
+    }
+    
+    .create-btn {
+        padding: 12px;
+    }
+    
+    .create-icon {
+        width: 32px;
+        height: 32px;
+        font-size: 18px;
+    }
+    
+    /* MCP 工具列表：单列 */
+    .tool-list {
+        grid-template-columns: 1fr;
+    }
+    
+    .tool-item {
+        padding: 8px 10px;
+        font-size: 12px;
+    }
+    
+    /* 底部按钮：垂直排列 */
+    .profile-actions {
+        flex-direction: column;
+        gap: 10px;
+    }
+    
+    .btn-secondary,
+    .btn-primary,
+    .btn-danger {
+        text-align: center;
+        padding: 12px 16px;
+    }
+    
+    /* Token 列表 */
+    .token-item {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 8px;
+    }
+    
+    .token-item button {
+        align-self: flex-end;
+    }
+    
+    /* 模态窗口 */
+    .modal {
+        padding: 16px;
+        margin: 12px;
+    }
+    
+    .modal-header h3 {
+        font-size: 16px;
+    }
+}
