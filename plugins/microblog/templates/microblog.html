@@ -1,6 +1,6 @@
 {% extends "base.html" %}
 
-{% block title %}微博 - pyWork{% endblock %}
+{% block title %}{{ Site.title | default('pyWork') }} - 微博{% endblock %}
 
 {% block head %}
 <link rel="stylesheet" href="/static/css/microblog.css">
@@ -9,8 +9,8 @@
 {% block content %}
 <div class="microblog-container">
     <div class="microblog-header">
-        <h1>微博</h1>
-        <p class="microblog-description">快速分享你的想法</p>
+        <h1>{{ Site.microblog_title | default('微博') }}</h1>
+        <p class="microblog-description">{{ Site.microblog_description | default('快速分享你的想法') }}</p>
     </div>
 
     <!-- 发布框 -->
