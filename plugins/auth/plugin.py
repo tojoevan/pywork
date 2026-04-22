@@ -2,6 +2,7 @@
 认证插件 - 用户登录/注册/管理
 """
 import json
+import os
 import time
 import secrets
 import hashlib
@@ -38,12 +39,11 @@ class AuthPlugin(Plugin):
         self.engine = ctx.engine
         self.config = ctx.config
         self._ctx = ctx  # 供基类鉴权方法使用
-        
-        # 加载 OAuth 配置
-        import os
-        self.github_client_id = os.environ.get("GITHUB_CLIENT_ID")
-        self.github_client_secret = os.environ.get("GITHUB_CLIENT_SECRET")
-        self.github_redirect_uri = os.environ.get("GITHUB_REDIRECT_URI", "http://localhost:8080/auth/github/callback")
+
+        # 加载 OAuth 配置（优先从 config 读取，fallback 到环境变量）
+        self.github_client_id = self.config.github_client_id or os.environ.get("GITHUB_CLIENT_ID")
+        self.github_client_secret = self.config.github_client_secret or os.environ.get("GITHUB_CLIENT_SECRET")
+        self.github_redirect_uri = self.config.github_redirect_uri
         
         # 初始化 sessions 表
         await self._init_sessions_table()

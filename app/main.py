@@ -14,6 +14,7 @@ from app.plugin import PluginManager
 from app.mcp import WorkbenchMCPServer
 from app.template import TemplateEngine
 from app.log import setup_logging, get_logger
+from app.config import build_config, AppConfig, SiteConfigManager, config_to_dict
 
 # 模块级 logger
 log = get_logger(__name__, "core")
@@ -28,7 +29,8 @@ class WorkbenchApp:
         plugin_dir: str = "./plugins",
         enabled_plugins: Optional[list] = None,
         template_dir: str = "./templates",
-        static_dir: str = "./static"
+        static_dir: str = "./static",
+        config: Optional[AppConfig] = None,
     ):
         self.db_path = db_path
         self.plugin_dir = plugin_dir
@@ -40,6 +42,11 @@ class WorkbenchApp:
         self.plugin_manager = PluginManager(self.engine, plugin_dir)
         self.template_engine: Optional[TemplateEngine] = None
         self.mcp_server: Optional[WorkbenchMCPServer] = None
+        self.site_config_manager = SiteConfigManager(self.engine)
+
+        # Config: 优先使用传入的 config，否则延迟到 startup 从 DB 构建
+        self._config = config
+        self._config_built = config is not None
 
         self.app = FastAPI(
             title="pyWork",
@@ -49,15 +56,23 @@ class WorkbenchApp:
 
     async def startup(self):
         """Startup application"""
-        # 初始化日志（data_dir 从 db_path 推导）
-        data_dir = os.path.dirname(os.path.abspath(self.db_path))
-        setup_logging(data_dir=data_dir, log_level=os.getenv("LOG_LEVEL", "INFO"), engine=self.engine)
-
-        log.info(f"启动 pyWork，数据目录: {data_dir}")
-
-        # Start storage engine
+        # Start storage engine (先启动 DB，config 需要读取 site_config 表)
         await self.engine.start()
         log.info(f"SQLite engine started: {self.db_path}")
+
+        # 构建 AppConfig（从 site_config 表 + 环境变量 + 默认值）
+        if not self._config_built:
+            self._config = await build_config(engine=self.engine)
+            self._config_built = True
+        log.info(f"AppConfig loaded: title={self._config.title}, db={self._config.db_path}")
+
+        # 注入 config 到 PluginManager
+        self.plugin_manager.config = self._config
+
+        # 初始化日志（data_dir 从 db_path 推导）
+        data_dir = os.path.dirname(os.path.abspath(self._config.db_path))
+        setup_logging(data_dir=data_dir, log_level=self._config.log_level, engine=self.engine)
+        log.info(f"数据目录: {data_dir}")
 
         # Initialize template engine (pass engine for lazy site config loading)
         self.template_engine = TemplateEngine(self.template_dir, engine=self.engine)

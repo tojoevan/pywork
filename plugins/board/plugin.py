@@ -687,6 +687,10 @@ class BoardPlugin(Plugin):
         # 清除模板引擎缓存
         if self.template_engine:
             self.template_engine._site_cache = None
+        # 清除 SiteConfigManager 缓存（如果可用）
+        app = self.ctx._plugin_manager  # type: ignore
+        if hasattr(app, 'config'):
+            pass  # config 是 immutable AppConfig，下次 render 时从 DB 重新读
         return JSONResponse({"success": True})
 
     async def _get_site_settings(self) -> Dict[str, str]:
@@ -726,7 +730,7 @@ class BoardPlugin(Plugin):
                         (key, data[key])
                     )
                 except Exception as e:
-                    print(f"[Board] Failed to update {key}: {e}")
+                    self.log.error(f"Failed to update {key}: {e}")
 
     # ========================================================
     #  看板页面（整合定时任务）

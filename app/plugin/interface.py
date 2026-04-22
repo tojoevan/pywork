@@ -8,6 +8,7 @@ import sys
 
 from app.storage import Engine
 from app.log import get_logger
+from app.config import ConfigWrapper, AppConfig
 
 
 @dataclass
@@ -58,11 +59,20 @@ class TemplateSet:
 class PluginContext:
     """Plugin context with dependencies"""
 
-    def __init__(self, engine: Engine, config: Dict[str, Any], plugin_manager=None, template_engine=None):
+    def __init__(self, engine: Engine, config=None, plugin_manager=None, template_engine=None):
         self.engine = engine
-        self.config = config
         self._plugin_manager = plugin_manager
         self.template_engine = template_engine
+        # 兼容层：支持 dict / AppConfig / ConfigWrapper / None
+        if isinstance(config, ConfigWrapper):
+            self.config = config
+        elif isinstance(config, AppConfig):
+            self.config = ConfigWrapper(config)
+        elif isinstance(config, dict):
+            # 旧代码传入空 dict，包装为兼容对象
+            self.config = ConfigWrapper(AppConfig(**config)) if config else ConfigWrapper(AppConfig())
+        else:
+            self.config = ConfigWrapper(AppConfig())
 
     def get_plugin(self, name: str) -> Optional[Any]:
         """Get another plugin by name"""
@@ -223,6 +233,7 @@ class PluginManager:
         self.plugin_dir = plugin_dir
         self.plugins: Dict[str, Plugin] = {}
         self.contexts: Dict[str, PluginContext] = {}
+        self.config = None  # 由 WorkbenchApp.startup() 注入 AppConfig
     
     async def load_plugin(self, name: str, config: Optional[Dict[str, Any]] = None) -> Plugin:
         """Load a plugin by name"""
@@ -256,7 +267,9 @@ class PluginManager:
         # Instantiate and initialize
         plugin = plugin_class()
         template_engine = getattr(self, '_template_engine', None)
-        ctx = PluginContext(engine=self.engine, config=config or {}, plugin_manager=self, template_engine=template_engine)
+        # 优先使用 PluginManager 级别的 config，其次使用 load_plugin 传入的
+        effective_config = config or getattr(self, 'config', None)
+        ctx = PluginContext(engine=self.engine, config=effective_config, plugin_manager=self, template_engine=template_engine)
 
         await plugin.init(ctx)
         plugin._init_logger(name)
