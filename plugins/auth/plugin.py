@@ -706,16 +706,22 @@ class AuthPlugin(Plugin):
                 token = result.get("token")
                 response = HTMLResponse(content="""
                     <!DOCTYPE html>
-                    <html><head><meta charset="utf-8"><title>登录成功</title>
+                    <html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><title>登录成功</title>
                     <script>setTimeout(function(){window.location.href='/';},800);</script>
-                    </head>
-                    <body style="font-family:system-ui;display:flex;justify-content:center;align-items:center;height:100vh;margin:0;background:#f5f5f5">
-                        <div style="text-align:center;background:white;padding:40px;border-radius:8px;box-shadow:0 2px 10px rgba(0,0,0,0.1)">
-                            <h1 style="color:#10b981;margin-bottom:16px">登录成功！</h1>
-                            <p style="color:#666;margin-bottom:8px">欢迎回来，正在跳转...</p>
-                            <p style="color:#999;font-size:13px">如果没有自动跳转，<a href="/" style="color:#10b981">点击这里</a></p>
-                        </div>
-                    </body></html>
+                    <style>
+                        body{font-family:system-ui;display:flex;justify-content:center;align-items:center;min-height:100vh;margin:0;background:#f5f5f5;padding:16px;box-sizing:border-box}
+                        .card{text-align:center;background:white;padding:32px 24px;border-radius:8px;box-shadow:0 2px 10px rgba(0,0,0,0.1);max-width:360px;width:100%}
+                        h1{color:#10b981;margin:0 0 12px 0;font-size:20px}
+                        p{color:#666;margin:0 0 8px 0;font-size:14px}
+                        .hint{color:#999;font-size:13px}
+                        a{color:#10b981}
+                        @media(max-width:480px){.card{padding:24px 16px}h1{font-size:18px}}
+                    </style>
+                    </head><body><div class="card">
+                        <h1>✓ 登录成功！</h1>
+                        <p>欢迎回来，正在跳转...</p>
+                        <p class="hint">如果没有自动跳转，<a href=\"/\">点击这里</a></p>
+                    </div></body></html>
                 """)
                 response.set_cookie(
                     key="auth_token",
@@ -728,14 +734,20 @@ class AuthPlugin(Plugin):
                 error_msg = result.get("error", "登录失败")
                 return HTMLResponse(content=f"""
                     <!DOCTYPE html>
-                    <html><head><meta charset="utf-8"><title>登录失败</title></head>
-                    <body style="font-family:system-ui;display:flex;justify-content:center;align-items:center;height:100vh;margin:0;background:#f5f5f5">
-                        <div style="text-align:center;background:white;padding:40px;border-radius:8px;box-shadow:0 2px 10px rgba(0,0,0,0.1)">
-                            <h1 style="color:#e74c3c;margin-bottom:16px">登录失败</h1>
-                            <p style="color:#666;margin-bottom:24px">{error_msg}</p>
-                            <a href="/login" style="display:inline-block;background:#2d2d2d;color:white;padding:12px 24px;text-decoration:none;border-radius:4px">重新登录</a>
-                        </div>
-                    </body></html>
+                    <html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><title>登录失败</title>
+                    <style>
+                        body{{font-family:system-ui;display:flex;justify-content:center;align-items:center;min-height:100vh;margin:0;background:#f5f5f5;padding:16px;box-sizing:border-box}}
+                        .card{{text-align:center;background:white;padding:32px 24px;border-radius:8px;box-shadow:0 2px 10px rgba(0,0,0,0.1);max-width:360px;width:100%}}
+                        h1{{color:#e74c3c;margin:0 0 12px 0;font-size:20px}}
+                        p{{color:#666;margin:0 0 20px 0;font-size:14px}}
+                        a{{display:inline-block;background:#2d2d2d;color:white;padding:12px 24px;text-decoration:none;border-radius:4px;font-size:14px}}
+                        @media(max-width:480px){{.card{{padding:24px 16px}}h1{{font-size:18px}}a{{padding:10px 20px}}}}
+                    </style>
+                    </head><body><div class="card">
+                        <h1>✗ 登录失败</h1>
+                        <p>{error_msg}</p>
+                        <a href="/login">重新登录</a>
+                    </div></body></html>
                 """)
         return result
     

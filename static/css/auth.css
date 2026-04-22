@@ -242,6 +242,19 @@
     border-radius: 6px;
     font-size: 14px;
     margin-bottom: 16px;
+    text-align: center;
+}
+
+/* 错误提示 */
+.error-message {
+    background: #fef2f2;
+    border: 1px solid #fecaca;
+    color: #dc2626;
+    padding: 12px;
+    border-radius: 6px;
+    font-size: 14px;
+    margin-bottom: 16px;
+    text-align: center;
 }
 
 /* 验证码样式 */
@@ -386,8 +399,22 @@
 
 /* 移动端适配 */
 @media (max-width: 640px) {
+    .auth-page {
+        padding: 16px;
+    }
+    
+    .auth-container {
+        max-width: 100%;
+    }
+    
     .auth-card {
-        padding: 1.5rem;
+        padding: 1rem;
+        margin-bottom: 1rem;
+        border-radius: 8px;
+    }
+
+    .auth-title {
+        font-size: 1.25rem;
     }
 
     .compact-form .form-row {
@@ -408,6 +435,7 @@
 
     .inline-form .inline-row input {
         width: 100%;
+        box-sizing: border-box;
     }
 
     .captcha-image-row {
@@ -433,5 +461,14 @@
 
     .social-buttons {
         flex-direction: column;
+    }
+    
+    /* 成功/失败提示移动端样式 */
+    .success-message,
+    .error-message {
+        padding: 10px;
+        font-size: 13px;
+        margin-bottom: 12px;
+        text-align: center;
     }
 }
