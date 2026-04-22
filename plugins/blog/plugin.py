@@ -295,6 +295,82 @@ Requirements:
         sql = f"SELECT COUNT(*) as cnt FROM blog_posts c {where_clause}"
         row = await self.engine.fetchone(sql, tuple(params))
         return row["cnt"] if row else 0
+
+    async def search_fts(self, query: str, limit: int = 20) -> list:
+        """FTS5 全文搜索，返回带高亮的结果（用于全局搜索）"""
+        import re
+
+        # FTS5 MATCH 搜索
+        try:
+            # 使用 FTS5 搜索
+            rows = await self.engine.fetchall(
+                """SELECT b.id, b.title, b.body, b.author_id, b.created_at,
+                          u.username as author_name
+                   FROM blog_posts b
+                   LEFT JOIN users u ON b.author_id = u.id
+                   WHERE b.status = 'published'
+                     AND b.id IN (
+                       SELECT rowid FROM blog_posts_fts
+                       WHERE blog_posts_fts MATCH ?
+                     )
+                   ORDER BY b.created_at DESC
+                   LIMIT ?""",
+                (query, limit)
+            )
+        except Exception as e:
+            # FTS5 失败时回退到 LIKE 搜索
+            rows = await self.engine.fetchall(
+                """SELECT b.id, b.title, b.body, b.author_id, b.created_at,
+                          u.username as author_name
+                   FROM blog_posts b
+                   LEFT JOIN users u ON b.author_id = u.id
+                   WHERE b.status = 'published'
+                     AND (b.title LIKE ? OR b.body LIKE ?)
+                   ORDER BY b.created_at DESC
+                   LIMIT ?""",
+                (f"%{query}%", f"%{query}%", limit)
+            )
+
+        results = []
+        for row in rows:
+            # 高亮标题
+            title = self._highlight_text(row["title"], query, max_len=100)
+            # 高亮摘要
+            excerpt = self._highlight_text(row["body"], query, max_len=200)
+
+            results.append({
+                "id": row["id"],
+                "title": title,
+                "excerpt": excerpt,
+                "author_name": row.get("author_name") or "匿名",
+                "created_at": row["created_at"]
+            })
+
+        return results
+
+    def _highlight_text(self, text: str, query: str, max_len: int = 200) -> str:
+        """生成带高亮的文本片段"""
+        if not text:
+            return ""
+
+        # 截取片段
+        if len(text) > max_len:
+            idx = text.lower().find(query.lower())
+            if idx >= 0:
+                start = max(0, idx - max_len // 3)
+                text = text[start:start + max_len]
+                if start > 0:
+                    text = "..." + text
+                if len(text) >= max_len:
+                    text = text[:max_len] + "..."
+            else:
+                text = text[:max_len] + "..."
+
+        # 高亮关键词
+        pattern = re.compile(re.escape(query), re.IGNORECASE)
+        text = pattern.sub(lambda m: f'<span class="highlight">{m.group()}</span>', text)
+
+        return text
     
     async def search_posts_paginated(
         self,

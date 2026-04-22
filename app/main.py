@@ -238,10 +238,7 @@ class WorkbenchApp:
             """当前用户"""
             auth_plugin = self.plugin_manager.plugins.get("auth")
             if auth_plugin:
-                result = await auth_plugin.me_api(request)
-                if isinstance(result, dict) and result.get("error"):
-                    return JSONResponse(result, status_code=401)
-                return result
+                return await auth_plugin.me_api(request)
             return JSONResponse({"error": "Auth plugin not loaded"}, status_code=503)
 
         # MCP Token 管理路由
@@ -426,6 +423,143 @@ class WorkbenchApp:
                 "serverInfo": {"name": "pyWork", "version": "0.1.0"}
             }}
 
+        # 搜索频率限制：每个 IP 每 30 秒搜索一次
+        self._search_rate_limit = {}  # {ip: last_search_time}
+        self._search_rate_limit_interval = 30  # 秒
+
+        # 全局搜索路由
+        @self.app.get("/search", response_class=HTMLResponse)
+        async def global_search(request: Request):
+            """全局搜索页面"""
+            import time
+            start_time = time.time()
+
+            # IP 频率限制
+            client_ip = request.client.host if request.client else "unknown"
+            now = time.time()
+            last_search = self._search_rate_limit.get(client_ip, 0)
+            if now - last_search < self._search_rate_limit_interval:
+                # 返回提示页面
+                remaining = int(self._search_rate_limit_interval - (now - last_search))
+                html = await self.template_engine.render("search.html", {
+                    "query": "",
+                    "total": 0,
+                    "blog_results": [],
+                    "microblog_results": [],
+                    "notes_results": [],
+                    "duration_ms": 0,
+                    "nav_page": "search",
+                    "rate_limited": True,
+                    "rate_limit_remaining": remaining
+                })
+                return HTMLResponse(content=html, status_code=429)
+
+            query = request.query_params.get("q", "").strip()
+            if not query:
+                html = await self.template_engine.render("search.html", {
+                    "query": "",
+                    "total": 0,
+                    "blog_results": [],
+                    "microblog_results": [],
+                    "notes_results": [],
+                    "duration_ms": 0,
+                    "nav_page": "search"
+                })
+                return HTMLResponse(content=html)
+
+            # 记录搜索时间
+            self._search_rate_limit[client_ip] = now
+
+            # 获取各插件
+            blog_plugin = self.plugin_manager.plugins.get("blog")
+            microblog_plugin = self.plugin_manager.plugins.get("microblog")
+            notes_plugin = self.plugin_manager.plugins.get("notes")
+            auth_plugin = self.plugin_manager.plugins.get("auth")
+
+            # 并行搜索
+            blog_results = []
+            microblog_results = []
+            notes_results = []
+
+            async def search_blog():
+                nonlocal blog_results
+                if blog_plugin and hasattr(blog_plugin, 'search_fts'):
+                    try:
+                        blog_results = await blog_plugin.search_fts(query, limit=20)
+                    except Exception as e:
+                        log.warning(f"Blog search error: {e}")
+
+            async def search_microblog():
+                nonlocal microblog_results
+                if microblog_plugin:
+                    try:
+                        # 微博使用 LIKE 搜索
+                        microblog_results = await self._search_microblog(query, microblog_plugin, auth_plugin, limit=20)
+                    except Exception as e:
+                        log.warning(f"Microblog search error: {e}")
+
+            async def search_notes():
+                nonlocal notes_results
+                if notes_plugin:
+                    try:
+                        notes_results = await self._search_notes(query, notes_plugin, auth_plugin, limit=20)
+                    except Exception as e:
+                        log.warning(f"Notes search error: {e}")
+
+            await asyncio.gather(search_blog(), search_microblog(), search_notes())
+
+            duration_ms = int((time.time() - start_time) * 1000)
+            total = len(blog_results) + len(microblog_results) + len(notes_results)
+
+            html = await self.template_engine.render("search.html", {
+                "query": query,
+                "total": total,
+                "blog_results": blog_results,
+                "microblog_results": microblog_results,
+                "notes_results": notes_results,
+                "duration_ms": duration_ms,
+                "nav_page": "search"
+            })
+            return HTMLResponse(content=html)
+
+        # 搜索 API
+        @self.app.get("/api/search")
+        async def search_api(request: Request):
+            """搜索 API (JSON)"""
+            query = request.query_params.get("q", "").strip()
+            limit = int(request.query_params.get("limit", "10"))
+
+            if not query:
+                return {"results": [], "total": 0}
+
+            blog_plugin = self.plugin_manager.plugins.get("blog")
+            microblog_plugin = self.plugin_manager.plugins.get("microblog")
+            notes_plugin = self.plugin_manager.plugins.get("notes")
+            auth_plugin = self.plugin_manager.plugins.get("auth")
+
+            blog_results = []
+            microblog_results = []
+            notes_results = []
+
+            if blog_plugin and hasattr(blog_plugin, 'search_fts'):
+                blog_results = await blog_plugin.search_fts(query, limit=limit)
+
+            if microblog_plugin:
+                microblog_results = await self._search_microblog(query, microblog_plugin, auth_plugin, limit=limit)
+
+            if notes_plugin:
+                notes_results = await self._search_notes(query, notes_plugin, auth_plugin, limit=limit)
+
+            return {
+                "query": query,
+                "results": {
+                    "blog": blog_results,
+                    "microblog": microblog_results,
+                    "notes": notes_results
+                },
+                "total": len(blog_results) + len(microblog_results) + len(notes_results)
+            }
+
     def _register_route(self, route):
         """Register a single route
 
@@ -475,6 +609,102 @@ class WorkbenchApp:
                 methods=[route.method],
                 name=route.name or f"{route.path}_{id(route)}"
             )
+
+    async def _search_microblog(self, query: str, plugin, auth_plugin, limit: int = 20) -> list:
+        """搜索微博内容"""
+        # 使用 LIKE 搜索（微博内容较短，LIKE 性能可接受）
+        results = await self.engine.fetchall(
+            """SELECT id, author_id, content, created_at
+               FROM microblog_posts
+               WHERE status = 'public' AND content LIKE ?
+               ORDER BY created_at DESC
+               LIMIT ?""",
+            (f"%{query}%", limit)
+        )
+
+        # 获取作者名
+        items = []
+        for row in results:
+            author_name = "匿名"
+            if auth_plugin and row["author_id"]:
+                user = await auth_plugin.get_user(row["author_id"])
+                if user:
+                    author_name = user.get("username", "匿名")
+
+            # 高亮关键词
+            content = row["content"]
+            excerpt = self._highlight_excerpt(content, query, max_len=200)
+
+            items.append({
+                "id": row["id"],
+                "excerpt": excerpt,
+                "author_name": author_name,
+                "created_at": row["created_at"]
+            })
+
+        return items
+
+    async def _search_notes(self, query: str, plugin, auth_plugin, limit: int = 20) -> list:
+        """搜索笔记内容"""
+        # 使用 LIKE 搜索标题和正文
+        results = await self.engine.fetchall(
+            """SELECT id, author_id, title, body, visibility, created_at
+               FROM notes
+               WHERE visibility = 'public'
+                 AND (title LIKE ? OR body LIKE ?)
+               ORDER BY created_at DESC
+               LIMIT ?""",
+            (f"%{query}%", f"%{query}%", limit)
+        )
+
+        items = []
+        for row in results:
+            author_name = "匿名"
+            if auth_plugin and row["author_id"]:
+                user = await auth_plugin.get_user(row["author_id"])
+                if user:
+                    author_name = user.get("username", "匿名")
+
+            # 高亮标题
+            title = self._highlight_excerpt(row["title"], query, max_len=100)
+            # 高亮摘要
+            excerpt = self._highlight_excerpt(row["body"], query, max_len=200)
+
+            items.append({
+                "id": row["id"],
+                "title": title,
+                "excerpt": excerpt,
+                "author_name": author_name,
+                "created_at": row["created_at"]
+            })
+
+        return items
+
+    def _highlight_excerpt(self, text: str, query: str, max_len: int = 200) -> str:
+        """生成带高亮的摘要"""
+        if not text:
+            return ""
+
+        # 截取摘要
+        if len(text) > max_len:
+            # 尝试从关键词位置开始截取
+            idx = text.lower().find(query.lower())
+            if idx >= 0:
+                start = max(0, idx - max_len // 3)
+                text = text[start:start + max_len]
+                if start > 0:
+                    text = "..." + text
+                if start + max_len < len(text):
+                    text = text + "..."
+            else:
+                text = text[:max_len] + "..."
+
+        # 高亮关键词（不区分大小写）
+        import re
+        pattern = re.compile(re.escape(query), re.IGNORECASE)
+        text = pattern.sub(lambda m: f'<span class="highlight">{m.group()}</span>', text)
+
+        return text
 
     def run_http(self, host: str = "0.0.0.0", port: int = 8080):
         """Run HTTP server"""

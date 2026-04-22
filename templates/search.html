@@ -1,0 +1,283 @@
+{% extends "base.html" %}
+
+{% block title %}搜索: {{ query }} - {{ Site.title | default('pyWork') }}{% endblock %}
+
+{% block head %}
+<style>
+.search-page {
+    max-width: 900px;
+    margin: 0 auto;
+}
+
+.search-header {
+    margin-bottom: 2rem;
+}
+
+.search-header h1 {
+    font-size: 1.5rem;
+    margin-bottom: 0.5rem;
+}
+
+.search-header .query {
+    color: var(--primary-color);
+}
+
+.search-stats {
+    color: #6b7280;
+    font-size: 0.875rem;
+    margin-bottom: 1.5rem;
+}
+
+.search-form-large {
+    display: flex;
+    gap: 0.5rem;
+    margin-bottom: 2rem;
+}
+
+.search-form-large input {
+    flex: 1;
+    height: 44px;
+    padding: 0 1rem;
+    border: 1px solid var(--border-color);
+    border-radius: 0.375rem;
+    font-size: 1rem;
+}
+
+.search-form-large input:focus {
+    outline: none;
+    border-color: var(--primary-color);
+}
+
+.search-form-large button {
+    height: 44px;
+    padding: 0 1.5rem;
+    background: var(--primary-color);
+    color: white;
+    border: none;
+    border-radius: 0.375rem;
+    font-size: 1rem;
+    cursor: pointer;
+}
+
+.search-form-large button:hover {
+    opacity: 0.9;
+}
+
+/* 分组 */
+.result-group {
+    margin-bottom: 2rem;
+}
+
+.result-group h2 {
+    font-size: 1.125rem;
+    margin-bottom: 1rem;
+    padding-bottom: 0.5rem;
+    border-bottom: 1px solid var(--border-color);
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+.result-group h2 .count {
+    font-size: 0.875rem;
+    color: #6b7280;
+    font-weight: normal;
+}
+
+/* 结果项 */
+.result-item {
+    padding: 1rem;
+    border: 1px solid var(--border-color);
+    border-radius: 0.375rem;
+    margin-bottom: 0.75rem;
+    background: var(--bg-color);
+    transition: box-shadow 0.2s;
+}
+
+.result-item:hover {
+    box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+}
+
+.result-item a {
+    color: var(--text-color);
+    text-decoration: none;
+}
+
+.result-item a:hover {
+    text-decoration: none;
+}
+
+.result-title {
+    font-size: 1rem;
+    font-weight: 600;
+    margin-bottom: 0.25rem;
+    color: var(--primary-color);
+}
+
+.result-excerpt {
+    font-size: 0.875rem;
+    color: #4b5563;
+    margin-bottom: 0.5rem;
+    line-height: 1.5;
+}
+
+.result-meta {
+    font-size: 0.75rem;
+    color: #9ca3af;
+    display: flex;
+    gap: 1rem;
+}
+
+.result-meta .type {
+    background: #e5e7eb;
+    padding: 0.125rem 0.5rem;
+    border-radius: 0.25rem;
+    color: #4b5563;
+}
+
+/* 高亮 */
+.highlight {
+    background: #fef3c7;
+    padding: 0 0.125rem;
+    border-radius: 0.125rem;
+}
+
+/* 空结果 */
+.no-results {
+    text-align: center;
+    padding: 3rem;
+    color: #6b7280;
+}
+
+.no-results .icon {
+    font-size: 3rem;
+    margin-bottom: 1rem;
+}
+
+/* 分页 */
+.pagination {
+    display: flex;
+    justify-content: center;
+    gap: 0.5rem;
+    margin-top: 2rem;
+}
+
+.pagination a, .pagination span {
+    padding: 0.5rem 0.75rem;
+    border: 1px solid var(--border-color);
+    border-radius: 0.25rem;
+    font-size: 0.875rem;
+}
+
+.pagination a {
+    color: var(--text-color);
+    text-decoration: none;
+}
+
+.pagination a:hover {
+    background: #f3f4f6;
+}
+
+.pagination .current {
+    background: var(--primary-color);
+    color: white;
+    border-color: var(--primary-color);
+}
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="search-page">
+    {% if rate_limited %}
+    <!-- 频率限制提示 -->
+    <div class="no-results">
+        <div class="icon">⏳</div>
+        <p>搜索频率过快</p>
+        <p style="margin-top: 0.5rem; font-size: 0.875rem;">请等待 <strong>{{ rate_limit_remaining }}</strong> 秒后再试</p>
+    </div>
+    {% else %}
+    <div class="search-header">
+        <h1>搜索结果: <span class="query">{{ query }}</span></h1>
+    </div>
+
+    <!-- 搜索框 -->
+    <form class="search-form-large" action="/search" method="GET">
+        <input type="search" name="q" value="{{ query }}" placeholder="输入关键词搜索博客、微博、笔记...">
+        <button type="submit">搜索</button>
+    </form>
+
+    {% if total > 0 %}
+    <div class="search-stats">
+        找到 <strong>{{ total }}</strong> 个结果
+        {% if duration_ms %}（耗时 {{ duration_ms }}ms）{% endif %}
+    </div>
+
+    <!-- 博客结果 -->
+    {% if blog_results %}
+    <div class="result-group">
+        <h2>📝 博客 <span class="count">({{ blog_results | length }})</span></h2>
+        {% for item in blog_results %}
+        <div class="result-item">
+            <a href="/blog/{{ item.id }}">
+                <div class="result-title">{{ item.title | safe }}</div>
+                <div class="result-excerpt">{{ item.excerpt | safe }}</div>
+                <div class="result-meta">
+                    <span class="type">博客</span>
+                    <span>{{ item.author_name | default('匿名') }}</span>
+                    <span>{{ item.created_at | datefmt }}</span>
+                </div>
+            </a>
+        </div>
+        {% endfor %}
+    </div>
+    {% endif %}
+
+    <!-- 微博结果 -->
+    {% if microblog_results %}
+    <div class="result-group">
+        <h2>💬 微博 <span class="count">({{ microblog_results | length }})</span></h2>
+        {% for item in microblog_results %}
+        <div class="result-item">
+            <a href="/microblog#post-{{ item.id }}">
+                <div class="result-excerpt">{{ item.excerpt | safe }}</div>
+                <div class="result-meta">
+                    <span class="type">微博</span>
+                    <span>{{ item.author_name | default('匿名') }}</span>
+                    <span>{{ item.created_at | datefmt }}</span>
+                </div>
+            </a>
+        </div>
+        {% endfor %}
+    </div>
+    {% endif %}
+
+    <!-- 笔记结果 -->
+    {% if notes_results %}
+    <div class="result-group">
+        <h2>📓 笔记 <span class="count">({{ notes_results | length }})</span></h2>
+        {% for item in notes_results %}
+        <div class="result-item">
+            <a href="/notes/{{ item.id }}">
+                <div class="result-title">{{ item.title | safe }}</div>
+                <div class="result-excerpt">{{ item.excerpt | safe }}</div>
+                <div class="result-meta">
+                    <span class="type">笔记</span>
+                    <span>{{ item.author_name | default('匿名') }}</span>
+                    <span>{{ item.created_at | datefmt }}</span>
+                </div>
+            </a>
+        </div>
+        {% endfor %}
+    </div>
+    {% endif %}
+
+    {% else %}
+    <div class="no-results">
+        <div class="icon">🔍</div>
+        <p>未找到与 "<strong>{{ query }}</strong>" 相关的内容</p>
+        <p style="margin-top: 0.5rem; font-size: 0.875rem;">试试其他关键词？</p>
+    </div>
+    {% endif %}
+    {% endif %}
+</div>
+{% endblock %}

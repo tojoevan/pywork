@@ -6,8 +6,8 @@
     <title>{% block title %}{{ Site.title | default('pyWork') }}{% endblock %}</title>
     
     <!-- 静态资源 -->
-    <link rel="stylesheet" href="/static/css/base.css">
-    <link rel="stylesheet" href="/static/css/home.css">
+    <link rel="stylesheet" href="/static/css/base.css?v=20260423">
+    <link rel="stylesheet" href="/static/css/home.css?v=20260423">
     {% block head %}{% endblock %}
     
     <!-- 站点配置 -->
@@ -34,7 +34,15 @@
                 <a href="/microblog" {% if nav_page=='microblog' %}class="active"{% endif %}>微博</a>
                 <a href="/notes" {% if nav_page=='notes' %}class="active"{% endif %}>笔记</a>
                 <a href="/about" {% if nav_page=='about' %}class="active"{% endif %}>关于</a>
+                <form class="nav-search-mobile" action="/search" method="GET">
+                    <input type="search" name="q" placeholder="搜索..." aria-label="搜索">
+                    <button type="submit">🔍</button>
+                </form>
             </nav>
+            <form class="search-form" action="/search" method="GET">
+                <input type="search" name="q" class="search-input" placeholder="搜索..." aria-label="全局搜索">
+                <button type="submit" class="search-btn" aria-label="搜索">🔍</button>
+            </form>
             <div class="actions">
                 <span id="user-info" style="display:none; visibility:hidden;">
                     <a href="/profile" class="user-link">
@@ -69,6 +77,14 @@
         async function checkAuth() {
             try {
                 const response = await fetch('/auth/me');
+                
+                if (!response.ok) {
+                    // 未登录（401），显示登录按钮
+                    document.getElementById('login-btn').style.display = 'inline-flex';
+                    document.getElementById('login-btn').style.visibility = 'visible';
+                    return;
+                }
+                
                 const user = await response.json();
 
                 if (!user.error) {

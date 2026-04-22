@@ -248,6 +248,19 @@
     }
 
     loadUser();
-    loadFeed();
+    loadFeed().then(() => {
+        // 锚点滚动：从 URL hash 定位到对应帖子
+        if (window.location.hash) {
+            const targetId = window.location.hash.substring(1); // 去掉 #
+            const targetEl = document.getElementById(targetId);
+            if (targetEl) {
+                targetEl.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                // 高亮效果
+                targetEl.style.transition = 'background-color 0.5s';
+                targetEl.style.backgroundColor = '#fef3c7';
+                setTimeout(() => targetEl.style.backgroundColor = '', 2000);
+            }
+        }
+    });
 </script>
 {% endblock %}

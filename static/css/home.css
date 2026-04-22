@@ -522,6 +522,11 @@ a:hover {
     transform: rotate(-45deg) translate(5px, -5px);
 }
 
+/* 移动端搜索框：桌面端隐藏 */
+.nav-search-mobile {
+    display: none;
+}
+
 @media (max-width: 900px) {
     .nav {
         gap: 16px;
@@ -584,17 +589,57 @@ a:hover {
         border-bottom: none;
     }
     
+    /* 移动端搜索框（在汉堡菜单内） */
+    .nav-search-mobile {
+        display: flex;
+        gap: 8px;
+        padding: 12px 0 0 0;
+        margin-top: 8px;
+    }
+    
+    .nav-search-mobile input[type="search"] {
+        flex: 1;
+        height: 36px;
+        padding: 0 12px;
+        border: 1px solid var(--border-color);
+        border-radius: 4px;
+        font-size: 14px;
+        background: var(--bg-card);
+        color: var(--text-primary);
+    }
+    
+    .nav-search-mobile button {
+        height: 36px;
+        width: 36px;
+        border: 1px solid var(--border-color);
+        border-radius: 4px;
+        background: var(--gray-100);
+        cursor: pointer;
+        font-size: 14px;
+    }
+    
+    .nav-search-mobile button:hover {
+        background: var(--gray-200);
+    }
+    
     /* 调整顶部栏布局 */
     .topbar .container {
-        flex-wrap: wrap;
+        flex-wrap: nowrap;
+        height: 56px;
     }
     
     .brand {
-        flex: 1;
+        flex: 0 0 auto;
+    }
+    
+    /* 移动端隐藏顶部搜索框 */
+    .search-form {
+        display: none;
     }
     
     .actions {
         order: 3;
+        margin-left: auto;
     }
 }
 
