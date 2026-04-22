@@ -543,6 +543,11 @@ a:hover {
 }
 
 @media (max-width: 768px) {
+    /* 减少容器留白 */
+    .container {
+        padding: 0 12px;
+    }
+    
     .three-columns {
         grid-template-columns: 1fr;
     }
@@ -550,6 +555,20 @@ a:hover {
     .col-left,
     .col-right {
         display: none;
+    }
+    
+    /* 卡片减少内边距 */
+    .post {
+        padding: 16px 14px;
+        margin-bottom: 10px;
+    }
+    
+    .post-title {
+        font-size: 15px;
+    }
+    
+    .post-summary {
+        font-size: 13px;
     }
     
     /* 汉堡菜单在小屏幕时显示 */
