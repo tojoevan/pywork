@@ -15,6 +15,7 @@ from app.mcp import WorkbenchMCPServer
 from app.template import TemplateEngine
 from app.log import setup_logging, get_logger
 from app.config import build_config, AppConfig, SiteConfigManager, config_to_dict
+from app.services.home_service import HomeService
 
 # 模块级 logger
 log = get_logger(__name__, "core")
@@ -43,6 +44,7 @@ class WorkbenchApp:
         self.template_engine: Optional[TemplateEngine] = None
         self.mcp_server: Optional[WorkbenchMCPServer] = None
         self.site_config_manager = SiteConfigManager(self.engine)
+        self.home_service: Optional[HomeService] = None
 
         # Config: 优先使用传入的 config，否则延迟到 startup 从 DB 构建
         self._config = config
@@ -97,6 +99,9 @@ class WorkbenchApp:
         # Setup MCP server
         self.mcp_server = WorkbenchMCPServer(self.plugin_manager)
 
+        # Initialize HomeService
+        self.home_service = HomeService(self.plugin_manager)
+
         # Setup routes
         self._setup_routes()
 
@@ -117,83 +122,11 @@ class WorkbenchApp:
 
         @self.app.get("/", response_class=HTMLResponse)
         async def root():
-            """首页:混合展示博客 + 微博 + 公开笔记"""
-            blog_plugin = self.plugin_manager.plugins.get("blog")
-            microblog_plugin = self.plugin_manager.plugins.get("microblog")
-            notes_plugin = self.plugin_manager.plugins.get("notes")
-
-            # 博客
-            posts = []
-            if blog_plugin:
-                posts = await blog_plugin.list_posts(limit=20)
-
-            # 微博 → 转为统一格式
-            items = []
-            for p in posts:
-                items.append({
-                    "type": "post",
-                    "id": p["id"],
-                    "title": p.get("title", ""),
-                    "body": p.get("body", ""),
-                    "author_name": p.get("author_name", "匿名"),
-                    "author_avatar": p.get("author_avatar"),
-                    "created_at": p.get("created_at", 0),
-                    "tags": p.get("tags"),
-                })
-
-            if microblog_plugin:
-                micro_posts = await microblog_plugin.list_posts(limit=20)
-                for p in micro_posts:
-                    items.append({
-                        "type": "microblog",
-                        "id": p["id"],
-                        "body": p.get("content", p.get("body", "")),
-                        "author_name": p.get("author_name", "匿名"),
-                        "author_avatar": p.get("author_avatar"),
-                        "created_at": p.get("created_at", 0),
-                    })
-
-            # 公开笔记
-            if notes_plugin:
-                public_notes = await notes_plugin.list_notes(visibility="public", limit=10)
-                for n in public_notes:
-                    items.append({
-                        "type": "note",
-                        "id": n["id"],
-                        "title": n.get("title", ""),
-                        "body": n.get("body", ""),
-                        "author_name": n.get("author_name", "匿名"),
-                        "author_avatar": n.get("author_avatar"),
-                        "created_at": n.get("created_at", 0),
-                    })
-
-            # 按时间倒序混合
-            items.sort(key=lambda x: x["created_at"], reverse=True)
-            items = items[:20]
-
-            # 从看板插件获取统计数字 + 活跃作者
-            stats = {"blog_count": 0, "microblog_count": 0, "note_count": 0}
-            active_authors = []
-            board_plugin = self.plugin_manager.plugins.get("board")
-            if board_plugin:
-                if hasattr(board_plugin, "get_stats"):
-                    try:
-                        stats = await board_plugin.get_stats()
-                    except Exception:
-                        pass
-                if hasattr(board_plugin, "get_active_authors"):
-                    try:
-                        active_authors = await board_plugin.get_active_authors()
-                    except Exception:
-                        pass
-
+            """首页"""
+            data = await self.home_service.get_home_data()
             html = await self.template_engine.render("home.html", {
-                "posts": items,
+                **data,
                 "nav_page": "home",
-                "blog_count": stats.get("blog_count", 0),
-                "microblog_count": stats.get("microblog_count", 0),
-                "note_count": stats.get("note_count", 0),
-                "active_authors": active_authors,
             })
             return HTMLResponse(content=html)
 

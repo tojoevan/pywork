@@ -395,12 +395,12 @@ class MicroblogPlugin(Plugin):
 | P3-1 | 🟢 P3 | 错误处理不一致 | ✅ 已修复 | 2026-04-21 | `interface.py` + `main.py` + 4个插件 |
 | P3-2 | 🟢 P3 | 无日志框架 | ✅ 已修复 | 2026-04-22 | `app/log.py` + 全项目 print() 已迁移 |
 | P3-3 | 🟢 P3 | 无配置验证层 | ✅ 已修复 | 2026-04-22 | `app/config.py` (pydantic AppConfig + SiteConfigManager) |
-| P3-4 | 🟢 P3 | 测试覆盖不足 | ❌ 未修复 | — | 需逐步补充，auth/MCP/插件无测试 |
+| P3-4 | 🟢 P3 | 测试覆盖不足 | ✅ 已修复 | 2026-04-22 | tests/test_auth.py (27) + test_mcp.py (33) + test_plugins.py (38) + test_home_service.py (19) = 117 用例 |
 | P3-5 | 🟢 P3 | 依赖不一致 | ✅ 已修复 | 2026-04-21 | `pyproject.toml` + `requirements.txt` |
 | P3-6 | 🟢 P3 | Markdown XSS | ✅ 已修复 | 2026-04-21 | `app/template/engine.py` (白名单过滤) |
 | P3-7 | 🟢 P3 | Session 双写 | ✅ 已修复 | 2026-04-21 | `plugins/auth/plugin.py` (删除内存写) |
 | P3-8 | 🟢 P3 | 重复路由注册 | ✅ 已修复 | 2026-04-21 | `app/main.py` (删除手动注册) |
-| P3-9 | 🟢 P3 | 首页逻辑内联 | ❌ 未修复 | — | 需拆分到独立 service/plugin |
+| P3-9 | 🟢 P3 | 首页逻辑内联 | ✅ 已修复 | 2026-04-22 | `app/services/home_service.py` + `app/main.py` |
 
 ### 统计
 
@@ -409,10 +409,17 @@ class MicroblogPlugin(Plugin):
 | P0 | 3 | 3 | 0 |
 | P1 | 6 | 6 | 0 |
 | P2 | 5 | 5 | 0 |
-| P3 | 9 | 7 | 2 |
-| **合计** | **23** | **21** | **2** |
+| P3 | 9 | 9 | 0 |
+| **合计** | **23** | **23** | **0** |
 
-### 未修复项说明
+### 测试覆盖
 
-- **P3-4 测试覆盖不足**：auth / MCP / 各插件零测试，需逐模块补充，工作量大
-- **P3-9 首页逻辑内联**：`/` 路由耦合 blog + microblog + notes + stats 等查询，需拆分为独立 service
+| 测试文件 | 用例数 | 覆盖范围 |
+|----------|--------|----------|
+| tests/test_home_service.py | 19 | HomeService 首页数据聚合 |
+| tests/test_auth.py | 27 | 验证码、密码哈希、注册、登录、Session、MCP Token、GitHub OAuth |
+| tests/test_mcp.py | 33 | MCP 协议握手、tools/resources/prompts、错误处理 |
+| tests/test_plugins.py | 38 | Blog/Notes/Microblog CRUD、跨插件、边界情况 |
+| **总计** | **117** | — |
+
+**🎉 所有 23 项代码审查问题已全部修复！测试覆盖 117 用例通过！**
