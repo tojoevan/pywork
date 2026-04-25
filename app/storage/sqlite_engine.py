@@ -18,6 +18,7 @@ class SQLiteEngine(Engine):
         'objects', 'tasks', 'plugins', 'templates',
         'site_config', 'site_template_bindings', 'sessions', 'cron_jobs',
         'cron_logs', 'cron_stats', 'board_tasks', 'active_authors', 'mcp_tokens',
+        'comments', 'notifications',
         '_meta', '_raft_log', 'app_logs',
     })
     
@@ -258,7 +259,55 @@ class SQLiteEngine(Engine):
     CREATE INDEX IF NOT EXISTS idx_app_logs_level ON app_logs(level);
     CREATE INDEX IF NOT EXISTS idx_app_logs_module ON app_logs(module);
     CREATE INDEX IF NOT EXISTS idx_app_logs_created ON app_logs(created_at);
+
+    {comments_and_notifications}
     """
+
+    _DDL_COMMENTS = """-- Comments (unified across blog/microblog/notes)
+    CREATE TABLE IF NOT EXISTS comments (
+        id              INTEGER PRIMARY KEY AUTOINCREMENT,
+        target_type     TEXT NOT NULL,
+        target_id       INTEGER NOT NULL,
+        parent_id       INTEGER,
+        author_id       INTEGER NOT NULL,
+        content         TEXT NOT NULL,
+        status          TEXT DEFAULT 'pending',
+        reviewer_id     INTEGER,
+        reviewed_at     INTEGER,
+        created_at      INTEGER NOT NULL,
+        updated_at      INTEGER NOT NULL,
+        FOREIGN KEY (author_id) REFERENCES users(id),
+        FOREIGN KEY (parent_id) REFERENCES comments(id)
+    );
+    CREATE INDEX IF NOT EXISTS idx_comments_target
+        ON comments(target_type, target_id, status);
+    CREATE INDEX IF NOT EXISTS idx_comments_parent
+        ON comments(parent_id);
+    CREATE INDEX IF NOT EXISTS idx_comments_author
+        ON comments(author_id);
+    CREATE INDEX IF NOT EXISTS idx_comments_status
+        ON comments(status);
+
+    -- Notifications
+    CREATE TABLE IF NOT EXISTS notifications (
+        id              INTEGER PRIMARY KEY AUTOINCREMENT,
+        user_id         INTEGER NOT NULL,
+        type            TEXT NOT NULL,
+        target_type     TEXT,
+        target_id       INTEGER,
+        comment_id      INTEGER,
+        content         TEXT,
+        is_read         INTEGER DEFAULT 0,
+        created_at      INTEGER NOT NULL,
+        updated_at      INTEGER NOT NULL,
+        target_url      TEXT,
+        FOREIGN KEY (user_id) REFERENCES users(id)
+    );
+    CREATE INDEX IF NOT EXISTS idx_notifications_user
+        ON notifications(user_id, is_read, created_at);"""
+
+    # Rebuild SCHEMA with single-source DDL
+    SCHEMA = SCHEMA.format(comments_and_notifications=_DDL_COMMENTS)
     
     def __init__(self, db_path: str):
         self.db_path = db_path
@@ -333,6 +382,9 @@ class SQLiteEngine(Engine):
 
         # Migration 004: create FTS5 index for blog_posts
         await self._migrate_fts5()
+
+        # Migration 005: create comments + notifications tables
+        await self._migrate_comments()
     
     async def _migrate_contents_split(self) -> None:
         """Migration 002: split contents table into blog_posts, microblog_posts, notes, guestbook_entries.
@@ -494,6 +546,46 @@ class SQLiteEngine(Engine):
             print("✓ Migration 004: FTS5 index for blog_posts rebuilt")
         except Exception as e:
             print(f"⚠ Migration 004 failed: {e}")
+            await self._db.rollback()
+
+    async def _migrate_comments(self) -> None:
+        """Migration 005: create comments and notifications tables.
+
+        Idempotent — checks a flag in _meta before running.
+        For existing DBs, these tables may not exist yet.
+        """
+        async with self._db.execute(
+            "SELECT value FROM _meta WHERE key = 'migration_005_comments'"
+        ) as cursor:
+            row = await cursor.fetchone()
+            if row:
+                return  # Already done
+
+        try:
+            # Create comments & notifications tables (single source of truth)
+            await self._db.executescript(self._DDL_COMMENTS)
+            # Add updated_at column if missing (table created before this column was added)
+            try:
+                await self._db.execute("ALTER TABLE notifications ADD COLUMN updated_at INTEGER NOT NULL DEFAULT 0")
+            except aiosqlite.OperationalError:
+                pass  # Column already exists
+
+            # Add target_url column if missing (added for notification quick-navigation)
+            try:
+                await self._db.execute("ALTER TABLE notifications ADD COLUMN target_url TEXT")
+            except aiosqlite.OperationalError:
+                pass  # Column already exists
+
+            await self._db.commit()
+
+            # Mark migration as done
+            await self._db.execute(
+                "INSERT OR REPLACE INTO _meta (key, value) VALUES ('migration_005_comments', '1')"
+            )
+            await self._db.commit()
+            print("✓ Migration 005: comments + notifications tables created")
+        except Exception as e:
+            print(f"⚠ Migration 005 failed: {e}")
             await self._db.rollback()
 
     async def _load_index(self) -> None:

@@ -35,7 +35,7 @@ class WorkbenchApp:
     ):
         self.db_path = db_path
         self.plugin_dir = plugin_dir
-        self.enabled_plugins = enabled_plugins or ["blog", "auth", "microblog", "about", "notes", "board"]
+        self.enabled_plugins = enabled_plugins or ["blog", "auth", "microblog", "about", "notes", "board", "comments"]
         self.template_dir = template_dir
         self.static_dir = static_dir
 
@@ -733,7 +733,7 @@ def cli():
     parser = argparse.ArgumentParser(description="pyWork - Digital Workbench")
     parser.add_argument("--db", default="./data/pywork.db", help="Database path")
     parser.add_argument("--plugins", default="./plugins", help="Plugin directory")
-    parser.add_argument("--enabled", default="blog,auth,microblog,about,notes,board", help="Enabled plugins (comma-separated)")
+    parser.add_argument("--enabled", default="blog,auth,microblog,about,notes,board,comments", help="Enabled plugins (comma-separated)")
     parser.add_argument("--templates", default="./templates", help="Template directory")
     parser.add_argument("--static", default="./static", help="Static files directory")
     parser.add_argument("--http", action="store_true", help="Run HTTP server")
@@ -771,3 +771,22 @@ def cli():
 
 if __name__ == "__main__":
     cli()
+
+
+# uvicorn entry point — module-level __getattr__ provides lazy initialisation.
+# `uvicorn app.main:app` or `from app.main import app` triggers this only once,
+# avoiding import-time side effects (DB init, plugin loading, etc.).
+_asgi_app: Optional[FastAPI] = None
+
+
+def __getattr__(name: str):
+    """Lazy app proxy — only instantiated on first access."""
+    global _asgi_app
+    if name == "app":
+        if _asgi_app is None:
+            _asgi_app = WorkbenchApp(
+                db_path=os.environ.get("PYWORK_DB", "./data/pywork.db"),
+                plugin_dir=os.environ.get("PYWORK_PLUGINS", "./plugins"),
+            ).app
+        return _asgi_app
+    raise AttributeError(f"module {__name__!r} has no attribute {name!r}")

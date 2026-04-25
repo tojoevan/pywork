@@ -1,0 +1,24 @@
+<!-- Comments Section - Include: {% include 'comments-section.html' with target_type='blog', target_id=post.id, section_id='comments-section' %} -->
+<section class="comments-section" id="{{ section_id | default('comments-section') }}">
+    <div class="comments-header">
+        <h3>💬 评论</h3>
+        <span class="comments-count"></span>
+    </div>
+
+    <!-- Login hint (shown when not logged in) -->
+    <div class="comment-login-hint" style="display:none;">
+        <a href="/login">登录</a>后即可评论
+    </div>
+
+    <!-- Comment form (shown when logged in) -->
+    <div class="comment-form" style="display:none;">
+        <textarea placeholder="写下你的评论..." rows="3"></textarea>
+        <div class="comment-form-actions">
+            <span></span>
+            <button class="btn-submit" onclick="Comments.submit('{{ target_type }}', {{ target_id }}, '#{{ section_id | default('comments-section') }}')">发表评论</button>
+        </div>
+    </div>
+
+    <!-- Comments list -->
+    <ul class="comments-list"></ul>
+</section>

@@ -5,6 +5,7 @@
 {% block head %}
 <link rel="stylesheet" href="/static/css/blog.css">
 <link rel="stylesheet" href="/static/css/notes.css">
+<link rel="stylesheet" href="/static/css/comments.css">
 {% endblock %}
 
 {% block content %}
@@ -44,11 +45,15 @@
         <button class="btn btn-danger" onclick="deleteNote({{ note.id }})">删除笔记</button>
     </footer>
     {% endif %}
+
+    <!-- Comments -->
+    {% include 'comments-section.html' with target_type='note', target_id=note.id, section_id='comments-section' %}
 </article>
 {% endblock %}
 
 {% block scripts %}
 {{ super() }}
+<script src="/static/js/comments.js"></script>
 <script>
 async function deleteNote(id) {
     if (!confirm('确定删除这条笔记吗？')) return;
@@ -61,5 +66,7 @@ async function deleteNote(id) {
         window.location.href = '/notes';
     }
 }
+
+Comments.init('note', {{ note.id }}, '#comments-section');
 </script>
 {% endblock %}

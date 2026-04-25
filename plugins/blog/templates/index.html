@@ -41,8 +41,7 @@
             <h2 class="post-title">
                 <a href="/blog/view/{{ post.id }}">{{ post.title }}</a>
             </h2>
-            <p class="post-excerpt">{{ post.body | excerpt(200) }}</p>
-            <a href="/blog/view/{{ post.id }}" class="read-more">阅读全文 →</a>
+            <p class="post-excerpt">{{ post.body | excerpt(120) }}</p>
         </article>
         {% else %}
         <div class="empty-state">

@@ -4,6 +4,7 @@
 
 {% block head %}
 <link rel="stylesheet" href="/static/css/blog.css">
+<link rel="stylesheet" href="/static/css/comments.css">
 {% endblock %}
 
 {% block content %}
@@ -56,11 +57,15 @@
         <a href="/blog" class="btn btn-secondary">返回列表</a>
     </footer>
     {% endif %}
+
+    <!-- Comments -->
+    {% include 'comments-section.html' with target_type='blog', target_id=post.id, section_id='comments-section' %}
 </article>
 {% endblock %}
 
 {% block scripts %}
 {{ super() }}
+<script src="/static/js/comments.js"></script>
 <script>
 async function deletePost(id) {
     if (!confirm('确定删除这篇文章吗？')) return;
@@ -75,5 +80,7 @@ async function deletePost(id) {
         alert('删除失败');
     }
 }
+
+Comments.init('blog', {{ post.id }}, '#comments-section');
 </script>
 {% endblock %}

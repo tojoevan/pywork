@@ -13,9 +13,17 @@ document.addEventListener('DOMContentLoaded', function() {
 function initTimeFormatting() {
     const timeElements = document.querySelectorAll('time[datetime]');
     timeElements.forEach(el => {
-        const timestamp = parseInt(el.getAttribute('datetime'));
-        if (timestamp) {
-            const date = new Date(timestamp * 1000);
+        const raw = el.getAttribute('datetime');
+        let date;
+        // 优先当作数字时间戳（秒）
+        const timestamp = parseInt(raw, 10);
+        if (/^\d+$/.test(raw) && timestamp > 0) {
+            date = new Date(timestamp * 1000);
+        } else {
+            // ISO 8601 或其他 Date 可解析的字符串
+            date = new Date(raw);
+        }
+        if (date && !isNaN(date.getTime())) {
             el.textContent = formatDate(date);
         }
     });

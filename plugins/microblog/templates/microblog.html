@@ -4,6 +4,7 @@
 
 {% block head %}
 <link rel="stylesheet" href="/static/css/microblog.css">
+<link rel="stylesheet" href="/static/css/comments.css">
 {% endblock %}
 
 {% block content %}
@@ -43,6 +44,7 @@
     </div>
 </div>
 
+<script src="/static/js/comments.js"></script>
 <script>
     const currentAuthorId = {{ current_author_id | tojson }};
     let editingPostId = null;
@@ -74,6 +76,7 @@
                 const avatar = post.author_avatar || post.author_name?.charAt(0).toUpperCase() || '?';
                 const time = formatTime(post.created_at);
                 const isOwner = post.author_id === currentAuthorId;
+                const escapedContent = escapeHtml(post.content || post.body || '');
                 return `
                     <div class="post" id="post-${post.id}">
                         <div class="post-avatar">${avatar}</div>
@@ -82,11 +85,13 @@
                                 <span class="post-author">${post.author_name || '匿名'}</span>
                                 <span class="post-time">${time}</span>
                             </div>
-                            <div class="post-content">${escapeHtml(post.content || post.body || '')}</div>
+                            <div class="post-content">${escapedContent}</div>
                             <div class="post-actions">
-                                ${isOwner ? `<button class="btn-edit" onclick="openEditModal(${post.id}, '${escapeHtml(post.content || post.body || '').replace(/'/g, "\\'")}')">编辑</button>` : ''}
+                                ${isOwner ? `<button class="btn-edit" data-content="${escapedContent}" onclick="openEditModal(${post.id})">编辑</button>` : ''}
                                 ${isOwner ? `<button class="btn-delete" onclick="deletePost(${post.id})">删除</button>` : ''}
+                                <button class="btn-comment" onclick="toggleMicroblogComments(${post.id})">💬 评论</button>
                             </div>
+                            <div class="microblog-comments" id="mb-comments-${post.id}" style="display:none;"></div>
                         </div>
                     </div>
                 `;
@@ -171,8 +176,10 @@
         }
     }
 
-    function openEditModal(postId, content) {
+    function openEditModal(postId) {
         editingPostId = postId;
+        const btn = document.querySelector(`.btn-edit[data-content][onclick="openEditModal(${postId})"]`);
+        const content = btn ? btn.dataset.content : '';
         document.getElementById('editText').value = content;
         document.getElementById('editModal').style.display = 'flex';
     }
@@ -234,6 +241,39 @@
     document.getElementById('composeText').addEventListener('keydown', function(e) {
         if (e.ctrlKey && e.key === 'Enter') sendMicroblog();
     });
+
+    // 微博评论展开/收起
+    async function toggleMicroblogComments(postId) {
+        const container = document.getElementById('mb-comments-' + postId);
+        if (!container) return;
+        if (container.style.display !== 'none') {
+            container.style.display = 'none';
+            return;
+        }
+        container.style.display = 'block';
+        // Render inline comments section
+        if (!container.dataset.loaded) {
+            container.innerHTML = `
+                <section class="comments-section" id="mb-comments-section-${postId}">
+                    <div class="comments-header">
+                        <h3>💬 评论</h3>
+                        <span class="comments-count"></span>
+                    </div>
+                    <div class="comment-login-hint" style="display:none;"><a href="/login">登录</a>后即可评论</div>
+                    <div class="comment-form" style="display:none;">
+                        <textarea placeholder="写下你的评论..." rows="3"></textarea>
+                        <div class="comment-form-actions">
+                            <span></span>
+                            <button class="btn-submit" onclick="Comments.submit('microblog', ${postId}, '#mb-comments-section-${postId}')">发表评论</button>
+                        </div>
+                    </div>
+                    <ul class="comments-list"></ul>
+                </section>
+            `;
+            container.dataset.loaded = '1';
+            await Comments.init('microblog', postId, '#mb-comments-section-' + postId);
+        }
+    }
 
     // 加载用户信息
     async function loadUser() {

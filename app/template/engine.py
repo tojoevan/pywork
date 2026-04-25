@@ -8,14 +8,24 @@ import markdown as md
 
 
 # 自定义过滤器
-def datetime_filter(timestamp: int) -> str:
+def datetime_filter(value: Any) -> str:
     """时间戳转 ISO 格式"""
-    return datetime.fromtimestamp(timestamp).isoformat()
+    try:
+        ts = int(value)
+        return datetime.fromtimestamp(ts).isoformat()
+    except (ValueError, TypeError, OSError):
+        return "未知时间"
 
 
-def datefmt_filter(timestamp: int) -> str:
+def datefmt_filter(value: Any) -> str:
     """时间戳转友好格式"""
-    dt = datetime.fromtimestamp(timestamp)
+    try:
+        ts = int(value)
+    except (ValueError, TypeError, OSError):
+        return "未知时间"
+    if not ts:
+        return "未知时间"
+    dt = datetime.fromtimestamp(ts)
     now = datetime.now()
     diff = now - dt
     days = diff.days
