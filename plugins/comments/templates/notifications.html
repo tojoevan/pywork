@@ -1,0 +1,128 @@
+{% extends "base.html" %}
+
+{% block title %}通知 - {{ Site.title | default('pyWork') }}{% endblock %}
+
+{% block head %}
+<link rel="stylesheet" href="/static/css/comments.css">
+{% endblock %}
+
+{% block content %}
+<div class="notifications-page">
+    <div class="notifications-header">
+        <h2>通知</h2>
+        {% if notifications|length > 0 %}
+        <button class="btn btn-secondary" onclick="markAllRead()" style="font-size:0.8125rem;padding:0.375rem 0.75rem;">全部已读</button>
+        {% endif %}
+    </div>
+
+    {% if notifications|length == 0 %}
+    <div class="notifications-empty">
+        <p>暂无通知</p>
+    </div>
+    {% else %}
+    <div class="notifications-list" id="notifications-list">
+        {% for n in notifications %}
+        <div class="notification-item {{ 'unread' if n.is_read == 0 else '' }}" data-id="{{ n.id }}">
+            <div class="notification-dot {{ 'unread' if n.is_read == 0 else '' }}"></div>
+            <a href="{{ n.target_url | default('#') }}" class="notification-content {{ 'unread' if n.is_read == 0 else '' }}">
+                <div class="notification-text">{{ n.content or n.message or '' }}</div>
+                <div class="notification-time">{{ n.created_at | datefmt }}</div>
+            </a>
+        </div>
+        {% endfor %}
+    </div>
+    {% endif %}
+</div>
+{% endblock %}
+
+{% block scripts %}
+{{ super() }}
+<style>
+.modal-overlay {
+    position: fixed; inset: 0;
+    background: rgba(0,0,0,0.45);
+    display: flex; align-items: center; justify-content: center;
+    z-index: 9999;
+}
+.modal-box {
+    background: #fff; border-radius: 12px;
+    padding: 2rem; max-width: 360px; width: 90%;
+    text-align: center; box-shadow: 0 8px 32px rgba(0,0,0,0.15);
+}
+.modal-box h3 { margin: 0 0 0.75rem; font-size: 1.125rem; }
+.modal-box p { margin: 0 0 1.25rem; color: #555; font-size: 0.9rem; line-height: 1.5; }
+.modal-box .countdown { color: #888; font-size: 0.8rem; }
+.modal-icon { font-size: 2.5rem; margin-bottom: 0.75rem; }
+</style>
+<div id="notifModal" class="modal-overlay" style="display:none;">
+    <div class="modal-box">
+        <div class="modal-icon">🚧</div>
+        <h3>内容已不存在</h3>
+        <p id="modalMsg">该通知指向的内容已被删除或不存在。</p>
+        <div class="countdown" id="modalCountdown">3 秒后跳转回通知页...</div>
+    </div>
+</div>
+<script>
+let _modalTimer = null;
+
+function showGoneModal(msg) {
+    const modal = document.getElementById('notifModal');
+    document.getElementById('modalMsg').textContent = msg || '该通知指向的内容已不存在。';
+    modal.style.display = 'flex';
+    let sec = 3;
+    const cd = document.getElementById('modalCountdown');
+    if (_modalTimer) clearInterval(_modalTimer);
+    _modalTimer = setInterval(() => {
+        sec--;
+        if (sec <= 0) {
+            clearInterval(_modalTimer);
+            modal.style.display = 'none';
+            window.location.href = '/comments/notifications';
+        } else {
+            cd.textContent = sec + ' 秒后跳转回通知页...';
+        }
+    }, 1000);
+}
+
+document.querySelectorAll('.notification-item a.notification-content').forEach(link => {
+    link.addEventListener('click', async (e) => {
+        // Left-click: AJAX validate → mark read → navigate; Ctrl/middle: native open
+        if (e.ctrlKey || e.metaKey || e.button === 1) return;
+        e.preventDefault();
+        const item = link.closest('.notification-item');
+        const notifId = item?.dataset.id;
+        const targetUrl = link.href || '#';
+
+        try {
+            const res = await fetch(`/api/notifications/${notifId}/validate`);
+            const data = await res.json();
+            if (data.exists) {
+                // Mark as read then navigate
+                await fetch(`/api/notifications/${notifId}/read`, { method: 'POST' });
+                window.location.href = data.target_url || targetUrl;
+            } else {
+                // Target gone — show modal then redirect
+                showGoneModal();
+            }
+        } catch {
+            // Network error — fallback to direct navigation
+            await fetch(`/api/notifications/${notifId}/read`, { method: 'POST' });
+            window.location.href = targetUrl;
+        }
+    });
+});
+
+async function markAllRead() {
+    try {
+        await fetch('/comments/notifications/read', { method: 'POST' });
+        document.querySelectorAll('.notification-item.unread').forEach(el => {
+            el.classList.remove('unread');
+        });
+        const badge = document.querySelector('.notification-badge .badge-count');
+        if (badge) badge.remove();
+    } catch (e) {
+        console.error('标记已读失败', e);
+    }
+}
+</script>
+{% endblock %}

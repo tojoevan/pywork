@@ -8,6 +8,7 @@
     <!-- 静态资源 -->
     <link rel="stylesheet" href="/static/css/base.css?v=20260423">
     <link rel="stylesheet" href="/static/css/home.css?v=20260423">
+    <link rel="stylesheet" href="/static/css/comments.css?v=20260424">
     {% block head %}{% endblock %}
     
     <!-- 站点配置 -->
@@ -48,6 +49,9 @@
                     <a href="/profile" class="user-link">
                         <span class="user-avatar" id="user-avatar">U</span>
                         <span id="username-display">用户</span>
+                    </a>
+                    <a href="/comments/notifications" class="notification-link" id="notification-link" style="display:none;">
+                        (<span id="notification-count">0</span>)
                     </a>
                     <a href="#" class="btn-logout" onclick="logout()">退出</a>
                 </span>
@@ -94,6 +98,19 @@
                     document.getElementById('login-btn').style.display = 'none';
                     document.getElementById('username-display').textContent = user.username;
                     document.getElementById('user-avatar').textContent = user.username.charAt(0).toUpperCase();
+
+                    // 获取未读通知数
+                    fetch('/api/notifications/unread-count')
+                        .then(r => r.ok ? r.json() : {count: 0})
+                        .then(data => {
+                            if (data.count > 0) {
+                                const link = document.getElementById('notification-link');
+                                const count = document.getElementById('notification-count');
+                                count.textContent = data.count > 99 ? '99+' : data.count;
+                                link.style.display = 'inline';
+                            }
+                        })
+                        .catch(err => console.warn('[通知] 获取未读数失败', err));
                 } else {
                     // 未登录，显示登录按钮
                     document.getElementById('login-btn').style.display = 'inline-flex';
