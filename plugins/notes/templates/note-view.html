@@ -47,7 +47,10 @@
     {% endif %}
 
     <!-- Comments -->
-    {% include 'comments-section.html' with target_type='note', target_id=note.id, section_id='comments-section' %}
+    {% set target_type = 'note' %}
+    {% set target_id = note.id %}
+    {% set section_id = 'comments-section' %}
+    {% include 'comments-section.html' %}
 </article>
 {% endblock %}
 

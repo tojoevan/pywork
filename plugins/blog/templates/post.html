@@ -59,7 +59,10 @@
     {% endif %}
 
     <!-- Comments -->
-    {% include 'comments-section.html' with target_type='blog', target_id=post.id, section_id='comments-section' %}
+    {% set target_type = 'blog' %}
+    {% set target_id = post.id %}
+    {% set section_id = 'comments-section' %}
+    {% include 'comments-section.html' %}
 </article>
 {% endblock %}
 

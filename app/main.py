@@ -828,9 +828,19 @@ def __getattr__(name: str):
     global _asgi_app
     if name == "app":
         if _asgi_app is None:
-            _asgi_app = WorkbenchApp(
+            workbench = WorkbenchApp(
                 db_path=os.environ.get("PYWORK_DB", "./data/pywork.db"),
                 plugin_dir=os.environ.get("PYWORK_PLUGINS", "./plugins"),
-            ).app
+            )
+            
+            @workbench.app.on_event("startup")
+            async def on_startup():
+                await workbench.startup()
+
+            @workbench.app.on_event("shutdown")
+            async def on_shutdown():
+                await workbench.shutdown()
+            
+            _asgi_app = workbench.app
         return _asgi_app
     raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
