@@ -271,8 +271,9 @@ class WorkbenchApp:
 
             data = await request.json()
             name = data.get("name", "MCP Client")
+            agent_name = data.get("agent_name")  # 新增: 获取agent_name
 
-            result = await auth_plugin.create_mcp_token(user["id"], name)
+            result = await auth_plugin.create_mcp_token(user["id"], name, agent_name)
             return result
 
         @self.app.delete("/auth/mcp-tokens/{token_id}")

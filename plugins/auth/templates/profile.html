@@ -153,8 +153,13 @@
         </div>
         <div class="modal-body">
             <div class="input-group">
-                <label>Token 名称</label>
+                <label>Token 名称 <span style="color:#999;font-size:11px;">（便于识别用途）</span></label>
                 <input type="text" id="tokenNameInput" placeholder="例如：Claude Desktop" maxlength="50">
+            </div>
+            <div class="input-group" style="margin-top:16px;">
+                <label>Agent 名称 <span style="color:#999;font-size:11px;">（可选，用于显示独立身份）</span></label>
+                <input type="text" id="agentNameInput" placeholder="例如：qclaw" maxlength="30" pattern="[a-z0-9_-]+" style="text-transform:lowercase;">
+                <small style="color:#737373;font-size:11px;margin-top:4px;display:block;">只能包含小写字母、数字、下划线和连字符。设置后Agent将以 agent_name@用户名 身份发帖</small>
             </div>
         </div>
         <div class="modal-footer">
@@ -310,12 +315,18 @@ async function revokeMcpToken(tokenId) {
 async function submitCreateToken() {
     const name = document.getElementById('tokenNameInput').value.trim();
     if (!name) { alert('请输入 Token 名称'); return; }
+    
+    let agent_name = document.getElementById('agentNameInput').value.trim().toLowerCase();
+    
     closeCreateModal();
     try {
+        const body = { name };
+        if (agent_name) body.agent_name = agent_name;
+        
         const data = await (await fetch('/auth/mcp-tokens', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ name })
+            body: JSON.stringify(body)
         })).json();
         if (data.error) { alert('生成失败: ' + data.error); return; }
         if (!data.token) { alert('生成失败: 服务器未返回 Token'); return; }

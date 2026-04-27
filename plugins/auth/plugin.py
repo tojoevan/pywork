@@ -71,10 +71,21 @@ class AuthPlugin(Plugin):
                 token TEXT PRIMARY KEY,
                 user_id INTEGER NOT NULL,
                 name TEXT NOT NULL DEFAULT '',
+                agent_name TEXT UNIQUE,
+                agent_user_id INTEGER,
                 created_at INTEGER NOT NULL,
                 last_used INTEGER DEFAULT 0
             )
         """)
+        # 尝试添加新字段（兼容旧数据库）
+        try:
+            await self.engine.execute("ALTER TABLE mcp_tokens ADD COLUMN agent_name TEXT UNIQUE")
+        except:
+            pass
+        try:
+            await self.engine.execute("ALTER TABLE mcp_tokens ADD COLUMN agent_user_id INTEGER")
+        except:
+            pass
     
     def routes(self):
         """HTTP routes"""
@@ -856,19 +867,56 @@ class AuthPlugin(Plugin):
 
     # === MCP Token 管理 ===
 
-    async def create_mcp_token(self, user_id: int, name: str = "MCP Client") -> Dict:
+    async def create_mcp_token(self, user_id: int, name: str = "MCP Client", agent_name: str = None) -> Dict:
         """创建 MCP API Token（持久化到 SQLite）"""
+        # 如果提供了agent_name，检查唯一性
+        if agent_name:
+            agent_name = agent_name.strip().lower()
+            if not agent_name.replace('_', '').replace('-', '').isalnum():
+                return {"error": "Agent名称只能包含字母、数字、下划线和连字符"}
+            
+            # 检查agent_name是否已存在
+            existing = await self.engine.fetchone(
+                "SELECT token FROM mcp_tokens WHERE agent_name = ?",
+                (agent_name,)
+            )
+            if existing:
+                return {"error": f"Agent名称 '{agent_name}' 已被使用"}
+            
+            # 检查用户名是否已存在（用于虚拟用户）
+            user = await self.get_user(user_id)
+            virtual_username = f"{agent_name}_{user['username']}"
+            existing_user = await self.engine.query("users", username=virtual_username)
+            if existing_user:
+                return {"error": f"用户名 '{virtual_username}' 已存在，请换一个Agent名称"}
+            
+            # 创建虚拟用户
+            created_at = int(time.time())
+            try:
+                await self.engine.execute(
+                    "INSERT INTO users (username, email, created_at, role) VALUES (?, ?, ?, ?)",
+                    (virtual_username, None, created_at, 'agent')
+                )
+                row = await self.engine.fetchone("SELECT last_insert_rowid() as id")
+                agent_user_id = row["id"] if row else None
+            except Exception as e:
+                return {"error": f"创建虚拟用户失败: {str(e)}"}
+        else:
+            agent_user_id = None
+        
+        # 生成token
         token = secrets.token_urlsafe(32)
         created_at = int(time.time())
 
         await self.engine.execute(
-            "INSERT INTO mcp_tokens (token, user_id, name, created_at) VALUES (?, ?, ?, ?)",
-            (token, user_id, name, created_at)
+            "INSERT INTO mcp_tokens (token, user_id, name, agent_name, agent_user_id, created_at) VALUES (?, ?, ?, ?, ?, ?)",
+            (token, user_id, name, agent_name, agent_user_id, created_at)
         )
 
         return {
             "token": token,
             "name": name,
+            "agent_name": agent_name,
             "created_at": created_at
         }
 
@@ -917,9 +965,9 @@ class AuthPlugin(Plugin):
         ]
 
     async def get_user_by_mcp_token(self, token: str) -> Optional[Dict]:
-        """通过 MCP Token 获取用户"""
+        """通过 MCP Token 获取用户（优先返回agent身份）"""
         row = await self.engine.fetchone(
-            "SELECT user_id, last_used FROM mcp_tokens WHERE token = ?",
+            "SELECT user_id, agent_name, agent_user_id, name, last_used FROM mcp_tokens WHERE token = ?",
             (token,)
         )
         if not row:
@@ -931,8 +979,22 @@ class AuthPlugin(Plugin):
             (int(time.time()), token)
         )
 
-        # 获取用户详情
         row_dict = dict(row)
+        
+        # 如果有agent身份，返回虚拟用户
+        if row_dict.get("agent_user_id"):
+            agent_user = await self.get_user(row_dict["agent_user_id"])
+            if agent_user:
+                return {
+                    "id": agent_user["id"],
+                    "username": agent_user["username"],  # 格式: agent_name_owner
+                    "role": "agent",
+                    "token_name": row_dict.get("name", ""),
+                    "agent_name": row_dict.get("agent_name", ""),
+                    "owner_id": row_dict["user_id"]
+                }
+        
+        # 否则返回原始用户
         user = await self.get_user(row_dict["user_id"])
         if user:
             return {
