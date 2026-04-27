@@ -488,7 +488,7 @@ Requirements:
         if author_id:
             author = await self.engine.get("users", author_id)
             if author:
-                post["author_name"] = author.get("username", "匿名")
+                post["author_name"] = author.get("display_name") or author.get("username", "匿名")
                 post["author_avatar"] = author.get("avatar")
         
         # 获取当前用户（用于判断是否显示编辑按钮）
