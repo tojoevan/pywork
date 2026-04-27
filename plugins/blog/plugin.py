@@ -245,7 +245,7 @@ Requirements:
         sql = f"""
             SELECT 
                 c.*,
-                u.username as author_name,
+                COALESCE(u.display_name, u.username) as author_name,
                 u.avatar as author_avatar
             FROM blog_posts c
             LEFT JOIN users u ON c.author_id = u.id
