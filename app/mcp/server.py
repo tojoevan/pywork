@@ -88,11 +88,12 @@ class WorkbenchMCPServer:
                 for tool in plugin.mcp_tools():
                     if tool.name == tool_name:
                         try:
-                            # 传递 mcp_token 给插件进行认证
+                            # 自动注入 mcp_token 到 handler 参数
                             if hasattr(plugin, 'mcp_call'):
                                 result = await plugin.mcp_call(tool_name, arguments, mcp_token)
                             else:
-                                result = await tool.handler(**arguments)
+                                arguments_with_token = {**arguments, "mcp_token": mcp_token}
+                                result = await tool.handler(**arguments_with_token)
                             return {
                                 "content": [
                                     TextContent(

@@ -108,9 +108,9 @@ class MicroblogPlugin(Plugin):
         self,
         content: str,
         visibility: str = "public",
-        mcp_token: str = None,
         author_id: int = 1,
-        is_anonymous: bool = False
+        is_anonymous: bool = False,
+        mcp_token: str = None,
     ) -> Dict[str, Any]:
         if not content or not content.strip():
             return {"error": "内容不能为空"}
@@ -144,7 +144,7 @@ class MicroblogPlugin(Plugin):
             return {"id": record_id, "created_at": now, "status": "pending", "message": "发布成功，待管理员审核通过后显示"}
         return {"id": record_id, "created_at": now}
 
-    async def list_posts(self, limit: int = 20, offset: int = 0, mcp_token: str = None, include_pending: bool = False) -> List[Dict]:
+    async def list_posts(self, limit: int = 20, offset: int = 0, include_pending: bool = False, mcp_token: str = None) -> List[Dict]:
         # 默认只显示已审核通过的微博，include_pending=True 时显示 pending 状态
         if include_pending:
             status_filter = "c.status IN ('public', 'pending')"
@@ -227,14 +227,6 @@ class MicroblogPlugin(Plugin):
             return self.error_json("需要管理员权限", 403)
         return await self.reject_post(post_id)
 
-    async def mcp_call(self, tool_name: str, arguments: Dict, mcp_token: str = None) -> Any:
-        if tool_name == "create_microblog":
-            return await self.create_post(mcp_token=mcp_token, **arguments)
-        elif tool_name == "list_microblog":
-            return await self.list_posts(mcp_token=mcp_token, **arguments)
-        elif tool_name == "delete_microblog":
-            return await self.delete_post(mcp_token=mcp_token, **arguments)
-        raise ValueError(f"Unknown tool: {tool_name}")
 
     # HTTP handlers
     async def home(self, request, **kwargs):

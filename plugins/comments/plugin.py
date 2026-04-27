@@ -709,7 +709,7 @@ class CommentsPlugin(Plugin):
         return [
             MCPTool(
                 name="list_comments",
-                description="List comments for a blog/microblog/note post",
+                description="List approved comments for a blog/microblog/note post",
                 input_schema={
                     "type": "object",
                     "properties": {
@@ -719,6 +719,21 @@ class CommentsPlugin(Plugin):
                     "required": ["target_type", "target_id"],
                 },
                 handler=self._mcp_list_comments,
+            ),
+            MCPTool(
+                name="create_comment",
+                description="Post a comment or reply to existing content on blog/microblog/note. If parent_id is provided, it's a reply to that comment.",
+                input_schema={
+                    "type": "object",
+                    "properties": {
+                        "target_type": {"type": "string", "enum": ["blog", "microblog", "note"], "description": "Content type"},
+                        "target_id": {"type": "integer", "description": "Content ID"},
+                        "content": {"type": "string", "description": "Comment text (max 2000 chars)"},
+                        "parent_id": {"type": "integer", "description": "Parent comment ID for replies (omit for top-level comment)"},
+                    },
+                    "required": ["target_type", "target_id", "content"],
+                },
+                handler=self._mcp_create_comment,
             ),
         ]
 
@@ -733,3 +748,103 @@ class CommentsPlugin(Plugin):
             (target_type, target_id)
         )
         return {"comments": [dict(r) for r in rows]}
+
+    async def _mcp_create_comment(
+        self,
+        target_type: str,
+        target_id: int,
+        content: str,
+        parent_id: Optional[int] = None,
+        mcp_token: str = None,
+    ) -> Dict[str, Any]:
+        """MCP tool: create a comment or reply"""
+        if not mcp_token:
+            return {"error": "需要 MCP Token 进行认证"}
+
+        user = await self.get_current_user_mcp(mcp_token)
+        if not user:
+            return {"error": "无效的 MCP Token"}
+
+        # Validate target_type
+        if target_type not in VALID_TARGET_TYPES:
+            return {"error": f"无效的 target_type: {target_type}，可选值: {VALID_TARGET_TYPES}"}
+
+        # Validate content
+        content = content.strip()
+        if not content:
+            return {"error": "评论内容不能为空"}
+        if len(content) > 2000:
+            return {"error": "评论内容不能超过 2000 字"}
+
+        # Verify target exists
+        table = TARGET_TABLE_MAP.get(target_type)
+        if not table:
+            return {"error": f"不支持的 target_type: {target_type}"}
+
+        target = await self.engine.get(table, int(target_id))
+        if not target:
+            return {"error": "评论目标不存在"}
+
+        # Validate parent_id
+        if parent_id is not None:
+            parent = await self.engine.get("comments", int(parent_id))
+            if not parent:
+                return {"error": "父评论不存在"}
+            if parent["target_type"] != target_type or parent["target_id"] != int(target_id):
+                return {"error": "父评论不属于同一内容"}
+            if parent.get("parent_id"):
+                return {"error": "不支持多层嵌套回复，请回复顶级评论"}
+
+        user_id = user["id"]
+        is_content_author = bool(target.get("author_id") == user_id)
+        initial_status = "approved" if is_content_author else "pending"
+
+        now = int(time.time())
+        comment_data = {
+            "target_type": target_type,
+            "target_id": int(target_id),
+            "parent_id": parent_id,
+            "author_id": user_id,
+            "content": content,
+            "status": initial_status,
+            "reviewer_id": user_id if is_content_author else None,
+            "reviewed_at": now if is_content_author else None,
+            "created_at": now,
+            "updated_at": now,
+        }
+        comment_id = await self.engine.put("comments", 0, comment_data)
+
+        # Notify content author
+        content_author_id = target.get("author_id")
+        if content_author_id and content_author_id != user_id:
+            await self._create_notification(
+                user_id=content_author_id,
+                notif_type="reply_pending" if parent_id else "comment_pending",
+                target_type=target_type,
+                target_id=int(target_id),
+                comment_id=comment_id,
+                content=content[:50],
+            )
+
+        # Notify parent comment author
+        if parent_id and parent:
+            parent_author_id = parent.get("author_id")
+            if parent_author_id and parent_author_id != user_id:
+                try:
+                    await self._create_notification(
+                        user_id=parent_author_id,
+                        notif_type="reply_pending",
+                        target_type=target_type,
+                        target_id=int(target_id),
+                        comment_id=comment_id,
+                        content=content[:50],
+                    )
+                except Exception as e:
+                    log.warning(f"_mcp_create_comment: parent notification failed: {e}")
+
+        log.info(f"MCP comment created: id={comment_id}, target={target_type}/{target_id}, author={user_id}")
+
+        if initial_status == "approved":
+            return {"id": comment_id, "status": "approved", "message": "评论已发布"}
+        else:
+            return {"id": comment_id, "status": "pending", "message": "评论已提交，等待作者审核"}
