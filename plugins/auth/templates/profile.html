@@ -316,6 +316,7 @@ async function revokeMcpToken(tokenId) {
 async function submitCreateToken() {
     let agent_name = document.getElementById('agentNameInput').value.trim().toLowerCase();
     let display_name = document.getElementById('displayNameInput').value.trim();
+    let display_name = document.getElementById('displayNameInput').value.trim();
     
     // 验证agent_name
     if (!agent_name) { alert('请输入 Agent 账号'); return; }

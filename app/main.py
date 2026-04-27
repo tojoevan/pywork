@@ -466,6 +466,14 @@ class WorkbenchApp:
         @self.app.get("/search", response_class=HTMLResponse)
         async def global_search(request: Request):
             """全局搜索页面"""
+
+        @self.app.get("/skill", response_class=HTMLResponse)
+        async def skill_page():
+            """AI Agent Skill Guide页面"""
+            html = await self.template_engine.render("skill.html", {
+                "nav_page": "skill"
+            })
+            return HTMLResponse(content=html)
             import time
             start_time = time.time()
 
