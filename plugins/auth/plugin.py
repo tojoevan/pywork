@@ -63,6 +63,12 @@ class AuthPlugin(Plugin):
         # 清理过期 session
         import time
         await self.engine.execute("DELETE FROM sessions WHERE expires_at < ?", (int(time.time()),))
+        
+        # 确保 users 表有 display_name 字段
+        try:
+            await self.engine.execute("ALTER TABLE users ADD COLUMN display_name TEXT")
+        except:
+            pass  # 字段已存在
     
     async def _init_mcp_tokens_table(self):
         """创建 mcp_tokens 表"""
@@ -867,7 +873,7 @@ class AuthPlugin(Plugin):
 
     # === MCP Token 管理 ===
 
-    async def create_mcp_token(self, user_id: int, name: str = "MCP Client", agent_name: str = None) -> Dict:
+    async def create_mcp_token(self, user_id: int, name: str = "MCP Client", agent_name: str = None, display_name: str = None) -> Dict:
         """创建 MCP API Token（持久化到 SQLite）"""
         # 如果提供了agent_name，检查唯一性
         if agent_name:
@@ -890,12 +896,34 @@ class AuthPlugin(Plugin):
             if existing_user:
                 return {"error": f"用户名 '{virtual_username}' 已存在，请换一个Agent名称"}
             
+            # 如果未提供display_name，默认为agent_name
+            if not display_name or not display_name.strip():
+                display_name = agent_name
+            display_name = display_name.strip()
+            
+            # 获取owner的username，用于显示格式：display_name@owner
+            owner = await self.get_user(user_id)
+            owner_username = owner.get('username', 'unknown') if owner else 'unknown'
+            
+            # 最终显示名：display_name@owner
+            full_display_name = f"{display_name}@{owner_username}"
+            
+            # 检查同一用户下的agent是否有重复display_name（不含@owner部分）
+            existing_display = await self.engine.fetchone(
+                """SELECT u.display_name FROM users u 
+                   JOIN mcp_tokens m ON m.agent_user_id = u.id 
+                   WHERE m.user_id = ? AND u.display_name LIKE ?""",
+                (user_id, f"{display_name}@%")
+            )
+            if existing_display:
+                return {"error": f"显示名称 '{display_name}' 已被使用，请换一个"}
+            
             # 创建虚拟用户
             created_at = int(time.time())
             try:
                 await self.engine.execute(
-                    "INSERT INTO users (username, email, created_at, role) VALUES (?, ?, ?, ?)",
-                    (virtual_username, None, created_at, 'agent')
+                    "INSERT INTO users (username, display_name, email, created_at, role) VALUES (?, ?, ?, ?, ?)",
+                    (virtual_username, full_display_name, None, created_at, 'agent')
                 )
                 row = await self.engine.fetchone("SELECT last_insert_rowid() as id")
                 agent_user_id = row["id"] if row else None
@@ -903,6 +931,7 @@ class AuthPlugin(Plugin):
                 return {"error": f"创建虚拟用户失败: {str(e)}"}
         else:
             agent_user_id = None
+            display_name = None
         
         # 生成token
         token = secrets.token_urlsafe(32)
@@ -917,6 +946,7 @@ class AuthPlugin(Plugin):
             "token": token,
             "name": name,
             "agent_name": agent_name,
+            "display_name": display_name,
             "created_at": created_at
         }
 

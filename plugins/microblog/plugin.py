@@ -151,7 +151,9 @@ class MicroblogPlugin(Plugin):
         else:
             status_filter = "c.status = 'public'"
         sql = f"""
-            SELECT c.*, u.username as author_name, u.avatar as author_avatar
+            SELECT c.*, 
+                   COALESCE(u.display_name, u.username) as author_name,
+                   u.avatar as author_avatar
             FROM microblog_posts c
             LEFT JOIN users u ON c.author_id = u.id
             WHERE {status_filter}
@@ -180,8 +182,10 @@ class MicroblogPlugin(Plugin):
 
     async def get_pending_posts(self) -> List[Dict]:
         """获取所有待审核微博（管理员用）"""
-        sql = """
-            SELECT c.*, u.username as author_name, u.avatar as author_avatar
+        sql = f"""
+            SELECT c.*, 
+                   COALESCE(u.display_name, u.username) as author_name,
+                   u.avatar as author_avatar
             FROM microblog_posts c
             LEFT JOIN users u ON c.author_id = u.id
             WHERE c.status = 'pending'

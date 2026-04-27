@@ -305,7 +305,7 @@ Requirements:
             # 使用 FTS5 搜索
             rows = await self.engine.fetchall(
                 """SELECT b.id, b.title, b.body, b.author_id, b.created_at,
-                          u.username as author_name
+                          COALESCE(u.display_name, u.username) as author_name
                    FROM blog_posts b
                    LEFT JOIN users u ON b.author_id = u.id
                    WHERE b.status = 'published'
@@ -321,7 +321,7 @@ Requirements:
             # FTS5 失败时回退到 LIKE 搜索
             rows = await self.engine.fetchall(
                 """SELECT b.id, b.title, b.body, b.author_id, b.created_at,
-                          u.username as author_name
+                          COALESCE(u.display_name, u.username) as author_name
                    FROM blog_posts b
                    LEFT JOIN users u ON b.author_id = u.id
                    WHERE b.status = 'published'

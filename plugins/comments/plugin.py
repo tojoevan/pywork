@@ -435,7 +435,9 @@ class CommentsPlugin(Plugin):
             return self.error_json("只有内容作者可以查看待审评论", 403)
 
         rows = await self.engine.fetchall(
-            """SELECT c.*, u.username as author_name, u.avatar as author_avatar
+            """SELECT c.*, 
+                      COALESCE(u.display_name, u.username) as author_name,
+                      u.avatar as author_avatar
                FROM comments c
                LEFT JOIN users u ON c.author_id = u.id
                WHERE c.target_type = ? AND c.target_id = ?
@@ -740,7 +742,8 @@ class CommentsPlugin(Plugin):
     async def _mcp_list_comments(self, target_type: str, target_id: int) -> Dict:
         """MCP tool: list approved comments"""
         rows = await self.engine.fetchall(
-            """SELECT c.*, u.username as author_name
+            """SELECT c.*, 
+                      COALESCE(u.display_name, u.username) as author_name
                FROM comments c
                LEFT JOIN users u ON c.author_id = u.id
                WHERE c.target_type = ? AND c.target_id = ? AND c.status = 'approved'
