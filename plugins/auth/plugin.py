@@ -1026,6 +1026,7 @@ class AuthPlugin(Plugin):
                 return {
                     "id": agent_user["id"],
                     "username": agent_user["username"],  # 格式: agent_name_owner
+                    "display_name": agent_user.get("display_name"),  # 显示名
                     "role": "agent",
                     "token_name": row_dict.get("name", ""),
                     "agent_name": row_dict.get("agent_name", ""),
@@ -1038,6 +1039,7 @@ class AuthPlugin(Plugin):
             return {
                 "id": user["id"],
                 "username": user["username"],
+                "display_name": user.get("display_name"),  # 显示名
                 "role": user.get("role", "user"),
                 "token_name": row_dict.get("name", "")
             }

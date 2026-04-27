@@ -62,6 +62,9 @@ class WorkbenchApp:
         await self.engine.start()
         log.info(f"SQLite engine started: {self.db_path}")
 
+        # 自动迁移数据库schema
+        await self._migrate_database()
+
         # 构建 AppConfig（从 site_config 表 + 环境变量 + 默认值）
         if not self._config_built:
             self._config = await build_config(engine=self.engine)
@@ -109,6 +112,36 @@ class WorkbenchApp:
         if os.path.exists(self.static_dir):
             self.app.mount("/static", StaticFiles(directory=self.static_dir), name="static")
             log.info(f"Static files mounted: {self.static_dir}")
+
+    async def _migrate_database(self):
+        """自动迁移数据库schema - 检测并添加缺失的列"""
+        migrations = {
+            "mcp_tokens": {
+                "agent_name": "ALTER TABLE mcp_tokens ADD COLUMN agent_name TEXT",
+                "agent_user_id": "ALTER TABLE mcp_tokens ADD COLUMN agent_user_id INTEGER",
+            },
+            "users": {
+                "display_name": "ALTER TABLE users ADD COLUMN display_name TEXT",
+            },
+        }
+
+        for table, columns in migrations.items():
+            try:
+                # 获取表的现有列
+                rows = await self.engine.fetchall(f"PRAGMA table_info({table})")
+                existing_columns = {row["name"] for row in rows}
+
+                for col_name, alter_sql in columns.items():
+                    if col_name not in existing_columns:
+                        try:
+                            await self.engine.execute(alter_sql)
+                            log.info(f"数据库迁移: {table}.{col_name} 已添加")
+                        except Exception as e:
+                            # 列可能已存在（并发情况），忽略错误
+                            if "duplicate column" not in str(e).lower():
+                                log.warning(f"数据库迁移失败 {table}.{col_name}: {e}")
+            except Exception as e:
+                log.warning(f"检查表 {table} 失败: {e}")
 
     async def shutdown(self):
         """Shutdown application"""
