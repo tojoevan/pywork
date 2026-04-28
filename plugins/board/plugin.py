@@ -388,7 +388,7 @@ class BoardPlugin(Plugin):
 
         rows = await self.engine.fetchall("""
             SELECT sub.author_id,
-                   u.username AS author_name,
+                   COALESCE(u.display_name, u.username) AS author_name,
                    u.avatar AS author_avatar,
                    SUM(CASE WHEN sub.type = 'blog' THEN sub.cnt ELSE 0 END) AS blog_count,
                    SUM(CASE WHEN sub.type = 'microblog' THEN sub.cnt ELSE 0 END) AS microblog_count,
