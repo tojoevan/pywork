@@ -252,3 +252,51 @@
         font-size: 1rem;
     }
 }
+
+/* 博客列表卡片底部操作栏 */
+.card-footer-actions {
+    margin-top: 0.75rem;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+.btn-comment-toggle {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.25rem;
+    padding: 0.3rem 0.75rem;
+    background: none;
+    border: 1px solid var(--border-color);
+    border-radius: 9999px;
+    font-size: 0.8125rem;
+    color: #6b7280;
+    cursor: pointer;
+    transition: all 0.2s;
+}
+
+.btn-comment-toggle:hover {
+    color: var(--primary-color);
+    border-color: var(--primary-color);
+    background: rgba(59, 130, 246, 0.05);
+}
+
+/* 有评论时按钮样式变化 */
+.btn-comment-toggle.has-comments {
+    color: var(--primary-color);
+    border-color: var(--primary-color);
+    background: rgba(59, 130, 246, 0.05);
+}
+
+/* 博客列表内嵌评论区 */
+.blog-index-comments {
+    margin-top: 0.75rem;
+    padding-top: 0.75rem;
+    border-top: 1px dashed var(--border-color);
+}
+
+.blog-index-comments .comments-section {
+    margin: 0;
+    padding-top: 0;
+    border-top: none;
+}
