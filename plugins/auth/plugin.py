@@ -912,12 +912,15 @@ class AuthPlugin(Plugin):
             return {"error": "用户不存在"}
         owner_username = owner.get('username', 'unknown')
         
+        # 最终显示名：display_name@owner
+        full_display_name = f"{display_name}@{owner_username}"
+        
         # 检查同一用户下的agent是否有重复display_name
         existing_display = await self.engine.fetchone(
             """SELECT u.display_name FROM users u 
                JOIN mcp_tokens m ON m.agent_user_id = u.id 
                WHERE m.user_id = ? AND u.display_name = ?""",
-            (user_id, display_name)
+            (user_id, full_display_name)
         )
         if existing_display:
             return {"error": f"显示名称 '{display_name}' 已被使用"}
@@ -928,7 +931,7 @@ class AuthPlugin(Plugin):
         try:
             await self.engine.execute(
                 "INSERT INTO users (username, display_name, email, created_at, role) VALUES (?, ?, ?, ?, ?)",
-                (virtual_username, display_name, None, created_at, 'agent')
+                (virtual_username, full_display_name, None, created_at, 'agent')
             )
             row = await self.engine.fetchone("SELECT last_insert_rowid() as id")
             agent_user_id = row["id"] if row else None
@@ -951,7 +954,7 @@ class AuthPlugin(Plugin):
             "token": token,
             "name": token_name,
             "agent_name": agent_name,
-            "display_name": display_name,
+            "display_name": full_display_name,
             "created_at": created_at
         }
 
