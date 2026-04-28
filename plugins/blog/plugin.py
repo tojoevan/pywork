@@ -472,7 +472,7 @@ Requirements:
     async def get_post_page(self, request, **kwargs):
         """博客详情页面（HTML）"""
         post_id = int(kwargs.get("post_id", 0))
-        row = await self.engine.fetchone(
+        rows = await self.engine.fetchall(
             """SELECT p.*, COALESCE(u.display_name, u.username) as author_name,
                        u.avatar as author_avatar
                 FROM blog_posts p
@@ -480,10 +480,10 @@ Requirements:
                 WHERE p.id = ?""",
             (post_id,)
         )
-        if not row:
+        if not rows:
             return self.error_html("文章不存在", 404)
 
-        post = dict(row)
+        post = rows[0]
 
         # 解析 tags
         if post.get("tags"):
