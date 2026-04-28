@@ -538,6 +538,41 @@ class BoardPlugin(Plugin):
                 pass
         return [dict(r) for r in rows]
 
+    async def get_hot_tags(self, limit: int = 10) -> List[Dict[str, Any]]:
+        """获取热门标签列表，优先从 hot_tags 读取，否则实时计算"""
+        now = int(time.time())
+        rows = await self.engine.fetchall(
+            "SELECT tag_name, post_count, updated_at FROM hot_tags "
+            "ORDER BY \"rank\" ASC LIMIT ?",
+            (limit,)
+        )
+        if not rows:
+            # 没有数据，实时计算一次
+            try:
+                await self._handle_hot_tags()
+                rows = await self.engine.fetchall(
+                    "SELECT tag_name, post_count, updated_at FROM hot_tags "
+                    "ORDER BY \"rank\" ASC LIMIT ?",
+                    (limit,)
+                )
+            except Exception:
+                return []
+        else:
+            # 检查是否过期（超过 2 小时）
+            updated_at = int(rows[0].get("updated_at", 0)) if rows else 0
+            if updated_at < now - 7200:
+                # 过期了，手动触发一次实时计算（不等待结果）
+                try:
+                    await self._handle_hot_tags()
+                    rows = await self.engine.fetchall(
+                        "SELECT tag_name, post_count, updated_at FROM hot_tags "
+                        "ORDER BY \"rank\" ASC LIMIT ?",
+                        (limit,)
+                    )
+                except Exception:
+                    pass
+        return [{"tag_name": r["tag_name"], "post_count": r["post_count"]} for r in rows]
+
     async def get_stats(self) -> Dict[str, Any]:
         """获取统计数字，优先从 cron_stats 读取，否则实时查"""
         rows = await self.engine.fetchall("SELECT stat_key, stat_value FROM cron_stats")
