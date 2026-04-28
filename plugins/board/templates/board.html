@@ -151,11 +151,15 @@
                     <select name="handler_key">
                         <option value="run_stats_collection">📊 统计内容数量（博客/微博/笔记）</option>
                         <option value="run_active_authors">👥 活跃作者统计</option>
+                        <option value="run_hot_tags">🔥 热门标签统计</option>
+                        <option value="run_recent_comments">💬 最新评论统计</option>
                     </select>
                 </div>
                 <div class="form-row">
                     <label>执行周期</label>
                     <select name="interval_opt">
+                        <option value="10min">每10分钟</option>
+                        <option value="30min">每30分钟</option>
                         <option value="hourly">每小时</option>
                         <option value="daily">每天</option>
                         <option value="weekly">每周</option>
@@ -189,7 +193,7 @@
                         <td><strong>{{ job.name }}</strong></td>
                         <td class="text-muted">{{ job.description or '—' }}</td>
                         <td>
-                            {% if job.interval_sec == 3600 %}每小时{% elif job.interval_sec == 86400 %}每天{% elif job.interval_sec == 604800 %}每周{% else %}{{ job.interval_sec }}秒{% endif %}
+                            {% if job.interval_sec == 600 %}每10分钟{% elif job.interval_sec == 1800 %}每30分钟{% elif job.interval_sec == 3600 %}每小时{% elif job.interval_sec == 86400 %}每天{% elif job.interval_sec == 604800 %}每周{% else %}{{ job.interval_sec }}秒{% endif %}
                         </td>
                         <td class="text-muted">
                             {% if job.last_run_at > 0 %}
