@@ -27,6 +27,13 @@ PRESET_JOBS = {
         "cron_expr": "0 * * * *",
         "handler_key": "run_active_authors",
     },
+    "hot_tags": {
+        "name": "热门标签统计",
+        "description": "每小时统计博客热门标签并写入数据库",
+        "interval": 3600,
+        "cron_expr": "0 * * * *",
+        "handler_key": "run_hot_tags",
+    },
 }
 
 # 间隔选项
@@ -55,6 +62,7 @@ class BoardPlugin(Plugin):
         self._handlers: Dict[str, callable] = {
             "run_stats_collection": self._handle_stats_collection,
             "run_active_authors":    self._handle_active_authors,
+            "run_hot_tags":          self._handle_hot_tags,
         }
         # 统一初始化所有表（一次性）
         self._tables_initialized = False
@@ -98,6 +106,7 @@ class BoardPlugin(Plugin):
         await self._init_board_table()
         await self._init_cron_tables()
         await self._init_active_authors_table()
+        await self._init_hot_tags_table()
         self._tables_initialized = True
 
     async def _init_board_table(self):
@@ -195,6 +204,21 @@ class BoardPlugin(Plugin):
                 await self.engine.execute(f"ALTER TABLE active_authors ADD COLUMN {col} INTEGER DEFAULT 0")
             except Exception:
                 pass
+
+    async def _init_hot_tags_table(self):
+        """初始化热门标签表"""
+        await self.engine.execute("""
+        CREATE TABLE IF NOT EXISTS hot_tags (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            tag_name TEXT NOT NULL UNIQUE,
+            post_count INTEGER DEFAULT 0,
+            "rank" INTEGER DEFAULT 0,
+            updated_at INTEGER NOT NULL
+        )
+        """)
+        await self.engine.execute("""
+        CREATE INDEX IF NOT EXISTS idx_hot_tags_rank ON hot_tags("rank")
+        """)
 
     # ========================================================
     #  定时任务 CRUD
@@ -435,6 +459,53 @@ class BoardPlugin(Plugin):
                          f"(博客:{blog_count} 微博:{microblog_count} 笔记:{note_count})")
 
         return "活跃作者: " + ", ".join(lines)
+
+    async def _handle_hot_tags(self) -> str:
+        """统计博客热门标签，写入 hot_tags 表"""
+        import json
+        now = int(time.time())
+
+        # 获取所有已发布博客的标签
+        rows = await self.engine.fetchall(
+            "SELECT tags FROM blog_posts WHERE status = 'published' AND tags IS NOT NULL AND tags != ''"
+        )
+
+        # 统计标签使用频率
+        tag_counts = {}
+        for row in rows:
+            tags_str = row.get("tags", "")
+            if not tags_str:
+                continue
+            try:
+                tags = json.loads(tags_str)
+                if isinstance(tags, list):
+                    for tag in tags:
+                        if tag and isinstance(tag, str):
+                            tag_counts[tag] = tag_counts.get(tag, 0) + 1
+            except json.JSONDecodeError:
+                # 兼容旧数据格式（逗号分隔）
+                for tag in tags_str.split(","):
+                    tag = tag.strip().strip('"')
+                    if tag:
+                        tag_counts[tag] = tag_counts.get(tag, 0) + 1
+
+        if not tag_counts:
+            return "无标签数据"
+
+        # 按使用频率排序，取前 20 个
+        sorted_tags = sorted(tag_counts.items(), key=lambda x: x[1], reverse=True)[:20]
+
+        # 清空旧数据并写入新数据
+        await self.engine.execute("DELETE FROM hot_tags")
+        lines = []
+        for rank, (tag_name, post_count) in enumerate(sorted_tags, 1):
+            await self.engine.execute(
+                "INSERT INTO hot_tags (tag_name, post_count, \"rank\", updated_at) VALUES (?, ?, ?, ?)",
+                (tag_name, post_count, rank, now)
+            )
+            lines.append(f"{rank}. {tag_name}({post_count})")
+
+        return "热门标签: " + ", ".join(lines)
 
     # ========================================================
     #  公开统计接口（供首页等调用）
