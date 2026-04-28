@@ -483,13 +483,19 @@ Requirements:
             except:
                 post["tags"] = []
         
-        # 获取作者信息
+        # 获取作者信息（与列表页 SQL COALESCE 逻辑一致）
         author_id = post.get("author_id")
         if author_id:
             author = await self.engine.get("users", author_id)
             if author:
-                post["author_name"] = author.get("display_name") or author.get("username", "匿名")
+                display_name = author.get("display_name")
+                username = author.get("username", "匿名")
+                post["author_name"] = display_name if display_name else username
                 post["author_avatar"] = author.get("avatar")
+            else:
+                post["author_name"] = "匿名"
+        else:
+            post["author_name"] = "匿名"
         
         # 获取当前用户（用于判断是否显示编辑按钮）
         current_user = await self.get_current_user(request)
