@@ -592,7 +592,7 @@ Requirements:
         if post.get("author_id"):
             user = await self.engine.get("users", post["author_id"])
             if user:
-                post["author_name"] = user.get("username", "匿名")
+                post["author_name"] = user.get("display_name") or user.get("username", "匿名")
                 post["author_avatar"] = user.get("avatar")
             else:
                 post["author_name"] = "匿名"
