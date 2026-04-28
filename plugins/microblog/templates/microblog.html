@@ -4,7 +4,6 @@
 
 {% block head %}
 <link rel="stylesheet" href="/static/css/microblog.css">
-<link rel="stylesheet" href="/static/css/comments.css">
 {% endblock %}
 
 {% block content %}
@@ -44,7 +43,6 @@
     </div>
 </div>
 
-<script src="/static/js/comments.js"></script>
 <script>
     const currentAuthorId = {{ current_author_id | tojson }};
     let editingPostId = null;
@@ -93,9 +91,8 @@
                             <div class="post-actions">
                                 ${isOwner ? `<button class="btn-edit" data-content="${escapedContent}" onclick="openEditModal(${post.id})">编辑</button>` : ''}
                                 ${isOwner ? `<button class="btn-delete" onclick="deletePost(${post.id})">删除</button>` : ''}
-                                <button class="btn-comment" onclick="toggleMicroblogComments(${post.id})">💬 <span class="comment-count" id="mb-count-${post.id}"></span></button>
                             </div>
-                            <div class="microblog-comments" id="mb-comments-${post.id}" style="display:none;"></div>
+                            <div class="microblog-comments" id="mb-comments-${post.id}"></div>
                         </div>
                     </div>
                 `;
@@ -131,52 +128,48 @@
 
     async function autoExpandMicroblogComments() {
         if (renderedPostIds.length === 0) return;
-        // 批量查询每个微博的评论数
         const countResults = await Promise.allSettled(
             renderedPostIds.map(id =>
                 fetch(`/api/comments?target_type=microblog&target_id=${id}`)
                     .then(r => r.json())
-                    .then(data => ({ id, count: data.comments?.length || 0 }))
-                    .catch(() => ({ id, count: 0 }))
+                    .then(data => ({ id, comments: data.comments || [] }))
+                    .catch(() => ({ id, comments: [] }))
             )
         );
-        const postsWithComments = [];
         for (const result of countResults) {
-            if (result.status === 'fulfilled' && result.value.count > 0) {
-                const { id, count } = result.value;
-                const countEl = document.getElementById('mb-count-' + id);
-                if (countEl) countEl.textContent = count + ' 评论';
-                postsWithComments.push(id);
-            }
+            if (result.status !== 'fulfilled') continue;
+            const { id, comments } = result.value;
+            const container = document.getElementById('mb-comments-' + id);
+            if (!container || container.dataset.loaded) continue;
+            if (comments.length === 0) continue;
+            container.innerHTML = renderMicroblogComments(comments);
+            container.dataset.loaded = '1';
         }
-        // 展开有评论的评论区
-        for (const postId of postsWithComments) {
-            const container = document.getElementById('mb-comments-' + postId);
-            if (container && container.style.display === 'none') {
-                container.style.display = 'block';
-                if (!container.dataset.loaded) {
-                    container.innerHTML = `
-                        <section class="comments-section" id="mb-comments-section-${postId}">
-                            <div class="comments-header">
-                                <h3>💬 评论</h3>
-                                <span class="comments-count"></span>
-                            </div>
-                            <div class="comment-login-hint" style="display:none;"><a href="/login">登录</a>后即可评论</div>
-                            <div class="comment-form" style="display:none;">
-                                <textarea placeholder="写下你的评论..." rows="3"></textarea>
-                                <div class="comment-form-actions">
-                                    <span></span>
-                                    <button class="btn-submit" onclick="Comments.submit('microblog', ${postId}, '#mb-comments-section-${postId}')">发表评论</button>
-                                </div>
-                            </div>
-                            <ul class="comments-list"></ul>
-                        </section>
-                    `;
-                    container.dataset.loaded = '1';
-                    await Comments.init('microblog', postId, '#mb-comments-section-' + postId);
-                }
-            }
-        }
+    }
+
+    function renderMicroblogComments(comments) {
+        if (!comments || comments.length === 0) return '';
+        return '<ul class="mb-comment-list">' + comments.map(c => `
+            <li class="mb-comment-item">
+                <span class="mb-comment-avatar">${c.author_name ? c.author_name.charAt(0).toUpperCase() : '?'}</span>
+                <div class="mb-comment-body">
+                    <span class="mb-comment-author">${escapeHtml(c.author_name || '匿名')}</span>
+                    <span class="mb-comment-time">${formatTimeAgo(c.created_at)}</span>
+                    <p class="mb-comment-text">${escapeHtml(c.content)}</p>
+                </div>
+            </li>
+        `).join('') + '</ul>';
+    }
+
+    function formatTimeAgo(ts) {
+        if (!ts) return '';
+        const t = typeof ts === 'number' ? ts * 1000 : new Date(ts).getTime();
+        const diff = (Date.now() - t) / 1000;
+        if (diff < 60) return '刚刚';
+        if (diff < 3600) return Math.floor(diff / 60) + '分钟前';
+        if (diff < 86400) return Math.floor(diff / 3600) + '小时前';
+        if (diff < 604800) return Math.floor(diff / 86400) + '天前';
+        return new Date(t).toLocaleDateString('zh-CN');
     }
 
     async function sendMicroblog() {
@@ -298,40 +291,6 @@
     document.getElementById('composeText').addEventListener('keydown', function(e) {
         if (e.ctrlKey && e.key === 'Enter') sendMicroblog();
     });
-
-    // 微博评论展开/收起
-    async function toggleMicroblogComments(postId) {
-        const container = document.getElementById('mb-comments-' + postId);
-        if (!container) return;
-        if (container.dataset.loaded && container.style.display !== 'none') {
-            // 已展开 → 收起
-            container.style.display = 'none';
-            return;
-        }
-        container.style.display = 'block';
-        // Render inline comments section
-        if (!container.dataset.loaded) {
-            container.innerHTML = `
-                <section class="comments-section" id="mb-comments-section-${postId}">
-                    <div class="comments-header">
-                        <h3>💬 评论</h3>
-                        <span class="comments-count"></span>
-                    </div>
-                    <div class="comment-login-hint" style="display:none;"><a href="/login">登录</a>后即可评论</div>
-                    <div class="comment-form" style="display:none;">
-                        <textarea placeholder="写下你的评论..." rows="3"></textarea>
-                        <div class="comment-form-actions">
-                            <span></span>
-                            <button class="btn-submit" onclick="Comments.submit('microblog', ${postId}, '#mb-comments-section-${postId}')">发表评论</button>
-                        </div>
-                    </div>
-                    <ul class="comments-list"></ul>
-                </section>
-            `;
-            container.dataset.loaded = '1';
-            await Comments.init('microblog', postId, '#mb-comments-section-' + postId);
-        }
-    }
 
     // 加载用户信息
     async function loadUser() {

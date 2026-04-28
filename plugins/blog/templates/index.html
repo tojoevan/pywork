@@ -4,7 +4,6 @@
 
 {% block head %}
 <link rel="stylesheet" href="/static/css/blog.css">
-<link rel="stylesheet" href="/static/css/comments.css">
 {% endblock %}
 
 {% block content %}
@@ -16,9 +15,9 @@
     </div>
 
     <!-- 文章列表 -->
-    <div class="posts-grid">
+    <div class="posts-grid" id="postsGrid">
         {% for post in posts %}
-        <article class="post-card" id="post-card-{{ post.id }}">
+        <article class="post-card" id="post-card-{{ post.id }}" data-id="{{ post.id }}">
             <div class="post-meta">
                 <span class="author">
                     {% if post.author_avatar %}
@@ -31,6 +30,7 @@
                 <time datetime="{{ post.created_at | datetime }}">
                     {{ post.created_at | datefmt }}
                 </time>
+                <span class="comment-count-badge" id="blog-count-{{ post.id }}"></span>
                 {% if post.tags %}
                 <div class="post-tags">
                     {% for tag in post.tags %}
@@ -43,13 +43,6 @@
                 <a href="/blog/view/{{ post.id }}">{{ post.title }}</a>
             </h2>
             <p class="post-excerpt">{{ post.body | excerpt(120) }}</p>
-            <!-- 内嵌评论区（仅在有评论时展示） -->
-            <div class="microblog-comments blog-index-comments" id="blog-comments-{{ post.id }}" style="display:none;"></div>
-            <div class="card-footer-actions">
-                <button class="btn-comment-toggle" onclick="toggleBlogComments({{ post.id }})">
-                    💬 <span class="comment-count" id="comment-count-{{ post.id }}"></span>
-                </button>
-            </div>
         </article>
         {% else %}
         <div class="empty-state">
@@ -75,58 +68,22 @@
 
 {% block scripts %}
 {{ super() }}
-<script src="/static/js/comments.js"></script>
 <script>
-async function toggleBlogComments(postId) {
-    const container = document.getElementById('blog-comments-' + postId);
-    if (!container) return;
-    if (container.style.display !== 'none') {
-        container.style.display = 'none';
-        return;
-    }
-    container.style.display = 'block';
-    if (container.dataset.loaded) return;
-    container.innerHTML = `
-        <section class="comments-section" id="blog-comments-section-${postId}">
-            <div class="comments-header">
-                <h3>💬 评论</h3>
-                <span class="comments-count"></span>
-            </div>
-            <div class="comment-login-hint" style="display:none;"><a href="/login">登录</a>后即可评论</div>
-            <div class="comment-form" style="display:none;">
-                <textarea placeholder="写下你的评论..." rows="3"></textarea>
-                <div class="comment-form-actions">
-                    <span></span>
-                    <button class="btn-submit" onclick="Comments.submit('blog', ${postId}, '#blog-comments-section-${postId}')">发表评论</button>
-                </div>
-            </div>
-            <ul class="comments-list"></ul>
-        </section>
-    `;
-    container.dataset.loaded = '1';
-    await Comments.init('blog', postId, '#blog-comments-section-' + postId);
-}
-
-// 页面加载时：自动展开有评论的微博卡片评论区
 document.addEventListener('DOMContentLoaded', async function() {
-    const cards = document.querySelectorAll('[id^="blog-comments-"]');
-    const results = await Promise.allSettled(
-        Array.from(cards).map(card => {
-            const match = card.id.match(/^blog-comments-(\d+)$/);
-            if (!match) return Promise.resolve();
-            const postId = match[1];
-            return fetch(`/api/comments?target_type=blog&target_id=${postId}`)
+    const cards = document.querySelectorAll('.post-card[data-id]');
+    if (cards.length === 0) return;
+    const ids = Array.from(cards).map(c => c.dataset.id);
+    await Promise.allSettled(
+        ids.map(id =>
+            fetch(`/api/comments?target_type=blog&target_id=${id}`)
                 .then(r => r.json())
                 .then(data => {
-                    const total = data.comments?.length || 0;
-                    const countEl = document.getElementById('comment-count-' + postId);
-                    if (countEl) countEl.textContent = total > 0 ? total + ' 条评论' : '';
-                    if (total > 0) {
-                        toggleBlogComments(postId);
-                    }
+                    const count = data.comments?.length || 0;
+                    const el = document.getElementById('blog-count-' + id);
+                    if (el && count > 0) el.textContent = '💬 +' + count;
                 })
-                .catch(() => {});
-        })
+                .catch(() => {})
+        )
     );
 });
 </script>

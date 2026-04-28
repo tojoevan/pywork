@@ -281,3 +281,66 @@
 .btn-load-more:hover {
     background: var(--bg-hover, #ebebeb);
 }
+
+/* 微博内嵌评论区样式（无评论框，仅展示评论） */
+.microblog-comments {
+    margin-top: 8px;
+    padding-top: 8px;
+    border-top: 1px dashed var(--border-color, #e0e0e0);
+}
+
+.mb-comment-list {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+}
+
+.mb-comment-item {
+    display: flex;
+    gap: 8px;
+    padding: 6px 0;
+    align-items: flex-start;
+}
+
+.mb-comment-item:not(:last-child) {
+    border-bottom: 1px solid var(--gray-100, #f0f0f0);
+}
+
+.mb-comment-avatar {
+    flex-shrink: 0;
+    width: 24px;
+    height: 24px;
+    border-radius: 50%;
+    background: var(--gray-200, #e5e5e5);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 11px;
+    font-weight: 600;
+    color: var(--text-secondary, #666);
+}
+
+.mb-comment-body {
+    flex: 1;
+    min-width: 0;
+}
+
+.mb-comment-author {
+    font-weight: 600;
+    font-size: 13px;
+    color: var(--text-primary, #333);
+    margin-right: 6px;
+}
+
+.mb-comment-time {
+    font-size: 11px;
+    color: var(--text-secondary, #999);
+}
+
+.mb-comment-text {
+    margin: 2px 0 0 0;
+    font-size: 13px;
+    color: var(--text-primary, #333);
+    line-height: 1.5;
+    word-break: break-word;
+}

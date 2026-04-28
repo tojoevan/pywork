@@ -300,3 +300,11 @@
     padding-top: 0;
     border-top: none;
 }
+
+/* 博客卡片评论数徽章（inline in meta） */
+.comment-count-badge {
+    font-size: 0.75rem;
+    color: #9ca3af;
+    font-weight: 400;
+    margin-left: 4px;
+}
