@@ -107,12 +107,15 @@
         
         <section class="card">
             <h3 class="card-title">热门标签</h3>
+            {% if hot_tags %}
             <div class="tags">
-                <a href="/blog?tag=Python" class="tag">Python</a>
-                <a href="/blog?tag=架构" class="tag">架构</a>
-                <a href="/blog?tag=思考" class="tag">思考</a>
-                <a href="/blog?tag=随笔" class="tag">随笔</a>
+                {% for tag in hot_tags %}
+                <a href="/blog?tag={{ tag.tag_name | urlencode }}" class="tag">{{ tag.tag_name }}</a>
+                {% endfor %}
             </div>
+            {% else %}
+            <p class="empty-tip">暂无热门标签数据</p>
+            {% endif %}
         </section>
 
         <section class="card">

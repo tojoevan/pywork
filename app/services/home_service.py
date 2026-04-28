@@ -201,15 +201,17 @@ class HomeService:
         feed_task = asyncio.create_task(self.get_feed(feed_limit))
         stats_task = asyncio.create_task(self.get_stats())
         authors_task = asyncio.create_task(self.get_active_authors())
+        tags_task = asyncio.create_task(self.get_hot_tags())
 
         results = await asyncio.gather(
-            feed_task, stats_task, authors_task,
+            feed_task, stats_task, authors_task, tags_task,
             return_exceptions=True
         )
 
         feed = results[0] if not isinstance(results[0], Exception) else []
         stats = results[1] if not isinstance(results[1], Exception) else HomeStats()
         authors = results[2] if not isinstance(results[2], Exception) else []
+        hot_tags = results[3] if not isinstance(results[3], Exception) else []
 
         if isinstance(results[0], Exception):
             log.error(f"Feed query failed: {results[0]}")
@@ -217,6 +219,8 @@ class HomeService:
             log.error(f"Stats query failed: {results[1]}")
         if isinstance(results[2], Exception):
             log.error(f"Authors query failed: {results[2]}")
+        if isinstance(results[3], Exception):
+            log.error(f"Hot tags query failed: {results[3]}")
 
         return {
             "posts": feed,
@@ -224,4 +228,5 @@ class HomeService:
             "microblog_count": stats.microblog_count,
             "note_count": stats.note_count,
             "active_authors": authors,
+            "hot_tags": hot_tags,
         }
