@@ -179,6 +179,17 @@ class HomeService:
                 log.warning(f"Failed to get active authors: {e}")
         return []
 
+    async def get_hot_tags(self, limit: int = 10) -> List[Dict[str, Any]]:
+        """获取热门标签"""
+        board_plugin = self._get_plugin("board")
+        if board_plugin and hasattr(board_plugin, "get_hot_tags"):
+            try:
+                tags = await board_plugin.get_hot_tags(limit=limit)
+                return tags
+            except Exception as e:
+                log.warning(f"Failed to get hot tags: {e}")
+        return []
+
     # ========================================================
     #  聚合接口
     # ========================================================
