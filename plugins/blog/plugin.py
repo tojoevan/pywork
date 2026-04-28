@@ -472,29 +472,28 @@ Requirements:
     async def get_post_page(self, request, **kwargs):
         """博客详情页面（HTML）"""
         post_id = int(kwargs.get("post_id", 0))
-        post = await self.engine.get("blog_posts", post_id)
-        if not post:
+        row = await self.engine.fetchone(
+            """SELECT p.*, COALESCE(u.display_name, u.username) as author_name,
+                       u.avatar as author_avatar
+                FROM blog_posts p
+                LEFT JOIN users u ON p.author_id = u.id
+                WHERE p.id = ?""",
+            (post_id,)
+        )
+        if not row:
             return self.error_html("文章不存在", 404)
-        
+
+        post = dict(row)
+
         # 解析 tags
         if post.get("tags"):
             try:
                 post["tags"] = json.loads(post["tags"])
             except:
                 post["tags"] = []
-        
-        # 获取作者信息（与列表页 SQL COALESCE 逻辑一致）
-        author_id = post.get("author_id")
-        if author_id:
-            author = await self.engine.get("users", author_id)
-            if author:
-                display_name = author.get("display_name")
-                username = author.get("username", "匿名")
-                post["author_name"] = display_name if display_name else username
-                post["author_avatar"] = author.get("avatar")
-            else:
-                post["author_name"] = "匿名"
-        else:
+
+        # 作者信息兜底
+        if not post.get("author_name"):
             post["author_name"] = "匿名"
         
         # 获取当前用户（用于判断是否显示编辑按钮）
