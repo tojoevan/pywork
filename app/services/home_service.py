@@ -190,6 +190,17 @@ class HomeService:
                 log.warning(f"Failed to get hot tags: {e}")
         return []
 
+    async def get_recent_comments(self, limit: int = 5) -> List[Dict[str, Any]]:
+        """获取最新评论"""
+        board_plugin = self._get_plugin("board")
+        if board_plugin and hasattr(board_plugin, "get_recent_comments"):
+            try:
+                comments = await board_plugin.get_recent_comments(limit=limit)
+                return comments
+            except Exception as e:
+                log.warning(f"Failed to get recent comments: {e}")
+        return []
+
     # ========================================================
     #  聚合接口
     # ========================================================
@@ -202,9 +213,10 @@ class HomeService:
         stats_task = asyncio.create_task(self.get_stats())
         authors_task = asyncio.create_task(self.get_active_authors())
         tags_task = asyncio.create_task(self.get_hot_tags())
+        comments_task = asyncio.create_task(self.get_recent_comments())
 
         results = await asyncio.gather(
-            feed_task, stats_task, authors_task, tags_task,
+            feed_task, stats_task, authors_task, tags_task, comments_task,
             return_exceptions=True
         )
 
@@ -212,6 +224,7 @@ class HomeService:
         stats = results[1] if not isinstance(results[1], Exception) else HomeStats()
         authors = results[2] if not isinstance(results[2], Exception) else []
         hot_tags = results[3] if not isinstance(results[3], Exception) else []
+        recent_comments = results[4] if not isinstance(results[4], Exception) else []
 
         if isinstance(results[0], Exception):
             log.error(f"Feed query failed: {results[0]}")
@@ -221,6 +234,8 @@ class HomeService:
             log.error(f"Authors query failed: {results[2]}")
         if isinstance(results[3], Exception):
             log.error(f"Hot tags query failed: {results[3]}")
+        if isinstance(results[4], Exception):
+            log.error(f"Recent comments query failed: {results[4]}")
 
         return {
             "posts": feed,
@@ -229,4 +244,5 @@ class HomeService:
             "note_count": stats.note_count,
             "active_authors": authors,
             "hot_tags": hot_tags,
+            "recent_comments": recent_comments,
         }

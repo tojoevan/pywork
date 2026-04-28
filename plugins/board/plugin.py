@@ -34,10 +34,19 @@ PRESET_JOBS = {
         "cron_expr": "0 * * * *",
         "handler_key": "run_hot_tags",
     },
+    "recent_comments": {
+        "name": "最新评论统计",
+        "description": "每10分钟统计最新评论并写入数据库",
+        "interval": 600,
+        "cron_expr": "*/10 * * * *",
+        "handler_key": "run_recent_comments",
+    },
 }
 
 # 间隔选项
 INTERVAL_OPTIONS = [
+    ("10min",     "每10分钟"),
+    ("30min",     "每30分钟"),
     ("hourly",    "每小时"),
     ("daily",     "每天"),
     ("weekly",    "每周"),
@@ -63,6 +72,7 @@ class BoardPlugin(Plugin):
             "run_stats_collection": self._handle_stats_collection,
             "run_active_authors":    self._handle_active_authors,
             "run_hot_tags":          self._handle_hot_tags,
+            "run_recent_comments":   self._handle_recent_comments,
         }
         # 统一初始化所有表（一次性）
         self._tables_initialized = False
@@ -107,6 +117,7 @@ class BoardPlugin(Plugin):
         await self._init_cron_tables()
         await self._init_active_authors_table()
         await self._init_hot_tags_table()
+        await self._init_recent_comments_table()
         self._tables_initialized = True
 
     async def _init_board_table(self):
@@ -218,6 +229,25 @@ class BoardPlugin(Plugin):
         """)
         await self.engine.execute("""
         CREATE INDEX IF NOT EXISTS idx_hot_tags_rank ON hot_tags("rank")
+        """)
+
+    async def _init_recent_comments_table(self):
+        """初始化最新评论表"""
+        await self.engine.execute("""
+        CREATE TABLE IF NOT EXISTS recent_comments (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            comment_id INTEGER NOT NULL,
+            author_name TEXT NOT NULL,
+            content TEXT NOT NULL,
+            target_type TEXT NOT NULL,
+            target_id INTEGER NOT NULL,
+            target_title TEXT DEFAULT '',
+            created_at INTEGER NOT NULL,
+            updated_at INTEGER NOT NULL
+        )
+        """)
+        await self.engine.execute("""
+        CREATE INDEX IF NOT EXISTS idx_recent_comments_time ON recent_comments(created_at DESC)
         """)
 
     # ========================================================
@@ -507,6 +537,67 @@ class BoardPlugin(Plugin):
 
         return "热门标签: " + ", ".join(lines)
 
+    async def _handle_recent_comments(self) -> str:
+        """统计最新评论，写入 recent_comments 表"""
+        now = int(time.time())
+
+        # 获取最近 10 条已审核通过的评论
+        rows = await self.engine.fetchall("""
+            SELECT c.id, c.content, c.target_type, c.target_id, c.created_at,
+                   COALESCE(u.display_name, u.username) AS author_name
+            FROM comments c
+            LEFT JOIN users u ON c.author_id = u.id
+            WHERE c.status = 'approved'
+            ORDER BY c.created_at DESC
+            LIMIT 10
+        """)
+
+        if not rows:
+            return "无评论数据"
+
+        # 获取目标内容标题
+        TARGET_TABLES = {
+            "blog": "blog_posts",
+            "microblog": "microblog_posts",
+            "note": "notes",
+        }
+
+        # 清空旧数据
+        await self.engine.execute("DELETE FROM recent_comments")
+
+        lines = []
+        for row in rows:
+            comment_id = row["id"]
+            author_name = row["author_name"] or "匿名"
+            content = row["content"] or ""
+            target_type = row["target_type"]
+            target_id = row["target_id"]
+            created_at = row["created_at"]
+
+            # 获取目标标题
+            target_title = ""
+            table = TARGET_TABLES.get(target_type)
+            if table:
+                target_row = await self.engine.fetchone(
+                    f"SELECT title FROM {table} WHERE id = ?",
+                    (target_id,)
+                )
+                if target_row:
+                    target_title = target_row.get("title", "") or ""
+
+            # 写入 recent_comments 表
+            await self.engine.execute("""
+                INSERT INTO recent_comments
+                    (comment_id, author_name, content, target_type, target_id, target_title, created_at, updated_at)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+            """, (comment_id, author_name, content[:200], target_type, target_id, target_title[:100], created_at, now))
+
+            # 截断显示内容
+            display_content = content[:30] + "..." if len(content) > 30 else content
+            lines.append(f"{author_name}: {display_content}")
+
+        return f"最新评论 ({len(rows)}条): " + "; ".join(lines[:5])
+
     # ========================================================
     #  公开统计接口（供首页等调用）
     # ========================================================
@@ -572,6 +663,49 @@ class BoardPlugin(Plugin):
                 except Exception:
                     pass
         return [{"tag_name": r["tag_name"], "post_count": r["post_count"]} for r in rows]
+
+    async def get_recent_comments(self, limit: int = 5) -> List[Dict[str, Any]]:
+        """获取最新评论列表，优先从 recent_comments 读取，否则实时计算"""
+        now = int(time.time())
+        rows = await self.engine.fetchall(
+            "SELECT comment_id, author_name, content, target_type, target_id, target_title, created_at, updated_at "
+            "FROM recent_comments ORDER BY created_at DESC LIMIT ?",
+            (limit,)
+        )
+        if not rows:
+            # 没有数据，实时计算一次
+            try:
+                await self._handle_recent_comments()
+                rows = await self.engine.fetchall(
+                    "SELECT comment_id, author_name, content, target_type, target_id, target_title, created_at, updated_at "
+                    "FROM recent_comments ORDER BY created_at DESC LIMIT ?",
+                    (limit,)
+                )
+            except Exception:
+                return []
+        else:
+            # 检查是否过期（超过 20 分钟）
+            updated_at = int(rows[0].get("updated_at", 0)) if rows else 0
+            if updated_at < now - 1200:  # 20 分钟 = 1200 秒
+                # 过期了，手动触发一次实时计算（不等待结果）
+                try:
+                    await self._handle_recent_comments()
+                    rows = await self.engine.fetchall(
+                        "SELECT comment_id, author_name, content, target_type, target_id, target_title, created_at, updated_at "
+                        "FROM recent_comments ORDER BY created_at DESC LIMIT ?",
+                        (limit,)
+                    )
+                except Exception:
+                    pass
+        return [{
+            "comment_id": r["comment_id"],
+            "author_name": r["author_name"],
+            "content": r["content"],
+            "target_type": r["target_type"],
+            "target_id": r["target_id"],
+            "target_title": r["target_title"],
+            "created_at": r["created_at"],
+        } for r in rows]
 
     async def get_stats(self) -> Dict[str, Any]:
         """获取统计数字，优先从 cron_stats 读取，否则实时查"""
@@ -670,7 +804,7 @@ class BoardPlugin(Plugin):
             return JSONResponse({"error": "name and handler_key required"}, status_code=400)
 
         # interval 映射
-        interval_map = {"hourly": 3600, "daily": 86400, "weekly": 604800}
+        interval_map = {"10min": 600, "30min": 1800, "hourly": 3600, "daily": 86400, "weekly": 604800}
         interval_sec = interval_map.get(interval_opt, 3600)
 
         job_id = await self._create_cron_job(

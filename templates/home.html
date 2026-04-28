@@ -120,10 +120,19 @@
 
         <section class="card">
             <h3 class="card-title">最新评论</h3>
+            {% if recent_comments %}
             <ul class="comments">
-                <li>好文章！ - 匿名</li>
-                <li>学习了 - 访客</li>
+                {% for comment in recent_comments %}
+                <li>
+                    <a href="/{% if comment.target_type == 'blog' %}blog/view/{% elif comment.target_type == 'microblog' %}microblog#post-{% else %}notes/{% endif %}{{ comment.target_id }}" class="comment-link">
+                        {{ comment.content | excerpt(25) }} - {{ comment.author_name }}
+                    </a>
+                </li>
+                {% endfor %}
             </ul>
+            {% else %}
+            <p class="empty-tip">暂无评论</p>
+            {% endif %}
         </section>
     </aside>
 
