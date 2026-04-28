@@ -97,7 +97,7 @@ class CommentsPlugin(Plugin):
         # Fetch top-level comments (approved + own pending if logged in)
         if current_user_id:
             rows = await self.engine.fetchall(
-                """SELECT c.*, u.username as author_name, u.avatar as author_avatar
+                """SELECT c.*, COALESCE(u.display_name, u.username) as author_name, u.avatar as author_avatar
                    FROM comments c
                    LEFT JOIN users u ON c.author_id = u.id
                    WHERE c.target_type = ? AND c.target_id = ? AND c.parent_id IS NULL
@@ -107,7 +107,7 @@ class CommentsPlugin(Plugin):
             )
         else:
             rows = await self.engine.fetchall(
-                """SELECT c.*, u.username as author_name, u.avatar as author_avatar
+                """SELECT c.*, COALESCE(u.display_name, u.username) as author_name, u.avatar as author_avatar
                    FROM comments c
                    LEFT JOIN users u ON c.author_id = u.id
                    WHERE c.target_type = ? AND c.target_id = ? AND c.parent_id IS NULL
@@ -130,7 +130,7 @@ class CommentsPlugin(Plugin):
             placeholders = ",".join("?" * len(top_ids))
             if current_user_id:
                 all_replies = await self.engine.fetchall(
-                    f"""SELECT c.*, u.username as author_name, u.avatar as author_avatar
+                    f"""SELECT c.*, COALESCE(u.display_name, u.username) as author_name, u.avatar as author_avatar
                        FROM comments c
                        LEFT JOIN users u ON c.author_id = u.id
                        WHERE c.parent_id IN ({placeholders})
@@ -140,7 +140,7 @@ class CommentsPlugin(Plugin):
                 )
             else:
                 all_replies = await self.engine.fetchall(
-                    f"""SELECT c.*, u.username as author_name, u.avatar as author_avatar
+                    f"""SELECT c.*, COALESCE(u.display_name, u.username) as author_name, u.avatar as author_avatar
                        FROM comments c
                        LEFT JOIN users u ON c.author_id = u.id
                        WHERE c.parent_id IN ({placeholders}) AND c.status = 'approved'
