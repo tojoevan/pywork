@@ -394,7 +394,11 @@ class BoardPlugin(Plugin):
         success, result = await self._execute_job(job, trigger_type="manual")
         await self._update_job_run(job_id, success, result)
 
-        return JSONResponse({"success": success, "result": result, "job_id": job_id})
+        resp = {"success": success, "result": result, "job_id": job_id}
+        if not success:
+            # 把错误信息也返回，方便前端展示
+            resp["error"] = result
+        return JSONResponse(resp)
 
     # ========================================================
     #  任务处理器
@@ -541,6 +545,9 @@ class BoardPlugin(Plugin):
         """统计最新评论，写入 recent_comments 表"""
         now = int(time.time())
 
+        # 确保 recent_comments 表存在
+        await self._init_recent_comments_table()
+
         # 获取最近 10 条已审核通过的评论
         rows = await self.engine.fetchall("""
             SELECT c.id, c.content, c.target_type, c.target_id, c.created_at,
@@ -567,30 +574,41 @@ class BoardPlugin(Plugin):
 
         lines = []
         for row in rows:
-            comment_id = row["id"]
-            author_name = row["author_name"] or "匿名"
-            content = row["content"] or ""
-            target_type = row["target_type"]
-            target_id = row["target_id"]
-            created_at = row["created_at"]
+            try:
+                row = dict(row)
+            except Exception:
+                pass
+            comment_id = int(row.get("id", 0))
+            author_name = str(row.get("author_name", "") or "匿名")
+            content = str(row.get("content", "") or "")
+            target_type = str(row.get("target_type", ""))
+            target_id = int(row.get("target_id", 0))
+            created_at = int(row.get("created_at", 0))
 
             # 获取目标标题
             target_title = ""
             table = TARGET_TABLES.get(target_type)
             if table:
-                target_row = await self.engine.fetchone(
-                    f"SELECT title FROM {table} WHERE id = ?",
-                    (target_id,)
-                )
-                if target_row:
-                    target_title = target_row.get("title", "") or ""
+                try:
+                    target_row = await self.engine.fetchone(
+                        f"SELECT title FROM {table} WHERE id = ?",
+                        (target_id,)
+                    )
+                    if target_row:
+                        target_title = str(target_row.get("title", "") or "")
+                except Exception:
+                    pass
 
             # 写入 recent_comments 表
-            await self.engine.execute("""
-                INSERT INTO recent_comments
-                    (comment_id, author_name, content, target_type, target_id, target_title, created_at, updated_at)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-            """, (comment_id, author_name, content[:200], target_type, target_id, target_title[:100], created_at, now))
+            try:
+                await self.engine.execute("""
+                    INSERT INTO recent_comments
+                        (comment_id, author_name, content, target_type, target_id, target_title, created_at, updated_at)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                """, (comment_id, author_name, content[:200], target_type, target_id, target_title[:100], created_at, now))
+            except Exception as e:
+                self.log.warning(f"Failed to insert recent comment {comment_id}: {e}")
+                continue
 
             # 截断显示内容
             display_content = content[:30] + "..." if len(content) > 30 else content
