@@ -278,6 +278,7 @@
 /* 定时任务表单 */
 .cron-add {
     margin-bottom: 16px;
+    max-width: 560px;
 }
 
 .cron-form {
