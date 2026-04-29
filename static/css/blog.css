@@ -128,11 +128,9 @@
 }
 
 .blog-post .post-title {
-    font-size: 2.25rem;
+    font-size: 2rem;
     margin-bottom: 1rem;
 }
-
-/* 文章详情 */
 .blog-post {
     max-width: 800px;
     margin: 0 auto;
