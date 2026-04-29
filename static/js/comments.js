@@ -145,8 +145,8 @@
                 return renderComment(c, ...args);
             };
             if (pendingComments.length > 0) {
-                // Pending shown to comment author: can delete + can review (if content author)
-                html += pendingComments.map(c => renderAndTrack({...c, can_delete: true}, false, canReview)).join('');
+                // Pending shown to comment author: can delete (own) + can review (if content author/admin)
+                html += pendingComments.map(c => renderAndTrack({...c, can_delete: c.can_delete !== undefined ? c.can_delete : true}, false, canReview)).join('');
             }
             html += approved.map(c => renderAndTrack(c, false, canReview)).join('');
             listEl.innerHTML = html;

@@ -154,17 +154,22 @@ class CommentsPlugin(Plugin):
         else:
             reply_map = {}
 
+        is_admin = current_user.get("role") == "admin" if current_user else False
+
         comments = []
         for row in rows:
             comment = dict(row)
             comment["replies"] = reply_map.get(comment["id"], [])
-            # Only content author can review, not comment author
-            comment["can_review"] = is_content_author
+            # Only content author can review, not comment author (admin can also review)
+            comment["can_review"] = is_content_author or is_admin
+            # can_delete: comment author, content author, or admin
+            comment["can_delete"] = (current_user_id and comment["author_id"] == current_user_id) or is_content_author or is_admin
             for reply in comment["replies"]:
-                reply["can_review"] = is_content_author
+                reply["can_review"] = is_content_author or is_admin
+                reply["can_delete"] = (current_user_id and reply["author_id"] == current_user_id) or is_content_author or is_admin
             comments.append(comment)
 
-        return JSONResponse({"comments": comments, "total": len(comments), "can_review": is_content_author})
+        return JSONResponse({"comments": comments, "total": len(comments), "can_review": is_content_author or is_admin})
 
     async def create_comment(self, request, **kwargs) -> Any:
         """POST /api/comments
@@ -446,8 +451,10 @@ class CommentsPlugin(Plugin):
             (target_type, target_id)
         )
         comments = [dict(r) for r in rows]
+        is_admin = user.get("role") == "admin"
         for c in comments:
-            c["can_review"] = True  # content author can review
+            c["can_review"] = True  # content author/admin can review
+            c["can_delete"] = (c["author_id"] == user["id"]) or is_admin
         return JSONResponse({"comments": comments, "total": len(comments)})
 
     # ------------------------------------------------------------------
