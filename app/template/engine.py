@@ -151,8 +151,15 @@ def _sanitize_html_input(text: str) -> str:
     return tag_pattern.sub(_replace_tag, text)
 
 
+# 匹配第一个 H1 标签（支持任意属性、大小写不敏感）
+_H1_FIRST = re.compile(
+    r'<h1[^>]*>.*?</h1>\s*',
+    re.DOTALL | re.IGNORECASE
+)
+
+
 def markdown_filter(text: str) -> str:
-    """Markdown 转 HTML（带 XSS 防护）"""
+    """Markdown 转 HTML（带 XSS 防护，自动移除首个 H1 避免与页面标题重复）"""
     from markupsafe import Markup
     if not text:
         return ""
@@ -167,6 +174,8 @@ def markdown_filter(text: str) -> str:
             'codehilite': {'css_class': 'highlight'}
         }
     )
+    # 去掉正文第一个 H1，避免与页面标题重复
+    html = _H1_FIRST.sub('', html, count=1)
     return Markup(html)
 
 
