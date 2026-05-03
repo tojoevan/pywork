@@ -439,10 +439,10 @@ class BoardPlugin(Plugin):
                 f"总计:{total_count}")
 
     async def _handle_active_authors(self) -> str:
-        """统计最近 7 天内活跃作者（按内容数量排名），写入 active_authors 表"""
+        """统计最近 30 天内活跃作者（按内容数量排名），写入 active_authors 表"""
         now = int(time.time())
-        # 7 天时间窗口
-        week_ago = now - 7 * 86400
+        # 30 天时间窗口
+        period_ago = now - 30 * 86400
 
         rows = await self.engine.fetchall("""
             SELECT sub.author_id,
@@ -466,7 +466,7 @@ class BoardPlugin(Plugin):
             GROUP BY sub.author_id
             ORDER BY total_count DESC
             LIMIT 10
-        """, (week_ago, week_ago, week_ago))
+        """, (period_ago, period_ago, period_ago))
 
         if not rows:
             return "无活跃作者数据"
@@ -485,14 +485,14 @@ class BoardPlugin(Plugin):
                     (author_id, author_name, author_avatar,
                      blog_count, microblog_count, note_count,
                      "rank", period, updated_at)
-                VALUES (?, ?, ?, ?, ?, ?, ?, 'weekly', ?)
+                VALUES (?, ?, ?, ?, ?, ?, ?, 'monthly', ?)
             """, (author_id, author_name, author_avatar,
                   blog_count, microblog_count, note_count,
                   rank, now))
             lines.append(f"{rank}. {author_name} "
                          f"(博客:{blog_count} 微博:{microblog_count} 笔记:{note_count})")
 
-        return "活跃作者: " + ", ".join(lines)
+        return "活跃作者(近30天): " + ", ".join(lines)
 
     async def _handle_hot_tags(self) -> str:
         """统计博客热门标签，写入 hot_tags 表"""
@@ -626,7 +626,7 @@ class BoardPlugin(Plugin):
         rows = await self.engine.fetchall(
             "SELECT author_name, author_avatar, "
             "blog_count, microblog_count, note_count, updated_at "
-            "FROM active_authors WHERE period = 'weekly' "
+            "FROM active_authors WHERE period = 'monthly' "
             "ORDER BY \"rank\" ASC LIMIT 8"
         )
         if not rows:
@@ -640,7 +640,7 @@ class BoardPlugin(Plugin):
                 rows = await self.engine.fetchall(
                     "SELECT author_name, author_avatar, "
                     "blog_count, microblog_count, note_count, updated_at "
-                    "FROM active_authors WHERE period = 'weekly' "
+                    "FROM active_authors WHERE period = 'monthly' "
                     "ORDER BY \"rank\" ASC LIMIT 8"
                 )
             except Exception:
