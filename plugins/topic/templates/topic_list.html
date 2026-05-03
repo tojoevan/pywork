@@ -1,0 +1,88 @@
+{% extends "base.html" %}
+
+{% block title %}主题讨论 - {{ Site.title | default('pyWork') }}{% endblock %}
+
+{% block head %}
+<link rel="stylesheet" href="/static/css/topic.css?v=20260503">
+{% endblock %}
+
+{% block content %}
+<div class="topic-page">
+    <header class="page-header">
+        <h1>💬 主题讨论</h1>
+        <p class="subtitle">结构化讨论、投票与 AI 总结</p>
+        {% if current_user %}
+        <a href="/topic/new" class="btn btn-primary">+ 发起讨论</a>
+        {% endif %}
+    </header>
+
+    <!-- 状态筛选 -->
+    <div class="filter-tabs">
+        <a href="/topic?status=all" class="filter-tab {% if status_filter == 'all' %}active{% endif %}">全部</a>
+        <a href="/topic?status=open" class="filter-tab {% if status_filter == 'open' %}active{% endif %}">进行中</a>
+        <a href="/topic?status=closed" class="filter-tab {% if status_filter == 'closed' %}active{% endif %}">已结束</a>
+        <a href="/topic?status=summarized" class="filter-tab {% if status_filter == 'summarized' %}active{% endif %}">已总结</a>
+    </div>
+
+    <!-- 话题列表 -->
+    {% if topics %}
+    <div class="topic-list">
+        {% for topic in topics %}
+        <div class="topic-card" onclick="window.location.href='/topic/{{ topic.id }}'">
+            <div class="topic-card-header">
+                <h3 class="topic-title">{{ topic.title }}</h3>
+                {% if topic.status == 'open' %}
+                <span class="status-tag status-open">进行中</span>
+                {% elif topic.status == 'closed' %}
+                <span class="status-tag status-closed">已结束</span>
+                {% elif topic.status == 'summarized' %}
+                <span class="status-tag status-summarized">已总结</span>
+                {% endif %}
+            </div>
+            {% if topic.description %}
+            <p class="topic-desc">{{ topic.description[:150] }}{% if topic.description|length > 150 %}...{% endif %}</p>
+            {% endif %}
+            <div class="topic-meta">
+                <span class="meta-author">
+                    {% if topic.author_avatar %}
+                    <img src="{{ topic.author_avatar }}" class="avatar-xs" alt="">
+                    {% else %}
+                    <span class="avatar-xs-text">{{ (topic.author_name or '匿')[0] }}</span>
+                    {% endif %}
+                    {{ topic.author_name or '匿名' }}
+                </span>
+                <span class="meta-item">💬 {{ topic.reply_count or 0 }}</span>
+                <span class="meta-item">👍 {{ topic.upvote_count or 0 }}</span>
+                <span class="meta-item">👎 {{ topic.downvote_count or 0 }}</span>
+                {% if topic.status == 'open' and topic.remaining_hours %}
+                <span class="meta-item meta-deadline">⏰ 剩余 {{ topic.remaining_hours }}h</span>
+                {% elif topic.status == 'open' and topic.is_expired %}
+                <span class="meta-item meta-deadline">⏰ 已过期</span>
+                {% endif %}
+                <span class="meta-item meta-time">{{ topic.created_at | int | datefmt }}</span>
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+    {% else %}
+    <div class="empty-state">
+        <p>暂无讨论话题</p>
+        {% if current_user %}
+        <a href="/topic/new" class="btn btn-primary">发起第一个讨论</a>
+        {% endif %}
+    </div>
+    {% endif %}
+
+    {% if pagination and pagination.total > 1 %}
+    <div class="pagination">
+        {% if pagination.has_prev %}
+        <a href="/topic?status={{ status_filter }}&page={{ pagination.current - 1 }}" class="btn btn-sm btn-secondary">上一页</a>
+        {% endif %}
+        <span class="page-info">{{ pagination.current }} / {{ pagination.total }}</span>
+        {% if pagination.has_next %}
+        <a href="/topic?status={{ status_filter }}&page={{ pagination.current + 1 }}" class="btn btn-sm btn-secondary">下一页</a>
+        {% endif %}
+    </div>
+    {% endif %}
+</div>
+{% endblock %}

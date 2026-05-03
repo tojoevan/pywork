@@ -1,0 +1,605 @@
+/* ========================================
+   主题讨论 & LLM 配置 - 页面样式
+   ======================================== */
+
+/* 页面头部 */
+.topic-page .page-header {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+    flex-wrap: wrap;
+    margin-bottom: 1.5rem;
+}
+
+.topic-page .page-header h1 {
+    margin: 0;
+    font-size: 24px;
+    font-weight: 600;
+    color: #1f2937;
+}
+
+.topic-page .page-header .subtitle {
+    color: #6b7280;
+    font-size: 14px;
+    margin: 0;
+    flex-basis: 100%;
+}
+
+/* 通用卡片 */
+.card {
+    background: #fff;
+    border-radius: 8px;
+    padding: 1.5rem;
+    margin-bottom: 1.5rem;
+    border: 1px solid #e5e7eb;
+}
+
+.card-title {
+    font-size: 18px;
+    font-weight: 500;
+    color: #1f2937;
+    margin: 0 0 1rem;
+    padding-bottom: 0.75rem;
+    border-bottom: 1px solid #f3f4f6;
+}
+
+/* 状态标签 */
+.status-tag {
+    display: inline-block;
+    padding: 2px 10px;
+    border-radius: 12px;
+    font-size: 12px;
+    font-weight: 500;
+    white-space: nowrap;
+}
+
+.status-open {
+    background: #d1fae5;
+    color: #065f46;
+}
+
+.status-closed {
+    background: #f3f4f6;
+    color: #6b7280;
+}
+
+.status-summarized {
+    background: #dbeafe;
+    color: #1e40af;
+}
+
+/* 筛选标签 */
+.filter-tabs {
+    display: flex;
+    gap: 0.5rem;
+    margin-bottom: 1.5rem;
+    flex-wrap: wrap;
+}
+
+.filter-tab {
+    padding: 6px 16px;
+    border-radius: 20px;
+    font-size: 14px;
+    color: #6b7280;
+    background: #f3f4f6;
+    text-decoration: none;
+    transition: all 0.2s;
+}
+
+.filter-tab:hover {
+    background: #e5e7eb;
+    color: #374151;
+}
+
+.filter-tab.active {
+    background: #3b82f6;
+    color: #fff;
+}
+
+/* 话题列表卡片 */
+.topic-list {
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
+}
+
+.topic-card {
+    background: #fff;
+    border: 1px solid #e5e7eb;
+    border-radius: 8px;
+    padding: 1rem 1.25rem;
+    cursor: pointer;
+    transition: all 0.2s;
+}
+
+.topic-card:hover {
+    border-color: #3b82f6;
+    box-shadow: 0 2px 8px rgba(59, 130, 246, 0.1);
+}
+
+.topic-card-header {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    margin-bottom: 0.5rem;
+}
+
+.topic-title {
+    font-size: 16px;
+    font-weight: 500;
+    color: #1f2937;
+    margin: 0;
+    flex: 1;
+}
+
+.topic-desc {
+    color: #6b7280;
+    font-size: 14px;
+    margin: 0.25rem 0 0.5rem;
+    line-height: 1.5;
+}
+
+.topic-meta {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+    font-size: 13px;
+    color: #9ca3af;
+    flex-wrap: wrap;
+}
+
+.meta-author {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    color: #6b7280;
+    font-weight: 500;
+}
+
+.meta-deadline {
+    color: #f59e0b;
+    font-weight: 500;
+}
+
+.meta-time {
+    margin-left: auto;
+}
+
+.avatar-xs {
+    width: 20px;
+    height: 20px;
+    border-radius: 50%;
+    object-fit: cover;
+}
+
+.avatar-xs-text {
+    display: inline-flex;
+    width: 20px;
+    height: 20px;
+    border-radius: 50%;
+    background: #3b82f6;
+    color: #fff;
+    font-size: 11px;
+    align-items: center;
+    justify-content: center;
+    font-weight: 500;
+}
+
+/* 话题详情 */
+.topic-detail-card {
+    margin-bottom: 1.5rem;
+}
+
+.topic-detail-header {
+    display: flex;
+    align-items: flex-start;
+    gap: 0.75rem;
+    margin-bottom: 0.75rem;
+}
+
+.topic-detail-title {
+    font-size: 22px;
+    font-weight: 600;
+    color: #1f2937;
+    margin: 0;
+    flex: 1;
+}
+
+.topic-detail-meta {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+    font-size: 13px;
+    color: #9ca3af;
+    margin-bottom: 1rem;
+    flex-wrap: wrap;
+}
+
+.topic-detail-desc {
+    background: #f9fafb;
+    border-radius: 6px;
+    padding: 0.75rem 1rem;
+    color: #374151;
+    font-size: 14px;
+    line-height: 1.6;
+    margin-bottom: 1rem;
+    white-space: pre-wrap;
+}
+
+/* 投票区域 */
+.topic-vote-section {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.75rem 0;
+    border-top: 1px solid #f3f4f6;
+    border-bottom: 1px solid #f3f4f6;
+}
+
+.vote-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    padding: 4px 12px;
+    border: 1px solid #e5e7eb;
+    border-radius: 6px;
+    background: #fff;
+    color: #6b7280;
+    font-size: 14px;
+    cursor: pointer;
+    transition: all 0.2s;
+}
+
+.vote-btn:hover {
+    border-color: #3b82f6;
+    color: #3b82f6;
+}
+
+.vote-btn.voted {
+    background: #eff6ff;
+    border-color: #3b82f6;
+    color: #3b82f6;
+    font-weight: 500;
+}
+
+.vote-btn-sm {
+    padding: 2px 8px;
+    font-size: 13px;
+}
+
+.vote-sep {
+    color: #e5e7eb;
+    margin: 0 0.25rem;
+}
+
+/* 总结卡片 */
+.summary-card {
+    background: linear-gradient(135deg, #eff6ff, #f0fdf4);
+    border: 1px solid #bfdbfe;
+    border-radius: 8px;
+    padding: 1.25rem;
+    margin-top: 1rem;
+}
+
+.summary-card h3 {
+    margin: 0 0 0.75rem;
+    font-size: 16px;
+    color: #1e40af;
+}
+
+.summary-content {
+    color: #374151;
+    font-size: 14px;
+    line-height: 1.7;
+    white-space: pre-wrap;
+    margin-bottom: 0.75rem;
+}
+
+/* 管理操作 */
+.topic-actions {
+    display: flex;
+    gap: 0.5rem;
+    margin-top: 1rem;
+    padding-top: 1rem;
+    border-top: 1px solid #f3f4f6;
+}
+
+/* 回复列表 */
+.replies-list {
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
+    margin-top: 1rem;
+}
+
+.reply-item {
+    padding: 0.75rem 1rem;
+    background: #f9fafb;
+    border-radius: 6px;
+    border: 1px solid #f3f4f6;
+}
+
+.reply-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 0.5rem;
+}
+
+.reply-author {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    font-weight: 500;
+    font-size: 14px;
+    color: #374151;
+}
+
+.reply-time {
+    font-size: 12px;
+    color: #9ca3af;
+}
+
+.reply-content {
+    color: #1f2937;
+    font-size: 14px;
+    line-height: 1.6;
+    white-space: pre-wrap;
+    margin-bottom: 0.5rem;
+}
+
+.reply-votes {
+    display: flex;
+    gap: 0.25rem;
+}
+
+/* 回复表单 */
+.reply-form {
+    margin-bottom: 1rem;
+    padding-bottom: 1rem;
+    border-bottom: 1px solid #f3f4f6;
+}
+
+.login-hint, .closed-hint {
+    color: #6b7280;
+    font-size: 14px;
+    text-align: center;
+    padding: 0.75rem;
+    background: #f9fafb;
+    border-radius: 6px;
+}
+
+.login-hint a {
+    color: #3b82f6;
+    text-decoration: none;
+}
+
+/* 表单样式 */
+.topic-form .form-group {
+    margin-bottom: 1rem;
+}
+
+.topic-form label {
+    display: block;
+    font-size: 14px;
+    font-weight: 500;
+    color: #374151;
+    margin-bottom: 4px;
+}
+
+.topic-form input[type="text"],
+.topic-form input[type="number"],
+.topic-form input[type="password"],
+.topic-form input[type="url"],
+.topic-form textarea,
+.topic-form select {
+    width: 100%;
+    padding: 8px 12px;
+    border: 1px solid #d1d5db;
+    border-radius: 6px;
+    font-size: 14px;
+    color: #1f2937;
+    background: #fff;
+    transition: border-color 0.2s;
+    box-sizing: border-box;
+}
+
+.topic-form input:focus,
+.topic-form textarea:focus,
+.topic-form select:focus {
+    outline: none;
+    border-color: #3b82f6;
+    box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
+}
+
+.topic-form textarea {
+    resize: vertical;
+    min-height: 80px;
+}
+
+.form-row {
+    display: flex;
+    gap: 1rem;
+}
+
+.form-row .form-group {
+    flex: 1;
+}
+
+.form-actions {
+    display: flex;
+    gap: 0.5rem;
+    margin-top: 1rem;
+}
+
+.checkbox-label {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-weight: 400 !important;
+    cursor: pointer;
+}
+
+.checkbox-label input[type="checkbox"] {
+    width: auto;
+}
+
+/* 按钮样式 */
+.btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 4px;
+    padding: 8px 16px;
+    border-radius: 6px;
+    font-size: 14px;
+    font-weight: 500;
+    cursor: pointer;
+    border: none;
+    text-decoration: none;
+    transition: all 0.2s;
+    line-height: 1.5;
+}
+
+.btn-primary {
+    background: #3b82f6;
+    color: #fff;
+}
+
+.btn-primary:hover {
+    background: #2563eb;
+}
+
+.btn-secondary {
+    background: #f3f4f6;
+    color: #374151;
+    border: 1px solid #d1d5db;
+}
+
+.btn-secondary:hover {
+    background: #e5e7eb;
+}
+
+.btn-danger {
+    background: #fef2f2;
+    color: #dc2626;
+    border: 1px solid #fecaca;
+}
+
+.btn-danger:hover {
+    background: #fee2e2;
+}
+
+.btn-sm {
+    padding: 4px 10px;
+    font-size: 13px;
+}
+
+/* 空状态 */
+.empty-state {
+    text-align: center;
+    padding: 3rem 1rem;
+    color: #9ca3af;
+}
+
+.empty-state p {
+    margin: 0 0 1rem;
+    font-size: 16px;
+}
+
+.empty-hint {
+    color: #9ca3af;
+    text-align: center;
+    padding: 2rem 1rem;
+    font-size: 14px;
+}
+
+/* 分页 */
+.pagination {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 1rem;
+    margin-top: 1.5rem;
+}
+
+.page-info {
+    font-size: 14px;
+    color: #6b7280;
+}
+
+/* LLM 配置列表 */
+.config-list {
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
+}
+
+.config-item {
+    padding: 1rem;
+    background: #f9fafb;
+    border: 1px solid #e5e7eb;
+    border-radius: 8px;
+}
+
+.config-header {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    margin-bottom: 0.5rem;
+}
+
+.config-name {
+    font-size: 16px;
+    font-weight: 500;
+    color: #1f2937;
+}
+
+.config-meta {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    font-size: 13px;
+    color: #6b7280;
+    margin-bottom: 0.5rem;
+}
+
+.config-prompt {
+    font-size: 13px;
+    color: #9ca3af;
+    font-style: italic;
+    margin-bottom: 0.5rem;
+}
+
+.config-actions {
+    display: flex;
+    gap: 0.5rem;
+    flex-wrap: wrap;
+}
+
+.test-result {
+    margin-top: 0.5rem;
+    padding: 0.5rem;
+    border-radius: 4px;
+    font-size: 13px;
+}
+
+/* 响应式 */
+@media (max-width: 640px) {
+    .form-row {
+        flex-direction: column;
+        gap: 0;
+    }
+
+    .topic-detail-header {
+        flex-direction: column;
+    }
+
+    .topic-meta, .topic-detail-meta {
+        gap: 0.5rem;
+    }
+
+    .config-actions {
+        gap: 0.25rem;
+    }
+}

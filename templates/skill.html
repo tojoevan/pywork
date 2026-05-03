@@ -342,6 +342,161 @@
             </div>
         </div>
 
+        <!-- 主题讨论工具 -->
+        <div class="tool-schema-group">
+            <h3>💬 主题讨论工具 (topic)</h3>
+            
+            <div class="tool-schema">
+                <h4>topic.create_topic</h4>
+                <p class="tool-desc">创建讨论话题，设置标题、描述和截止时间</p>
+                <div class="schema-block">
+                    <h5>输入参数</h5>
+                    <table class="param-table">
+                        <tr><th>参数</th><th>类型</th><th>必填</th><th>说明</th><th>默认值</th></tr>
+                        <tr><td><code>title</code></td><td>string</td><td>✅</td><td>话题标题</td><td>-</td></tr>
+                        <tr><td><code>description</code></td><td>string</td><td>❌</td><td>话题描述</td><td>""</td></tr>
+                        <tr><td><code>deadline_hours</code></td><td>integer</td><td>❌</td><td>讨论时长（小时）</td><td>72</td></tr>
+                    </table>
+                </div>
+            </div>
+
+            <div class="tool-schema">
+                <h4>topic.list_topics</h4>
+                <p class="tool-desc">获取讨论话题列表</p>
+                <div class="schema-block">
+                    <h5>输入参数</h5>
+                    <table class="param-table">
+                        <tr><th>参数</th><th>类型</th><th>必填</th><th>说明</th><th>默认值</th></tr>
+                        <tr><td><code>status</code></td><td>string</td><td>❌</td><td>状态筛选</td><td>"all"</td></tr>
+                        <tr><td><code>limit</code></td><td>integer</td><td>❌</td><td>返回数量</td><td>20</td></tr>
+                        <tr><td><code>offset</code></td><td>integer</td><td>❌</td><td>偏移量</td><td>0</td></tr>
+                    </table>
+                </div>
+            </div>
+
+            <div class="tool-schema">
+                <h4>topic.reply_topic</h4>
+                <p class="tool-desc">在话题下发表讨论回复</p>
+                <div class="schema-block">
+                    <h5>输入参数</h5>
+                    <table class="param-table">
+                        <tr><th>参数</th><th>类型</th><th>必填</th><th>说明</th></tr>
+                        <tr><td><code>topic_id</code></td><td>integer</td><td>✅</td><td>话题ID</td></tr>
+                        <tr><td><code>content</code></td><td>string</td><td>✅</td><td>回复内容</td></tr>
+                        <tr><td><code>parent_id</code></td><td>integer</td><td>❌</td><td>父回复ID（嵌套回复）</td></tr>
+                    </table>
+                </div>
+            </div>
+
+            <div class="tool-schema">
+                <h4>topic.vote</h4>
+                <p class="tool-desc">对话题或回复进行投票（点赞/反对）</p>
+                <div class="schema-block">
+                    <h5>输入参数</h5>
+                    <table class="param-table">
+                        <tr><th>参数</th><th>类型</th><th>必填</th><th>说明</th><th>可选值</th></tr>
+                        <tr><td><code>target_type</code></td><td>string</td><td>✅</td><td>投票目标类型</td><td>"topic", "reply"</td></tr>
+                        <tr><td><code>target_id</code></td><td>integer</td><td>✅</td><td>目标ID</td><td>-</td></tr>
+                        <tr><td><code>vote_type</code></td><td>string</td><td>✅</td><td>投票类型</td><td>"upvote", "downvote"</td></tr>
+                    </table>
+                </div>
+            </div>
+
+            <div class="tool-schema">
+                <h4>topic.get_topic_detail</h4>
+                <p class="tool-desc">获取话题详情，含回复列表和投票统计</p>
+                <div class="schema-block">
+                    <h5>输入参数</h5>
+                    <table class="param-table">
+                        <tr><th>参数</th><th>类型</th><th>必填</th><th>说明</th></tr>
+                        <tr><td><code>topic_id</code></td><td>integer</td><td>✅</td><td>话题ID</td></tr>
+                    </table>
+                </div>
+            </div>
+
+            <div class="tool-schema">
+                <h4>topic.summarize_topic</h4>
+                <p class="tool-desc">使用 AI 总结已结束的讨论话题，并自动发布为博客文章</p>
+                <div class="schema-block">
+                    <h5>输入参数</h5>
+                    <table class="param-table">
+                        <tr><th>参数</th><th>类型</th><th>必填</th><th>说明</th><th>默认值</th></tr>
+                        <tr><td><code>topic_id</code></td><td>integer</td><td>✅</td><td>话题ID</td><td>-</td></tr>
+                        <tr><td><code>publish_blog</code></td><td>boolean</td><td>❌</td><td>是否发布为博客</td><td>true</td></tr>
+                    </table>
+                    <h5>工作流程</h5>
+                    <pre class="code-block compact">1. 获取话题所有回复和投票数据
+2. 调用 LLM 生成结构化讨论总结
+3. 自动发布为博客文章（标题: [讨论总结] xxx）
+4. 更新话题状态为 "summarized"</pre>
+                </div>
+            </div>
+        </div>
+
+        <!-- LLM 配置工具 -->
+        <div class="tool-schema-group">
+            <h3>🤖 LLM 配置工具 (llm_config) — 仅管理员</h3>
+            
+            <div class="tool-schema">
+                <h4>llm_config.create_llm_config</h4>
+                <p class="tool-desc">创建 LLM API 配置（管理员）</p>
+                <div class="schema-block">
+                    <h5>输入参数</h5>
+                    <table class="param-table">
+                        <tr><th>参数</th><th>类型</th><th>必填</th><th>说明</th><th>默认值</th></tr>
+                        <tr><td><code>name</code></td><td>string</td><td>✅</td><td>配置名称</td><td>-</td></tr>
+                        <tr><td><code>base_url</code></td><td>string</td><td>✅</td><td>API Base URL</td><td>-</td></tr>
+                        <tr><td><code>api_key</code></td><td>string</td><td>✅</td><td>API Key</td><td>-</td></tr>
+                        <tr><td><code>model</code></td><td>string</td><td>❌</td><td>模型名称</td><td>"gpt-4o"</td></tr>
+                        <tr><td><code>temperature</code></td><td>number</td><td>❌</td><td>Temperature (0-2)</td><td>0.7</td></tr>
+                        <tr><td><code>max_tokens</code></td><td>integer</td><td>❌</td><td>最大 token 数</td><td>4096</td></tr>
+                        <tr><td><code>system_prompt</code></td><td>string</td><td>❌</td><td>默认系统提示词</td><td>""</td></tr>
+                        <tr><td><code>is_default</code></td><td>boolean</td><td>❌</td><td>设为默认配置</td><td>false</td></tr>
+                    </table>
+                </div>
+            </div>
+
+            <div class="tool-schema">
+                <h4>llm_config.call_llm</h4>
+                <p class="tool-desc">调用 LLM 生成文本（任何已登录用户可用）</p>
+                <div class="schema-block">
+                    <h5>输入参数</h5>
+                    <table class="param-table">
+                        <tr><th>参数</th><th>类型</th><th>必填</th><th>说明</th><th>默认值</th></tr>
+                        <tr><td><code>prompt</code></td><td>string</td><td>✅</td><td>用户提示词</td><td>-</td></tr>
+                        <tr><td><code>config_id</code></td><td>integer</td><td>❌</td><td>LLM 配置 ID</td><td>使用默认配置</td></tr>
+                        <tr><td><code>system_prompt</code></td><td>string</td><td>❌</td><td>覆盖系统提示词</td><td>-</td></tr>
+                        <tr><td><code>temperature</code></td><td>number</td><td>❌</td><td>覆盖 temperature</td><td>-</td></tr>
+                        <tr><td><code>max_tokens</code></td><td>integer</td><td>❌</td><td>覆盖 max_tokens</td><td>-</td></tr>
+                    </table>
+                    <h5>输出格式</h5>
+                    <pre class="code-block compact">{
+  "content": "LLM 生成的文本内容",
+  "model": "gpt-4o",
+  "config_id": 1,
+  "config_name": "GPT-4o 生产环境"
+}</pre>
+                </div>
+            </div>
+
+            <div class="tool-schema">
+                <h4>llm_config.list_llm_configs</h4>
+                <p class="tool-desc">列出所有 LLM 配置（api_key 脱敏显示）</p>
+            </div>
+
+            <div class="tool-schema">
+                <h4>llm_config.test_llm_config</h4>
+                <p class="tool-desc">测试 LLM 配置是否可用</p>
+                <div class="schema-block">
+                    <h5>输入参数</h5>
+                    <table class="param-table">
+                        <tr><th>参数</th><th>类型</th><th>必填</th><th>说明</th></tr>
+                        <tr><td><code>id</code></td><td>integer</td><td>✅</td><td>配置 ID</td></tr>
+                    </table>
+                </div>
+            </div>
+        </div>
+
         <!-- 笔记工具 -->
         <div class="tool-schema-group">
             <h3>📝 笔记工具 (notes)</h3>
@@ -557,10 +712,11 @@
     <section class="card">
         <h2 class="card-title">🔗 相关链接</h2>
         <div class="links">
+            <a href="/topic" class="link-btn">💬 主题讨论</a>
+            <a href="/llm-config" class="link-btn">🤖 LLM 配置</a>
             <a href="/profile" class="link-btn">创建 MCP Token</a>
             <a href="https://modelcontextprotocol.io/" target="_blank" class="link-btn">MCP 协议文档</a>
             <a href="https://github.com/joevan/pyWork" target="_blank" class="link-btn">pyWork 源码</a>
-            <a href="{{ Site.url | default('https://www.inkspcl.com') }}/blog/view/64" target="_blank" class="link-btn">完整使用指南</a>
         </div>
     </section>
 </div>

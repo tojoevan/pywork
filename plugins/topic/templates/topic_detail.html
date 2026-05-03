@@ -1,0 +1,300 @@
+{% extends "base.html" %}
+
+{% block title %}{% if mode == 'new' %}发起讨论{% else %}{{ topic.title }}{% endif %} - {{ Site.title | default('pyWork') }}{% endblock %}
+
+{% block head %}
+<link rel="stylesheet" href="/static/css/topic.css?v=20260503">
+{% endblock %}
+
+{% block content %}
+<div class="topic-page">
+    {% if mode == 'new' %}
+    <!-- 新建话题 -->
+    <header class="page-header">
+        <h1>发起讨论</h1>
+        <a href="/topic" class="btn btn-secondary">← 返回列表</a>
+    </header>
+    <div class="card">
+        <form id="new-topic-form" class="topic-form">
+            <div class="form-group">
+                <label for="title">话题标题 *</label>
+                <input type="text" id="title" name="title" placeholder="输入讨论话题标题" required maxlength="200">
+            </div>
+            <div class="form-group">
+                <label for="description">话题描述</label>
+                <textarea id="description" name="description" rows="4" placeholder="描述讨论的背景、目标和规则..."></textarea>
+            </div>
+            <div class="form-group">
+                <label for="deadline_hours">讨论时长（小时）</label>
+                <select id="deadline_hours" name="deadline_hours">
+                    <option value="24">24小时</option>
+                    <option value="48">48小时</option>
+                    <option value="72" selected>72小时（3天）</option>
+                    <option value="168">168小时（7天）</option>
+                    <option value="336">336小时（14天）</option>
+                </select>
+            </div>
+            <div class="form-actions">
+                <button type="submit" class="btn btn-primary">发起讨论</button>
+                <a href="/topic" class="btn btn-secondary">取消</a>
+            </div>
+        </form>
+    </div>
+
+    {% else %}
+    <!-- 话题详情 -->
+    <header class="page-header">
+        <a href="/topic" class="btn btn-secondary">← 返回列表</a>
+    </header>
+
+    <div class="card topic-detail-card">
+        <div class="topic-detail-header">
+            <h1 class="topic-detail-title">{{ topic.title }}</h1>
+            <div class="topic-detail-status">
+                {% if topic.status == 'open' %}
+                <span class="status-tag status-open">进行中</span>
+                {% elif topic.status == 'closed' %}
+                <span class="status-tag status-closed">已结束</span>
+                {% elif topic.status == 'summarized' %}
+                <span class="status-tag status-summarized">已总结</span>
+                {% endif %}
+            </div>
+        </div>
+
+        <div class="topic-detail-meta">
+            <span class="meta-author">
+                {% if topic.author_avatar %}
+                <img src="{{ topic.author_avatar }}" class="avatar-xs" alt="">
+                {% else %}
+                <span class="avatar-xs-text">{{ (topic.author_name or '匿')[0] }}</span>
+                {% endif %}
+                {{ topic.author_name or '匿名' }}
+            </span>
+            <span class="meta-item">发起于 {{ topic.created_at | int | datefmt }}</span>
+            {% if topic.status == 'open' and topic.remaining_hours %}
+            <span class="meta-item meta-deadline">⏰ 剩余 {{ topic.remaining_hours }}h</span>
+            {% endif %}
+            {% if topic.status == 'open' and topic.deadline %}
+            <span class="meta-item">截止: {{ topic.deadline | int | datefmt }}</span>
+            {% endif %}
+        </div>
+
+        {% if topic.description %}
+        <div class="topic-detail-desc">{{ topic.description }}</div>
+        {% endif %}
+
+        <!-- 话题投票 -->
+        <div class="topic-vote-section">
+            {% set user_vote_topic = user_votes.get('topic_' ~ topic.id, '') %}
+            <button class="vote-btn {% if user_vote_topic == 'upvote' %}voted{% endif %}"
+                    onclick="vote('topic', {{ topic.id }}, 'upvote')">
+                👍 <span id="topic-upvote-{{ topic.id }}">{{ topic.upvote_count or 0 }}</span>
+            </button>
+            <button class="vote-btn {% if user_vote_topic == 'downvote' %}voted{% endif %}"
+                    onclick="vote('topic', {{ topic.id }}, 'downvote')">
+                👎 <span id="topic-downvote-{{ topic.id }}">{{ topic.downvote_count or 0 }}</span>
+            </button>
+            <span class="vote-sep">|</span>
+            <span>💬 {{ topic.reply_count or 0 }} 条回复</span>
+        </div>
+
+        <!-- AI 总结 -->
+        {% if topic.status == 'summarized' and topic.summary %}
+        <div class="summary-card">
+            <h3>🤖 AI 讨论总结</h3>
+            <div class="summary-content">{{ topic.summary }}</div>
+            {% if topic.summary_post_id %}
+            <a href="/blog/view/{{ topic.summary_post_id }}" class="btn btn-sm btn-primary">查看总结博客</a>
+            {% endif %}
+        </div>
+        {% endif %}
+
+        <!-- 管理操作 -->
+        {% if current_user and (topic.author_id == current_user.id or current_user.role == 'admin') %}
+        <div class="topic-actions">
+            {% if topic.status == 'open' %}
+            <button class="btn btn-secondary" onclick="closeTopic({{ topic.id }})">结束讨论</button>
+            {% endif %}
+            {% if topic.status in ('open', 'closed') %}
+            <button class="btn btn-primary" onclick="summarizeTopic({{ topic.id }})">🤖 AI 总结并发布</button>
+            {% endif %}
+        </div>
+        {% endif %}
+    </div>
+
+    <!-- 讨论回复 -->
+    <div class="card">
+        <h2 class="card-title">讨论回复</h2>
+
+        {% if topic.status == 'open' and current_user %}
+        <form id="reply-form" class="topic-form reply-form">
+            <input type="hidden" id="topic-id" value="{{ topic.id }}">
+            <div class="form-group">
+                <textarea id="reply-content" name="content" rows="3" placeholder="发表你的看法..." required></textarea>
+            </div>
+            <div class="form-actions">
+                <button type="submit" class="btn btn-primary">发表回复</button>
+            </div>
+        </form>
+        {% elif not current_user %}
+        <p class="login-hint"><a href="/login">登录</a>后可参与讨论</p>
+        {% elif topic.status != 'open' %}
+        <p class="closed-hint">话题已结束，无法继续回复</p>
+        {% endif %}
+
+        {% if replies %}
+        <div class="replies-list">
+            {% for reply in replies %}
+            <div class="reply-item">
+                <div class="reply-header">
+                    <span class="reply-author">
+                        {% if reply.author_avatar %}
+                        <img src="{{ reply.author_avatar }}" class="avatar-xs" alt="">
+                        {% else %}
+                        <span class="avatar-xs-text">{{ (reply.author_name or '匿')[0] }}</span>
+                        {% endif %}
+                        {{ reply.author_name or '匿名' }}
+                    </span>
+                    <span class="reply-time">{{ reply.created_at | int | datefmt }}</span>
+                </div>
+                <div class="reply-content">{{ reply.content }}</div>
+                <div class="reply-votes">
+                    {% set user_vote_reply = user_votes.get('reply_' ~ reply.id, '') %}
+                    <button class="vote-btn vote-btn-sm {% if user_vote_reply == 'upvote' %}voted{% endif %}"
+                            onclick="vote('reply', {{ reply.id }}, 'upvote')">
+                        👍 <span id="reply-upvote-{{ reply.id }}">{{ reply.upvote_count or 0 }}</span>
+                    </button>
+                    <button class="vote-btn vote-btn-sm {% if user_vote_reply == 'downvote' %}voted{% endif %}"
+                            onclick="vote('reply', {{ reply.id }}, 'downvote')">
+                        👎 <span id="reply-downvote-{{ reply.id }}">{{ reply.downvote_count or 0 }}</span>
+                    </button>
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+        {% else %}
+        <p class="empty-hint">暂无回复，来发表第一条讨论吧！</p>
+        {% endif %}
+    </div>
+    {% endif %}
+</div>
+
+<script>
+// Datetime format filter (simple)
+function formatTimestamp(ts) {
+    if (!ts) return '';
+    const d = new Date(ts * 1000);
+    return d.getFullYear() + '-' +
+        String(d.getMonth() + 1).padStart(2, '0') + '-' +
+        String(d.getDate()).padStart(2, '0') + ' ' +
+        String(d.getHours()).padStart(2, '0') + ':' +
+        String(d.getMinutes()).padStart(2, '0');
+}
+
+// New topic form
+const newForm = document.getElementById('new-topic-form');
+if (newForm) {
+    newForm.addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const data = {
+            title: document.getElementById('title').value,
+            description: document.getElementById('description').value,
+            deadline_hours: parseInt(document.getElementById('deadline_hours').value),
+        };
+        const resp = await fetch('/api/topic', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify(data)
+        });
+        const result = await resp.json();
+        if (result.error) {
+            alert('错误: ' + result.error);
+        } else if (result.id) {
+            window.location.href = '/topic/' + result.id;
+        }
+    });
+}
+
+// Reply form
+const replyForm = document.getElementById('reply-form');
+if (replyForm) {
+    replyForm.addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const topicId = document.getElementById('topic-id').value;
+        const content = document.getElementById('reply-content').value.trim();
+        if (!content) return;
+
+        const resp = await fetch(`/api/topic/${topicId}/reply`, {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({content: content})
+        });
+        const result = await resp.json();
+        if (result.error) {
+            alert('错误: ' + result.error);
+        } else {
+            window.location.reload();
+        }
+    });
+}
+
+// Vote
+async function vote(targetType, targetId, voteType) {
+    const resp = await fetch(`/api/topic/${targetId}/vote`, {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({
+            target_type: targetType,
+            target_id: targetId,
+            vote_type: voteType
+        })
+    });
+    const result = await resp.json();
+    if (result.error) {
+        alert('错误: ' + result.error);
+    } else {
+        window.location.reload();
+    }
+}
+
+// Close topic
+async function closeTopic(topicId) {
+    if (!confirm('确定要结束此讨论吗？结束后将无法继续回复。')) return;
+    const resp = await fetch(`/api/topic/${topicId}/close`, {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'}
+    });
+    const result = await resp.json();
+    if (result.error) {
+        alert('错误: ' + result.error);
+    } else {
+        window.location.reload();
+    }
+}
+
+// Summarize topic
+async function summarizeTopic(topicId) {
+    if (!confirm('确定要使用 AI 总结此讨论并发布为博客文章吗？这可能需要几秒钟。')) return;
+    const btn = event.target;
+    btn.disabled = true;
+    btn.textContent = '⏳ 正在生成总结...';
+    try {
+        const resp = await fetch(`/api/topic/${topicId}/summarize`, {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'}
+        });
+        const result = await resp.json();
+        if (result.error) {
+            alert('总结失败: ' + result.error);
+        } else {
+            window.location.reload();
+        }
+    } catch (e) {
+        alert('请求异常: ' + e.message);
+    } finally {
+        btn.disabled = false;
+        btn.textContent = '🤖 AI 总结并发布';
+    }
+}
+</script>
+{% endblock %}

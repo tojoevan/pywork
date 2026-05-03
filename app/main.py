@@ -35,7 +35,7 @@ class WorkbenchApp:
     ):
         self.db_path = db_path
         self.plugin_dir = plugin_dir
-        self.enabled_plugins = enabled_plugins or ["blog", "auth", "microblog", "about", "notes", "board", "comments"]
+        self.enabled_plugins = enabled_plugins or ["blog", "auth", "microblog", "about", "notes", "board", "comments", "llm_config", "topic"]
         self.template_dir = template_dir
         self.static_dir = static_dir
 
@@ -777,7 +777,7 @@ def cli():
     parser = argparse.ArgumentParser(description="pyWork - Digital Workbench")
     parser.add_argument("--db", default="./data/pywork.db", help="Database path")
     parser.add_argument("--plugins", default="./plugins", help="Plugin directory")
-    parser.add_argument("--enabled", default="blog,auth,microblog,about,notes,board,comments", help="Enabled plugins (comma-separated)")
+    parser.add_argument("--enabled", default="blog,auth,microblog,about,notes,board,comments,llm_config,topic", help="Enabled plugins (comma-separated)")
     parser.add_argument("--templates", default="./templates", help="Template directory")
     parser.add_argument("--static", default="./static", help="Static files directory")
     parser.add_argument("--http", action="store_true", help="Run HTTP server")

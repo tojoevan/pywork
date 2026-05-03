@@ -1,0 +1,201 @@
+{% extends "base.html" %}
+
+{% block title %}LLM 配置 - {{ Site.title | default('pyWork') }}{% endblock %}
+
+{% block head %}
+<link rel="stylesheet" href="/static/css/topic.css?v=20260503">
+{% endblock %}
+
+{% block content %}
+<div class="topic-page">
+    <header class="page-header">
+        <h1>🤖 LLM API 配置</h1>
+        <p class="subtitle">管理 AI 模型 API 连接参数，供主题讨论总结等功能调用</p>
+    </header>
+
+    <!-- 新建配置表单 -->
+    <div class="card" id="config-form-card">
+        <h2 class="card-title" id="form-title">新建配置</h2>
+        <form id="config-form" class="topic-form">
+            <input type="hidden" id="config-id" value="">
+            <div class="form-row">
+                <div class="form-group">
+                    <label for="name">配置名称 *</label>
+                    <input type="text" id="name" name="name" placeholder="如：GPT-4o 生产环境" required>
+                </div>
+                <div class="form-group">
+                    <label for="model">模型名称</label>
+                    <input type="text" id="model" name="model" value="gpt-4o" placeholder="gpt-4o">
+                </div>
+            </div>
+            <div class="form-group">
+                <label for="base_url">API Base URL *</label>
+                <input type="text" id="base_url" name="base_url" placeholder="https://api.openai.com/v1" required>
+            </div>
+            <div class="form-group">
+                <label for="api_key">API Key *</label>
+                <input type="password" id="api_key" name="api_key" placeholder="sk-..." required>
+            </div>
+            <div class="form-row">
+                <div class="form-group">
+                    <label for="temperature">Temperature</label>
+                    <input type="number" id="temperature" name="temperature" value="0.7" min="0" max="2" step="0.1">
+                </div>
+                <div class="form-group">
+                    <label for="max_tokens">Max Tokens</label>
+                    <input type="number" id="max_tokens" name="max_tokens" value="4096" min="1" max="128000">
+                </div>
+            </div>
+            <div class="form-group">
+                <label for="system_prompt">System Prompt（可选）</label>
+                <textarea id="system_prompt" name="system_prompt" rows="3" placeholder="默认系统提示词，留空则不设置"></textarea>
+            </div>
+            <div class="form-group">
+                <label class="checkbox-label">
+                    <input type="checkbox" id="is_default" name="is_default">
+                    设为默认配置
+                </label>
+            </div>
+            <div class="form-actions">
+                <button type="submit" class="btn btn-primary">保存配置</button>
+                <button type="button" class="btn btn-secondary" onclick="resetForm()">重置</button>
+            </div>
+        </form>
+    </div>
+
+    <!-- 配置列表 -->
+    <div class="card">
+        <h2 class="card-title">已配置的 LLM 接口</h2>
+        {% if configs %}
+        <div class="config-list">
+            {% for cfg in configs %}
+            <div class="config-item" data-id="{{ cfg.id }}">
+                <div class="config-header">
+                    <span class="config-name">{{ cfg.name }}</span>
+                    {% if cfg.is_default %}
+                    <span class="status-tag status-summarized">默认</span>
+                    {% endif %}
+                </div>
+                <div class="config-meta">
+                    <span>模型: <strong>{{ cfg.model }}</strong></span>
+                    <span>Base URL: {{ cfg.base_url }}</span>
+                    <span>Key: {{ cfg.api_key_masked }}</span>
+                    <span>Temperature: {{ cfg.temperature }} | Max Tokens: {{ cfg.max_tokens }}</span>
+                </div>
+                {% if cfg.system_prompt %}
+                <div class="config-prompt">System: {{ cfg.system_prompt[:100] }}{% if cfg.system_prompt|length > 100 %}...{% endif %}</div>
+                {% endif %}
+                <div class="config-actions">
+                    {% if not cfg.is_default %}
+                    <button class="btn btn-sm btn-secondary" onclick="setDefault({{ cfg.id }})">设为默认</button>
+                    {% endif %}
+                    <button class="btn btn-sm btn-primary" onclick="testConfig({{ cfg.id }})">测试连接</button>
+                    <button class="btn btn-sm btn-secondary" onclick="editConfig({{ cfg.id }}, '{{ cfg.name }}', '{{ cfg.base_url }}', '{{ cfg.model }}', {{ cfg.temperature }}, {{ cfg.max_tokens }}, '{{ cfg.system_prompt | e }}', {{ cfg.is_default }})">编辑</button>
+                    <button class="btn btn-sm btn-danger" onclick="deleteConfig({{ cfg.id }}, '{{ cfg.name }}')">删除</button>
+                </div>
+                <div class="test-result" id="test-result-{{ cfg.id }}" style="display:none;"></div>
+            </div>
+            {% endfor %}
+        </div>
+        {% else %}
+        <p class="empty-hint">暂无 LLM 配置，请先添加一个配置。</p>
+        {% endif %}
+    </div>
+</div>
+
+<script>
+async function submitConfig(e) {
+    e.preventDefault();
+    const id = document.getElementById('config-id').value;
+    const data = {
+        name: document.getElementById('name').value,
+        base_url: document.getElementById('base_url').value,
+        api_key: document.getElementById('api_key').value,
+        model: document.getElementById('model').value,
+        temperature: parseFloat(document.getElementById('temperature').value),
+        max_tokens: parseInt(document.getElementById('max_tokens').value),
+        system_prompt: document.getElementById('system_prompt').value,
+        is_default: document.getElementById('is_default').checked,
+    };
+
+    const url = id ? `/api/llm-configs/${id}` : '/api/llm-configs';
+    const method = id ? 'PUT' : 'POST';
+
+    const resp = await fetch(url, {
+        method: method,
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify(data)
+    });
+    const result = await resp.json();
+    if (result.error) {
+        alert('错误: ' + result.error);
+    } else {
+        window.location.reload();
+    }
+}
+
+function editConfig(id, name, baseUrl, model, temperature, maxTokens, systemPrompt, isDefault) {
+    document.getElementById('config-id').value = id;
+    document.getElementById('name').value = name;
+    document.getElementById('base_url').value = baseUrl;
+    document.getElementById('api_key').value = '';
+    document.getElementById('api_key').placeholder = '留空则不修改';
+    document.getElementById('api_key').removeAttribute('required');
+    document.getElementById('model').value = model;
+    document.getElementById('temperature').value = temperature;
+    document.getElementById('max_tokens').value = maxTokens;
+    document.getElementById('system_prompt').value = systemPrompt;
+    document.getElementById('is_default').checked = !!isDefault;
+    document.getElementById('form-title').textContent = '编辑配置';
+    document.getElementById('config-form-card').scrollIntoView({behavior: 'smooth'});
+}
+
+function resetForm() {
+    document.getElementById('config-form').reset();
+    document.getElementById('config-id').value = '';
+    document.getElementById('api_key').placeholder = 'sk-...';
+    document.getElementById('api_key').setAttribute('required', '');
+    document.getElementById('form-title').textContent = '新建配置';
+}
+
+async function testConfig(id) {
+    const el = document.getElementById('test-result-' + id);
+    el.style.display = 'block';
+    el.innerHTML = '<span style="color:#6b7280;">测试中...</span>';
+    try {
+        const resp = await fetch(`/api/llm-configs/${id}/test`, {method: 'POST'});
+        const result = await resp.json();
+        if (result.success) {
+            el.innerHTML = '<span style="color:#10b981;">✓ 连接成功</span> — ' + (result.response || '').substring(0, 100);
+        } else {
+            el.innerHTML = '<span style="color:#ef4444;">✗ 连接失败</span> — ' + (result.error || '未知错误');
+        }
+    } catch (e) {
+        el.innerHTML = '<span style="color:#ef4444;">✗ 请求异常</span> — ' + e.message;
+    }
+}
+
+async function setDefault(id) {
+    const resp = await fetch(`/api/llm-configs/${id}/default`, {method: 'POST'});
+    const result = await resp.json();
+    if (result.error) {
+        alert('错误: ' + result.error);
+    } else {
+        window.location.reload();
+    }
+}
+
+async function deleteConfig(id, name) {
+    if (!confirm(`确定要删除配置「${name}」吗？`)) return;
+    const resp = await fetch(`/api/llm-configs/${id}`, {method: 'DELETE'});
+    const result = await resp.json();
+    if (result.error) {
+        alert('错误: ' + result.error);
+    } else {
+        window.location.reload();
+    }
+}
+
+document.getElementById('config-form').addEventListener('submit', submitConfig);
+</script>
+{% endblock %}

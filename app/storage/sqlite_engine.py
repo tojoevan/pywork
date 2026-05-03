@@ -19,6 +19,7 @@ class SQLiteEngine(Engine):
         'site_config', 'site_template_bindings', 'sessions', 'cron_jobs',
         'cron_logs', 'cron_stats', 'board_tasks', 'active_authors', 'mcp_tokens',
         'comments', 'notifications',
+        'topic_discussions', 'topic_replies', 'topic_votes', 'llm_configs',
         '_meta', '_raft_log', 'app_logs',
     })
     
