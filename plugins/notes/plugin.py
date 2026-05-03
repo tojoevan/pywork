@@ -206,7 +206,7 @@ class NotesPlugin(Plugin):
         
         return {"id": note_id, "updated": True}
     
-    async def delete_note(self, note_id: int, author_id: int = None, mcp_token: str = None) -> Dict[str, Any]:
+    async def delete_note(self, note_id: int, author_id: int = None, is_admin: bool = False, mcp_token: str = None) -> Dict[str, Any]:
         if mcp_token:
             user = await self.get_current_user_mcp(mcp_token)
             if user:
@@ -217,7 +217,7 @@ class NotesPlugin(Plugin):
         if not existing:
             return {"error": "笔记不存在"}
         
-        if author_id and existing.get("author_id") != author_id:
+        if not is_admin and author_id and existing.get("author_id") != author_id:
             return {"error": "无权删除此笔记"}
         
         await self.engine.delete("notes", note_id)
@@ -344,9 +344,10 @@ class NotesPlugin(Plugin):
         
         # 权限检查
         is_owner = user and user["id"] == note.get("author_id")
+        is_admin = user and user.get("role") == "admin"
         is_public = note.get("visibility") == "public"
         
-        if not is_owner and not is_public:
+        if not is_owner and not is_admin and not is_public:
             return self.error_json("无权访问此笔记", 403)
         
         # 获取作者信息
@@ -356,7 +357,7 @@ class NotesPlugin(Plugin):
                 note["author_name"] = author.get("display_name") or author.get("username", "匿名")
                 note["author_avatar"] = author.get("avatar")
         
-        note["is_owner"] = is_owner
+        note["is_owner"] = is_owner or is_admin
         return note
     
     async def get_note_page(self, note_id: int, request, **kwargs):
@@ -369,9 +370,10 @@ class NotesPlugin(Plugin):
         
         # 权限检查
         is_owner = user and user["id"] == note.get("author_id")
+        is_admin = user and user.get("role") == "admin"
         is_public = note.get("visibility") == "public"
         
-        if not is_owner and not is_public:
+        if not is_owner and not is_admin and not is_public:
             return self.error_html("无权访问此笔记", 403)
         
         # 获取作者信息
@@ -381,7 +383,7 @@ class NotesPlugin(Plugin):
                 note["author_name"] = author.get("display_name") or author.get("username", "匿名")
                 note["author_avatar"] = author.get("avatar")
         
-        note["is_owner"] = is_owner
+        note["is_owner"] = is_owner or is_admin
         
         html = await self.ctx.template_engine.render("note-view.html", {
             "nav_page": "notes",
@@ -416,7 +418,8 @@ class NotesPlugin(Plugin):
         if not user:
             return self.error_json("请先登录", 401)
         
-        return await self.delete_note(note_id=note_id, author_id=user["id"])
+        is_admin = user.get("role") == "admin"
+        return await self.delete_note(note_id=note_id, author_id=user["id"], is_admin=is_admin)
     
     async def list_my_notes_api(self, request, **kwargs):
         """获取我的笔记列表 API"""
