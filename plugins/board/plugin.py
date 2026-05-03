@@ -1106,9 +1106,17 @@ class BoardPlugin(Plugin):
         if redirect:
             return redirect
 
+        # 获取所有定时任务用于下拉筛选
+        jobs = await self._list_cron_jobs()
+
         html = await self.template_engine.render(
-            "logs.html",
-            {"nav_page": "board", "section": "logs"},
+            "cron_logs.html",
+            {
+                "nav_page": "board",
+                "section": "logs",
+                "jobs": jobs,
+                "job_id": request.query_params.get("job_id", ""),
+            },
         )
         return HTMLResponse(html)
 
