@@ -5,12 +5,30 @@
 {% block head %}
 <link rel="stylesheet" href="/static/css/board.css">
 <style>
-.settings-form {
-    max-width: 600px;
+.settings-cards {
+    display: flex;
+    gap: 1.5rem;
+    align-items: flex-start;
+}
+.settings-card {
+    flex: 1;
+    min-width: 0;
     background: white;
     border: 1px solid var(--border-color);
     border-radius: 0.5rem;
     padding: 1.5rem;
+}
+.settings-card h2 {
+    font-size: 1.125rem;
+    margin: 0 0 1rem 0;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+@media (max-width: 960px) {
+    .settings-cards {
+        flex-direction: column;
+    }
 }
 .form-group {
     margin-bottom: 1.25rem;
@@ -63,12 +81,10 @@
 .save-status.success { color: #10b981; }
 .save-status.error { color: #ef4444; }
 .llm-section {
-    max-width: 600px;
     background: white;
     border: 1px solid var(--border-color);
     border-radius: 0.5rem;
     padding: 1.5rem;
-    margin-top: 1.5rem;
 }
 .llm-section h2 {
     font-size: 1.125rem;
@@ -174,7 +190,9 @@
         </div>
     </div>
 
-    <form class="settings-form" id="settingsForm">
+    <div class="settings-cards">
+    <form class="settings-card" id="settingsForm">
+        <h2>⚙️ 基本信息</h2>
         <div class="form-group">
             <label for="title">网站标题</label>
             <input type="text" id="title" name="title" placeholder="pyWork">
@@ -218,7 +236,7 @@
     </form>
 
     <!-- LLM API 配置 -->
-    <div class="llm-section">
+    <div class="llm-section settings-card">
         <h2>🤖 LLM API 配置</h2>
         <div id="llm-configs-list"></div>
 
@@ -272,6 +290,7 @@
                 </div>
             </form>
         </div>
+    </div>
     </div>
 
 </div>
