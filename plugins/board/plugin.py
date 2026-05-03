@@ -462,7 +462,7 @@ class BoardPlugin(Plugin):
                 SELECT author_id, COUNT(*) AS cnt, 'note' AS type FROM notes
                 WHERE status = 'published' AND author_id IS NOT NULL AND created_at >= ?
             ) sub
-            INNER JOIN users u ON sub.author_id = u.id AND u.role != 'agent'
+            LEFT JOIN users u ON sub.author_id = u.id
             GROUP BY sub.author_id
             ORDER BY total_count DESC
             LIMIT 10

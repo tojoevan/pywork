@@ -33,6 +33,15 @@ class MicroblogPlugin(Plugin):
         self._ctx = ctx  # 供基类鉴权方法使用
         self.template_engine = ctx.template_engine
 
+        # 修复历史脏数据：status 被错误设为 visibility 值（如 followers/private）
+        try:
+            await self.engine.execute(
+                "UPDATE microblog_posts SET status = 'public' "
+                "WHERE status NOT IN ('public', 'pending')"
+            )
+        except Exception:
+            pass
+
     def routes(self) -> List[Route]:
         return [
             Route("/microblog", "GET", self.home, "microblog.home"),
@@ -125,11 +134,11 @@ class MicroblogPlugin(Plugin):
                 return {"error": "无效的 MCP Token"}
 
         now = int(time.time())
-        # 匿名用户 → 待审核状态
+        # 匿名用户 → 待审核状态；登录用户直接通过
         if is_anonymous:
             post_status = "pending"
         else:
-            post_status = visibility
+            post_status = "public"
 
         data = {
             "author_id": author_id,
