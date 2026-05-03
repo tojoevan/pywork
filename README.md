@@ -682,6 +682,72 @@ CREATE TABLE IF NOT EXISTS llm_configs (
 
 ---
 
+## Skill 自动升级机制
+
+pyWork 通过 `/skill` 页面提供可下载的 OpenClaw Skill 包（`inkspcl-pywork.zip`），该包支持版本管理和自动升级。
+
+### 架构
+
+```
+SKILL.md (version + update_url)
+    ↕ 版本比对
+/api/skill/info (后端 API，返回最新版本)
+    ↕ 下载替换
+inkspcl-pywork.zip (static 目录)
+```
+
+### 涉及文件
+
+| 文件 | 作用 |
+|------|------|
+| `app/main.py` — `SKILL_VERSION` 常量 | 服务端版本号，单点维护 |
+| `app/main.py` — `GET /api/skill/info` | API，返回 `{name, version, download_url, changelog}` |
+| `app/main.py` — `GET /skill` | 页面路由，注入 `skill_version` 到模板 |
+| `templates/skill.html` | 下载页面，显示版本标签 + 升级命令说明 |
+| `static/inkspcl-pywork.zip` | Skill 分发包 |
+| ZIP 内 `SKILL.md` | front-matter 含 `version` 和 `update_url` |
+| ZIP 内 `scripts/inkspcl_mcp.py` | 客户端脚本，`--check-upgrade` / `--upgrade` |
+
+### 版本号规则
+
+- 使用语义化版本（SemVer）：`MAJOR.MINOR.PATCH`，如 `1.0.0`
+- 版本号在 `app/main.py` 的 `SKILL_VERSION` 常量中维护，是唯一真值来源
+- Skill 包内 `SKILL.md` 的 `version` 字段必须与 `SKILL_VERSION` 一致
+
+### 发布新版 Skill 的步骤
+
+1. **修改版本号**：编辑 `app/main.py`，更新 `SKILL_VERSION` 和 `changelog`
+2. **更新 SKILL.md**：编辑 `/tmp/inkspcl-pywork/SKILL.md`，更新 `version` 字段（或从现有 ZIP 解压后修改）
+3. **更新脚本**（如有改动）：编辑 `scripts/inkspcl_mcp.py`
+4. **重新打包**：
+   ```bash
+   cd /tmp
+   rm -rf inkspcl-pywork inkspcl-pywork.zip
+   mkdir -p inkspcl-pywork/scripts
+   # 将最新的 SKILL.md 和 inkspcl_mcp.py 复制进去
+   cp <更新后的SKILL.md> inkspcl-pywork/
+   cp <更新后的inkspcl_mcp.py> inkspcl-pywork/scripts/
+   zip -r inkspcl-pywork.zip inkspcl-pywork/
+   cp inkspcl-pywork.zip <pyWork项目>/static/
+   ```
+5. **部署**：重启 pyWork 服务
+
+### 客户端自动升级流程
+
+```
+用户运行: python3 scripts/inkspcl_mcp.py --check-upgrade
+  → 读取本地 SKILL.md 的 version
+  → 请求 https://www.inkspcl.com/api/skill/info 获取最新版本
+  → 比对版本号，输出是否有更新
+
+用户运行: python3 scripts/inkspcl_mcp.py --upgrade
+  → 检查版本，如有更新则下载 ZIP
+  → 解压并替换当前 Skill 目录下的文件
+  → 完成升级
+```
+
+---
+
 ## 详细文档
 
 - [部署文档](DEPLOY.md) — 完整部署指南、API 参考、MCP 配置、生产升级、回滚方案

@@ -595,12 +595,25 @@ class WorkbenchApp:
                 "total": len(blog_results) + len(microblog_results) + len(notes_results)
             }
 
-        # Skill 页面 - AI Agent 使用指南
+        # Skill 版本信息 API
+        SKILL_VERSION = "1.0.0"
+
+        @self.app.get("/api/skill/info")
+        async def skill_info():
+            """返回 Skill 最新版本信息，供客户端自动升级检查"""
+            return {
+                "name": "inkspcl-pywork",
+                "version": SKILL_VERSION,
+                "download_url": "/static/inkspcl-pywork.zip",
+                "changelog": "初始版本：博客、微博、笔记、评论、话题、LLM配置等全功能支持",
+            }
+
         @self.app.get("/skill", response_class=HTMLResponse)
         async def skill_page(request: Request):
             """AI Agent Skill 使用指南页面"""
             html = await self.template_engine.render("skill.html", {
                 "nav_page": "skill",
+                "skill_version": SKILL_VERSION,
             })
             return HTMLResponse(content=html)
 

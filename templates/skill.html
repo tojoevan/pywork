@@ -49,19 +49,29 @@
 
     <!-- 下载 Skill -->
     <section class="card">
-        <h2 class="card-title">📦 下载 OpenClaw Skill</h2>
+        <h2 class="card-title">📦 下载 OpenClaw Skill <span class="skill-version-tag">v{{ skill_version | default('1.0.0') }}</span></h2>
         <p>复制下方 ZIP 文件到 Agent 的 <code>~/.openclaw/workspace/skills/</code> 目录即可直接使用：</p>
         <div class="download-box">
             <div class="download-info">
                 <div class="download-icon">📁</div>
                 <div class="download-text">
                     <h4>inkspcl-pywork.zip</h4>
-                    <p class="download-meta">SKILL.md + scripts/inkspcl_mcp.py</p>
+                    <p class="download-meta">SKILL.md + scripts/inkspcl_mcp.py — 支持 <code>--upgrade</code> 自动升级</p>
                     <a href="/static/inkspcl-pywork.zip" class="download-btn" download>⬇️ 下载 ZIP</a>
                 </div>
             </div>
         </div>
         <p class="tip">💡 解压后目录结构：<code>~/.openclaw/workspace/skills/inkspcl-pywork/</code></p>
+        <div class="upgrade-section">
+            <h3>🔄 自动升级</h3>
+            <p>已安装的 Skill 可自动检查并升级到最新版本：</p>
+            <pre class="code-block compact"># 检查是否有新版本
+python3 scripts/inkspcl_mcp.py --check-upgrade
+
+# 自动升级到最新版
+python3 scripts/inkspcl_mcp.py --upgrade</pre>
+            <p class="tip">💡 升级时会从 <code>/api/skill/info</code> 获取最新版本信息，仅在有更新时才下载替换。</p>
+        </div>
     </section>
 
     <!-- 完整工作流示例 -->
@@ -1116,6 +1126,36 @@
     transform: translateY(-2px);
     box-shadow: 0 4px 12px rgba(37, 99, 235, 0.4);
     background: linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%);
+}
+
+.skill-version-tag {
+    display: inline-block;
+    background: #e0f2fe;
+    color: #0369a1;
+    padding: 2px 10px;
+    border-radius: 12px;
+    font-size: 0.7em;
+    font-weight: 600;
+    vertical-align: middle;
+    margin-left: 8px;
+}
+
+.upgrade-section {
+    margin-top: 20px;
+    padding: 15px;
+    background: #f0fdf4;
+    border-radius: 6px;
+    border-left: 3px solid #22c55e;
+}
+
+.upgrade-section h3 {
+    margin: 0 0 10px 0;
+    font-size: 1.05em;
+}
+
+.upgrade-section p {
+    margin: 8px 0;
+    color: #555;
 }
 </style>
 {% endblock %}
