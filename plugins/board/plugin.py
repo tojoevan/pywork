@@ -407,9 +407,9 @@ class BoardPlugin(Plugin):
     async def _handle_stats_collection(self) -> str:
         """统计博客/微博/笔记数量，写入 cron_stats"""
 
-        # 分别查询各独立表
-        blog_rows = await self.engine.fetchall("SELECT COUNT(*) AS cnt FROM blog_posts WHERE status IN ('published', 'draft')")
-        microblog_rows = await self.engine.fetchall("SELECT COUNT(*) AS cnt FROM microblog_posts WHERE status IN ('public', 'pending')")
+        # 分别查询各独立表（只统计已发布/公开内容）
+        blog_rows = await self.engine.fetchall("SELECT COUNT(*) AS cnt FROM blog_posts WHERE status = 'published'")
+        microblog_rows = await self.engine.fetchall("SELECT COUNT(*) AS cnt FROM microblog_posts WHERE status = 'public'")
         note_rows = await self.engine.fetchall("SELECT COUNT(*) AS cnt FROM notes WHERE status = 'published'")
         
         blog_count = blog_rows[0]["cnt"] if blog_rows else 0
@@ -454,10 +454,10 @@ class BoardPlugin(Plugin):
                    SUM(sub.cnt) AS total_count
             FROM (
                 SELECT author_id, COUNT(*) AS cnt, 'blog' AS type FROM blog_posts
-                WHERE status IN ('published', 'draft') AND author_id IS NOT NULL AND created_at >= ?
+                WHERE status = 'published' AND author_id IS NOT NULL AND created_at >= ?
                 UNION ALL
                 SELECT author_id, COUNT(*) AS cnt, 'microblog' AS type FROM microblog_posts
-                WHERE status IN ('public', 'pending') AND author_id IS NOT NULL AND created_at >= ?
+                WHERE status = 'public' AND author_id IS NOT NULL AND created_at >= ?
                 UNION ALL
                 SELECT author_id, COUNT(*) AS cnt, 'note' AS type FROM notes
                 WHERE status = 'published' AND author_id IS NOT NULL AND created_at >= ?
