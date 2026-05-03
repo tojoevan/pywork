@@ -14,9 +14,9 @@
         <div class="tab-nav">
             <a href="/board" class="tab-btn">看板</a>
             <a href="/board/cron" class="tab-btn">定时任务</a>
-            <button class="tab-btn active">微博审核</button>
-            <a href="/board/settings" class="tab-btn">网站设置</a>
+            <button class="tab-btn active" id="tab-moderation">微博审核</button>
             <a href="/board/logs" class="tab-btn">📜 日志</a>
+            <a href="/board/settings" class="tab-btn">网站设置</a>
         </div>
     </div>
 
@@ -94,5 +94,24 @@ function formatTime(ts) {
 }
 
 loadModerationList();
+
+// 根据当前 URL 高亮 tab-nav
+(function highlightTab() {
+    const path = location.pathname;
+    document.querySelectorAll('.tab-nav .tab-btn, .tab-nav button').forEach(el => {
+        el.classList.remove('active');
+    });
+    let activeEl = null;
+    if (path === '/board/moderation') {
+        activeEl = document.getElementById('tab-moderation');
+    } else if (path === '/board/logs') {
+        activeEl = Array.from(document.querySelectorAll('.tab-nav a')).find(a => a.textContent.includes('日志'));
+    } else if (path === '/board/settings') {
+        activeEl = Array.from(document.querySelectorAll('.tab-nav a')).find(a => a.href && a.href.endsWith('/board/settings'));
+    } else if (path.startsWith('/board/cron')) {
+        activeEl = Array.from(document.querySelectorAll('.tab-nav a')).find(a => a.href && a.href.endsWith('/board/cron'));
+    }
+    if (activeEl) activeEl.classList.add('active');
+})();
 </script>
 {% endblock %}
