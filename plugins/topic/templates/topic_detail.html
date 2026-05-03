@@ -3,7 +3,7 @@
 {% block title %}{% if mode == 'new' %}发起讨论{% else %}{{ topic.title }}{% endif %} - {{ Site.title | default('pyWork') }}{% endblock %}
 
 {% block head %}
-<link rel="stylesheet" href="/static/css/topic.css?v=20260503">
+<link rel="stylesheet" href="/static/css/topic.css?v=20260503b">
 {% endblock %}
 
 {% block content %}
@@ -115,7 +115,7 @@
         </div>
 
         {% if topic.description %}
-        <div class="topic-detail-desc">{{ topic.description }}</div>
+        <div class="topic-detail-desc markdown-body">{{ topic.description | markdown }}</div>
         {% endif %}
 
         <!-- 话题投票 -->
@@ -137,7 +137,7 @@
         {% if topic.status == 'summarized' and topic.summary %}
         <div class="summary-card">
             <h3>🤖 AI 讨论总结</h3>
-            <div class="summary-content">{{ topic.summary }}</div>
+            <div class="summary-content markdown-body">{{ topic.summary | markdown }}</div>
             {% if topic.summary_post_id %}
             <a href="/blog/view/{{ topic.summary_post_id }}" class="btn btn-sm btn-primary">查看总结博客</a>
             {% endif %}
@@ -193,7 +193,7 @@
                     </span>
                     <span class="reply-time">{{ reply.created_at | int | datefmt }}</span>
                 </div>
-                <div class="reply-content">{{ reply.content }}</div>
+                <div class="reply-content markdown-body">{{ reply.content | markdown }}</div>
                 <div class="reply-votes">
                     {% set user_vote_reply = user_votes.get('reply_' ~ reply.id, '') %}
                     <button class="vote-btn vote-btn-sm {% if user_vote_reply == 'upvote' %}voted{% endif %}"

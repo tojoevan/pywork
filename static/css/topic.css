@@ -223,7 +223,139 @@
     font-size: 14px;
     line-height: 1.6;
     margin-bottom: 1rem;
-    white-space: pre-wrap;
+}
+
+/* Markdown 渲染样式（话题/回复/总结共用，字体偏小） */
+.markdown-body {
+    line-height: 1.65;
+    font-size: 14px;
+    color: #374151;
+    word-wrap: break-word;
+}
+
+.markdown-body > *:first-child {
+    margin-top: 0;
+}
+
+.markdown-body h1,
+.markdown-body h2,
+.markdown-body h3,
+.markdown-body h4,
+.markdown-body h5,
+.markdown-body h6 {
+    margin-top: 1rem;
+    margin-bottom: 0.5rem;
+    line-height: 1.35;
+    font-weight: 600;
+    color: #1f2937;
+}
+
+.markdown-body h1 { font-size: 1.125rem; }
+.markdown-body h2 { font-size: 1rem; border-bottom: 1px solid #e5e7eb; padding-bottom: 0.25rem; }
+.markdown-body h3 { font-size: 0.9375rem; }
+.markdown-body h4 { font-size: 0.875rem; }
+.markdown-body h5, .markdown-body h6 { font-size: 0.8125rem; }
+
+.markdown-body p {
+    margin-bottom: 0.75rem;
+}
+
+.markdown-body ul,
+.markdown-body ol {
+    margin-bottom: 0.75rem;
+    padding-left: 1.5rem;
+}
+
+.markdown-body li {
+    margin-bottom: 0.25rem;
+}
+
+.markdown-body a {
+    color: #3b82f6;
+    text-decoration: underline;
+    text-underline-offset: 2px;
+}
+
+.markdown-body a:hover {
+    opacity: 0.8;
+}
+
+.markdown-body code {
+    font-family: 'SF Mono', 'Fira Code', 'Cascadia Code', Menlo, Consolas, monospace;
+    font-size: 0.85em;
+    background: rgba(0, 0, 0, 0.06);
+    padding: 0.15em 0.4em;
+    border-radius: 0.25rem;
+    color: #374151;
+}
+
+.markdown-body pre {
+    background: #1e2535;
+    color: #e2e8f0;
+    padding: 0.75rem 1rem;
+    border-radius: 0.375rem;
+    overflow-x: auto;
+    margin-bottom: 1rem;
+    font-size: 0.8125rem;
+    line-height: 1.55;
+}
+
+.markdown-body pre code {
+    background: none;
+    padding: 0;
+    color: inherit;
+    font-size: inherit;
+}
+
+.markdown-body blockquote {
+    border-left: 3px solid #3b82f6;
+    padding: 0.375rem 0 0.375rem 0.75rem;
+    margin: 0.75rem 0;
+    color: #6b7280;
+    font-style: italic;
+}
+
+.markdown-body blockquote p {
+    margin-bottom: 0.375rem;
+}
+
+.markdown-body table {
+    width: 100%;
+    border-collapse: collapse;
+    margin-bottom: 0.75rem;
+    font-size: 0.875rem;
+}
+
+.markdown-body th,
+.markdown-body td {
+    padding: 0.375rem 0.625rem;
+    border: 1px solid #e5e7eb;
+    text-align: left;
+}
+
+.markdown-body th {
+    background: rgba(0, 0, 0, 0.04);
+    font-weight: 600;
+}
+
+.markdown-body hr {
+    border: none;
+    border-top: 1px solid #e5e7eb;
+    margin: 1rem 0;
+}
+
+.markdown-body img {
+    max-width: 100%;
+    border-radius: 0.25rem;
+    margin: 0.375rem 0;
+}
+
+.markdown-body strong {
+    font-weight: 600;
+}
+
+.markdown-body del {
+    color: #9ca3af;
 }
 
 /* 投票区域 */
@@ -291,7 +423,6 @@
     color: #374151;
     font-size: 14px;
     line-height: 1.7;
-    white-space: pre-wrap;
     margin-bottom: 0.75rem;
 }
 
@@ -344,7 +475,6 @@
     color: #1f2937;
     font-size: 14px;
     line-height: 1.6;
-    white-space: pre-wrap;
     margin-bottom: 0.5rem;
 }
 
