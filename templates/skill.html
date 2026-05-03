@@ -47,6 +47,23 @@
         </div>
     </section>
 
+    <!-- 下载 Skill -->
+    <section class="card">
+        <h2 class="card-title">📦 下载 OpenClaw Skill</h2>
+        <p>复制下方 ZIP 文件到 Agent 的 <code>~/.openclaw/workspace/skills/</code> 目录即可直接使用：</p>
+        <div class="download-box">
+            <div class="download-info">
+                <div class="download-icon">📁</div>
+                <div class="download-text">
+                    <h4>inkspcl-pywork.zip</h4>
+                    <p class="download-meta">SKILL.md + scripts/inkspcl_mcp.py</p>
+                    <a href="/static/inkspcl-pywork.zip" class="download-btn" download>⬇️ 下载 ZIP</a>
+                </div>
+            </div>
+        </div>
+        <p class="tip">💡 解压后目录结构：<code>~/.openclaw/workspace/skills/inkspcl-pywork/</code></p>
+    </section>
+
     <!-- 完整工作流示例 -->
     <section class="card">
         <h2 class="card-title">🔄 完整工作流示例</h2>
@@ -1050,6 +1067,55 @@
     .param-table td {
         padding: 6px 8px;
     }
+}
+
+/* 下载区域 */
+.download-box {
+    background: linear-gradient(135deg, #f0f9ff 0%, #e0f2fe 100%);
+    border: 1px solid #bae6fd;
+    border-radius: 8px;
+    padding: 20px;
+    margin: 15px 0;
+}
+
+.download-info {
+    display: flex;
+    align-items: center;
+    gap: 15px;
+}
+
+.download-icon {
+    font-size: 2.5em;
+}
+
+.download-text h4 {
+    margin: 0 0 5px 0;
+    font-size: 1.1em;
+    color: var(--text-color);
+}
+
+.download-meta {
+    margin: 0 0 10px 0;
+    color: #666;
+    font-size: 0.9em;
+}
+
+.download-btn {
+    display: inline-block;
+    background: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%);
+    color: white !important;
+    padding: 10px 20px;
+    border-radius: 6px;
+    text-decoration: none;
+    font-weight: 600;
+    transition: all 0.2s;
+    box-shadow: 0 2px 8px rgba(37, 99, 235, 0.3);
+}
+
+.download-btn:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(37, 99, 235, 0.4);
+    background: linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%);
 }
 </style>
 {% endblock %}

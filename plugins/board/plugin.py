@@ -444,41 +444,58 @@ class BoardPlugin(Plugin):
         # 30 天时间窗口
         period_ago = now - 30 * 86400
 
-        rows = await self.engine.fetchall("""
-            SELECT sub.author_id,
-                   COALESCE(u.display_name, u.username) AS author_name,
-                   u.avatar AS author_avatar,
-                   SUM(CASE WHEN sub.type = 'blog' THEN sub.cnt ELSE 0 END) AS blog_count,
-                   SUM(CASE WHEN sub.type = 'microblog' THEN sub.cnt ELSE 0 END) AS microblog_count,
-                   SUM(CASE WHEN sub.type = 'note' THEN sub.cnt ELSE 0 END) AS note_count,
-                   SUM(sub.cnt) AS total_count
-            FROM (
-                SELECT author_id, COUNT(*) AS cnt, 'blog' AS type FROM blog_posts
-                WHERE status = 'published' AND author_id IS NOT NULL AND created_at >= ?
-                UNION ALL
-                SELECT author_id, COUNT(*) AS cnt, 'microblog' AS type FROM microblog_posts
-                WHERE status = 'public' AND author_id IS NOT NULL AND created_at >= ?
-                UNION ALL
-                SELECT author_id, COUNT(*) AS cnt, 'note' AS type FROM notes
-                WHERE status = 'published' AND author_id IS NOT NULL AND created_at >= ?
-            ) sub
-            LEFT JOIN users u ON sub.author_id = u.id
-            GROUP BY sub.author_id
-            ORDER BY total_count DESC
-            LIMIT 10
-        """, (period_ago, period_ago, period_ago))
+        # 分别查询各类型内容（避免 UNION ALL 子查询 + LEFT JOIN 在 SQLite 下丢行）
+        blog_rows = await self.engine.fetchall(
+            "SELECT author_id, COUNT(*) AS cnt FROM blog_posts "
+            "WHERE status = 'published' AND author_id IS NOT NULL AND created_at >= ? "
+            "GROUP BY author_id", (period_ago,)
+        )
+        microblog_rows = await self.engine.fetchall(
+            "SELECT author_id, COUNT(*) AS cnt FROM microblog_posts "
+            "WHERE status IN ('public', 'pending') AND author_id IS NOT NULL AND created_at >= ? "
+            "GROUP BY author_id", (period_ago,)
+        )
+        note_rows = await self.engine.fetchall(
+            "SELECT author_id, COUNT(*) AS cnt FROM notes "
+            "WHERE status = 'published' AND author_id IS NOT NULL AND created_at >= ? "
+            "GROUP BY author_id", (period_ago,)
+        )
 
-        if not rows:
+        # 合并统计
+        author_stats: Dict[int, Dict] = {}
+        for row in blog_rows:
+            aid = int(row["author_id"])
+            author_stats.setdefault(aid, {"blog": 0, "microblog": 0, "note": 0})
+            author_stats[aid]["blog"] = int(row["cnt"])
+        for row in microblog_rows:
+            aid = int(row["author_id"])
+            author_stats.setdefault(aid, {"blog": 0, "microblog": 0, "note": 0})
+            author_stats[aid]["microblog"] = int(row["cnt"])
+        for row in note_rows:
+            aid = int(row["author_id"])
+            author_stats.setdefault(aid, {"blog": 0, "microblog": 0, "note": 0})
+            author_stats[aid]["note"] = int(row["cnt"])
+
+        if not author_stats:
             return "无活跃作者数据"
 
+        # 批量获取用户信息
+        author_ids = list(author_stats.keys())
+        placeholders = ",".join("?" * len(author_ids))
+        user_rows = await self.engine.fetchall(
+            f"SELECT id, COALESCE(display_name, username) AS name, avatar FROM users "
+            f"WHERE id IN ({placeholders})", author_ids
+        )
+        user_map = {int(r["id"]): r for r in user_rows}
+
+        # 按总数排序
+        ranked = sorted(author_stats.items(), key=lambda x: sum(x[1].values()), reverse=True)[:10]
+
         lines = []
-        for rank, row in enumerate(rows, 1):
-            author_id       = int(row["author_id"])
-            author_name     = row["author_name"] or "匿名"
-            author_avatar   = row["author_avatar"] or ""
-            blog_count      = int(row["blog_count"])
-            microblog_count = int(row["microblog_count"])
-            note_count      = int(row["note_count"])
+        for rank, (aid, stats) in enumerate(ranked, 1):
+            u = user_map.get(aid, {})
+            author_name = u.get("name") or "匿名"
+            author_avatar = u.get("avatar") or ""
 
             await self.engine.execute("""
                 INSERT OR REPLACE INTO active_authors
@@ -486,11 +503,11 @@ class BoardPlugin(Plugin):
                      blog_count, microblog_count, note_count,
                      "rank", period, updated_at)
                 VALUES (?, ?, ?, ?, ?, ?, ?, 'monthly', ?)
-            """, (author_id, author_name, author_avatar,
-                  blog_count, microblog_count, note_count,
+            """, (aid, author_name, author_avatar,
+                  stats["blog"], stats["microblog"], stats["note"],
                   rank, now))
             lines.append(f"{rank}. {author_name} "
-                         f"(博客:{blog_count} 微博:{microblog_count} 笔记:{note_count})")
+                         f"(博客:{stats['blog']} 微博:{stats['microblog']} 笔记:{stats['note']})")
 
         return "活跃作者(近30天): " + ", ".join(lines)
 
