@@ -84,8 +84,10 @@ class TopicPlugin(Plugin):
         return [
             Route("/topic", "GET", self.topic_list_page, "topic.list"),
             Route("/topic/new", "GET", self.new_topic_page, "topic.new"),
+            Route("/topic/{topic_id}/edit", "GET", self.edit_topic_page, "topic.edit"),
             Route("/topic/{topic_id}", "GET", self.topic_detail_page, "topic.detail"),
             Route("/api/topic", "POST", self.create_topic_api, "topic.create_api"),
+            Route("/api/topic/{topic_id}", "PUT", self.update_topic_api, "topic.update_api"),
             Route("/api/topic/{topic_id}/reply", "POST", self.reply_topic_api, "topic.reply_api"),
             Route("/api/topic/{topic_id}/vote", "POST", self.vote_api, "topic.vote_api"),
             Route("/api/topic/{topic_id}/close", "POST", self.close_topic_api, "topic.close_api"),
@@ -108,6 +110,21 @@ class TopicPlugin(Plugin):
                     "required": ["title"]
                 },
                 handler=self.create_topic
+            ),
+            MCPTool(
+                name="update_topic",
+                description="Update an existing discussion topic (title, description, deadline)",
+                input_schema={
+                    "type": "object",
+                    "properties": {
+                        "topic_id": {"type": "integer", "description": "Topic ID to update"},
+                        "title": {"type": "string", "description": "New topic title"},
+                        "description": {"type": "string", "description": "New topic description"},
+                        "deadline_hours": {"type": "integer", "description": "New hours until discussion deadline (from now)"}
+                    },
+                    "required": ["topic_id"]
+                },
+                handler=self.update_topic
             ),
             MCPTool(
                 name="list_topics",
@@ -222,6 +239,66 @@ class TopicPlugin(Plugin):
             "deadline_hours": deadline_hours,
             "created_at": now
         }
+
+    async def update_topic(
+        self,
+        topic_id: int,
+        title: str = None,
+        description: str = None,
+        deadline_hours: int = None,
+        author_id: int = None,
+        mcp_token: str = None,
+        **kwargs
+    ) -> Dict[str, Any]:
+        """Update an existing discussion topic"""
+        if mcp_token:
+            user = await self.get_current_user_mcp(mcp_token)
+            if user:
+                author_id = user["id"]
+            else:
+                return {"error": "无效的 MCP Token"}
+
+        topic = await self.engine.fetchone(
+            "SELECT * FROM topic_discussions WHERE id = ?", (topic_id,)
+        )
+        if not topic:
+            return {"error": "话题不存在"}
+
+        # Only author or admin can edit
+        if author_id and topic["author_id"] != author_id:
+            # Check admin role via user lookup
+            user_row = await self.engine.fetchone(
+                "SELECT role FROM users WHERE id = ?", (author_id,)
+            )
+            if not user_row or user_row["role"] != "admin":
+                return {"error": "无权编辑此话题"}
+
+        # Only allow editing open topics
+        if topic["status"] not in ("open",):
+            return {"error": "只能编辑进行中的话题"}
+
+        now = int(time.time())
+        updates = {"updated_at": now}
+
+        if title is not None:
+            title = title.strip()
+            if not title:
+                return {"error": "标题不能为空"}
+            updates["title"] = title
+
+        if description is not None:
+            updates["description"] = description
+
+        if deadline_hours is not None:
+            updates["deadline"] = now + deadline_hours * 3600
+
+        await self.engine.put("topic_discussions", topic_id, updates)
+
+        # Fetch updated topic
+        updated = await self.engine.fetchone(
+            "SELECT * FROM topic_discussions WHERE id = ?", (topic_id,)
+        )
+        return dict(updated)
 
     async def list_topics(
         self,
@@ -555,6 +632,8 @@ class TopicPlugin(Plugin):
         """MCP call dispatcher"""
         if tool_name == "create_topic":
             return await self.create_topic(mcp_token=mcp_token, **arguments)
+        elif tool_name == "update_topic":
+            return await self.update_topic(mcp_token=mcp_token, **arguments)
         elif tool_name == "list_topics":
             return await self.list_topics(**arguments)
         elif tool_name == "reply_topic":
@@ -631,6 +710,41 @@ class TopicPlugin(Plugin):
         })
         return HTMLResponse(content=html)
 
+    async def edit_topic_page(self, request, **kwargs):
+        """Edit topic page"""
+        user = await self.get_current_user(request)
+        if not user:
+            from starlette.responses import RedirectResponse
+            return RedirectResponse(url="/login", status_code=302)
+
+        topic_id = int(kwargs.get("topic_id", 0))
+        topic = await self.engine.fetchone(
+            "SELECT * FROM topic_discussions WHERE id = ?", (topic_id,)
+        )
+        if not topic:
+            return self.error_html("话题不存在", 404)
+
+        # Only author or admin can edit
+        if topic["author_id"] != user["id"] and user.get("role") != "admin":
+            return self.error_html("无权编辑此话题", 403)
+
+        # Only allow editing open topics
+        if topic["status"] != "open":
+            return self.error_html("只能编辑进行中的话题", 400)
+
+        now = int(time.time())
+        remaining_hours = max(0, round((topic["deadline"] - now) / 3600, 1))
+
+        html = await self.ctx.template_engine.render("topic_detail.html", {
+            "nav_page": "topic",
+            "mode": "edit",
+            "current_user": user,
+            "topic": dict(topic),
+            "remaining_hours": remaining_hours,
+            "replies": [],
+        })
+        return HTMLResponse(content=html)
+
     async def topic_detail_page(self, request, **kwargs):
         """Topic detail page"""
         topic_id = int(kwargs.get("topic_id", 0))
@@ -687,6 +801,36 @@ class TopicPlugin(Plugin):
             return self.error_json("标题不能为空")
 
         result = await self.create_topic(
+            title=title,
+            description=description,
+            deadline_hours=deadline_hours,
+            author_id=user["id"]
+        )
+        return result
+
+    async def update_topic_api(self, request, **kwargs):
+        """Update topic API"""
+        user = await self.get_current_user(request)
+        if not user:
+            return self.error_json("请先登录", 401)
+
+        topic_id = int(kwargs.get("topic_id", 0))
+        ct = request.headers.get("content-type", "")
+        if "application/json" in ct:
+            body = await request.json()
+        else:
+            form = await request.form()
+            body = dict(form)
+
+        title = body.get("title")
+        description = body.get("description")
+        deadline_hours = body.get("deadline_hours")
+
+        if deadline_hours is not None:
+            deadline_hours = int(deadline_hours)
+
+        result = await self.update_topic(
+            topic_id=topic_id,
             title=title,
             description=description,
             deadline_hours=deadline_hours,
