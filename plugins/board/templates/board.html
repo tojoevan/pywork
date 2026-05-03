@@ -28,7 +28,7 @@
     {#  看板区                                                  #}
     {# ============================================================ #}
     <div class="tab-panel" id="panel-board">
-        {% if section != 'cron' %}
+        {% if section == 'board' or section == 'moderation' %}
 
         <!-- 新建任务 -->
         <div class="board-add">
