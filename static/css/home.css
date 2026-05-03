@@ -229,8 +229,12 @@ a:hover {
 
 .author-name {
     flex: 1;
+    min-width: 0;
     font-size: 14px;
     color: var(--text-primary);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
 }
 
 .author-count {
