@@ -157,10 +157,10 @@ class WorkbenchApp:
         # 调用插件 on_stop 生命周期
         for plugin_name, plugin in self.plugin_manager.plugins.items():
             try:
-                    await plugin.on_stop()
-                    log.info(f"Plugin {plugin_name} on_stop completed")
-                except Exception as e:
-                    log.warning(f"Plugin {plugin_name} on_stop failed: {e}")
+                await plugin.on_stop()
+                log.info(f"Plugin {plugin_name} on_stop completed")
+            except Exception as e:
+                log.warning(f"Plugin {plugin_name} on_stop failed: {e}")
         await self.plugin_manager.shutdown_all()
         await self.engine.stop()
         log.info("Shutdown complete")
