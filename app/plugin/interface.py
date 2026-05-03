@@ -220,6 +220,14 @@ a{{color:#3498db;text-decoration:none}}a:hover{{text-decoration:underline}}
         """Template sets"""
         return []
     
+    async def on_start(self) -> None:
+        """Called after app startup. Use for background tasks, schedulers, etc."""
+        pass
+
+    async def on_stop(self) -> None:
+        """Called before app shutdown. Use for cleanup of background tasks."""
+        pass
+
     async def shutdown(self) -> None:
         """Cleanup"""
         pass

@@ -62,6 +62,11 @@ class BoardPlugin(Plugin):
     def name(self) -> str:
         return "board"
 
+    def __init__(self):
+        super().__init__()
+        self._cron_task: asyncio.Task = None
+        self._cron_running = False
+
     async def init(self, ctx: PluginContext) -> None:
         self.engine = ctx.engine
         self.template_engine = ctx.template_engine
@@ -77,6 +82,11 @@ class BoardPlugin(Plugin):
         # 统一初始化所有表（一次性）
         self._tables_initialized = False
         await self._ensure_tables()
+        # 定时任务专用日志（module_tag=cron，方便在日志模块搜索）
+        from app.log import get_logger
+        self._cron_log = get_logger("board.cron", module_tag="cron")
+        # 确保预置任务已注册到数据库
+        await self._ensure_preset_jobs()
 
     def routes(self) -> List[Route]:
         return [
@@ -1296,3 +1306,99 @@ class BoardPlugin(Plugin):
             "limit": limit,
             "offset": offset,
         })
+
+    # ========================================================
+    #  定时任务自动调度
+    # ========================================================
+
+    async def _ensure_preset_jobs(self):
+        """确保预置任务已注册到数据库（仅插入不存在的）"""
+        for key, preset in PRESET_JOBS.items():
+            rows = await self.engine.fetchall(
+                "SELECT id FROM cron_jobs WHERE handler_key = ?",
+                (preset["handler_key"],)
+            )
+            if not rows:
+                now = int(time.time())
+                await self.engine.put("cron_jobs", 0, {
+                    "name": preset["name"],
+                    "description": preset["description"],
+                    "handler_key": preset["handler_key"],
+                    "interval_sec": preset["interval"],
+                    "cron_expr": preset.get("cron_expr", ""),
+                    "enabled": 1,
+                    "last_run_at": 0,
+                    "next_run_at": now + preset["interval"],
+                    "last_result": "",
+                    "run_count": 0,
+                    "created_at": now,
+                    "updated_at": now,
+                })
+                self._cron_log.info(f"[cron] 预置任务已注册: {preset['name']}")
+
+    async def on_start(self):
+        """应用启动后开启后台调度循环"""
+        self._cron_running = True
+        self._cron_task = asyncio.create_task(self._cron_scheduler_loop())
+        self._cron_log.info("[cron] 调度器已启动，每30秒检查到期任务")
+
+    async def on_stop(self):
+        """应用关闭时停止调度循环"""
+        self._cron_running = False
+        if self._cron_task and not self._cron_task.done():
+            self._cron_task.cancel()
+            try:
+                await self._cron_task
+            except asyncio.CancelledError:
+                pass
+        self._cron_log.info("[cron] 调度器已停止")
+
+    async def _cron_scheduler_loop(self):
+        """后台循环：每 30 秒检查一次到期任务并执行"""
+        # 启动后先等几秒让其他服务就绪
+        await asyncio.sleep(5)
+
+        while self._cron_running:
+            try:
+                await self._cron_tick()
+            except Exception as e:
+                self._cron_log.error(f"[cron] 调度异常: {e}")
+
+            # 每 30 秒检查一次
+            try:
+                await asyncio.sleep(30)
+            except asyncio.CancelledError:
+                break
+
+    async def _cron_tick(self):
+        """检查并执行所有到期任务"""
+        now = int(time.time())
+        jobs = await self._list_cron_jobs()
+        due_count = 0
+
+        for job in jobs:
+            # 跳过禁用的任务
+            if not job.get("enabled"):
+                continue
+
+            next_run = job.get("next_run_at", 0)
+            # 如果到期了（next_run_at <= now），执行
+            if next_run and next_run <= now:
+                due_count += 1
+                try:
+                    self._cron_log.info(f"[cron] 开始执行: {job.get('name')} (id={job.get('id')}, handler={job.get('handler_key')})")
+                    success, result = await self._execute_job(job, trigger_type="auto")
+                    await self._update_job_run(job["id"], success, result)
+                    if success:
+                        self._cron_log.info(f"[cron] 执行成功: {job.get('name')} — {result[:200]}")
+                    else:
+                        self._cron_log.warning(f"[cron] 执行失败: {job.get('name')} — {result[:300]}")
+                except Exception as e:
+                    self._cron_log.error(f"[cron] 执行异常: {job.get('name')} — {e}")
+                    # 即使异常也更新 next_run_at，防止反复重试
+                    await self.engine.put("cron_jobs", job["id"], {
+                        "next_run_at": now + job.get("interval_sec", 3600),
+                    })
+
+        if due_count == 0:
+            self._cron_log.debug("[cron] 本轮无到期任务")

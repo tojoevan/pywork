@@ -99,6 +99,14 @@ class WorkbenchApp:
             raise
         log.info(f"Plugins loaded: {list(self.plugin_manager.plugins.keys())}")
 
+        # 调用插件 on_start 生命周期（用于启动后台任务等）
+        for plugin_name, plugin in self.plugin_manager.plugins.items():
+            try:
+                await plugin.on_start()
+                log.info(f"Plugin {plugin_name} on_start completed")
+            except Exception as e:
+                log.warning(f"Plugin {plugin_name} on_start failed: {e}")
+
         # Setup MCP server
         self.mcp_server = WorkbenchMCPServer(self.plugin_manager)
 
@@ -146,6 +154,13 @@ class WorkbenchApp:
     async def shutdown(self):
         """Shutdown application"""
         log.info("pyWork shutting down...")
+        # 调用插件 on_stop 生命周期
+        for plugin_name, plugin in self.plugin_manager.plugins.items():
+            try:
+                    await plugin.on_stop()
+                    log.info(f"Plugin {plugin_name} on_stop completed")
+                except Exception as e:
+                    log.warning(f"Plugin {plugin_name} on_stop failed: {e}")
         await self.plugin_manager.shutdown_all()
         await self.engine.stop()
         log.info("Shutdown complete")
