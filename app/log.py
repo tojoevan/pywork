@@ -23,7 +23,7 @@ from typing import Optional, Any
 __all__ = ["get_logger", "setup_logging", "LOG_LEVELS", "LOG_MODULES"]
 
 LOG_LEVELS = ["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"]
-LOG_MODULES = ["core", "auth", "blog", "microblog", "notes", "board", "cron", "mcp", "storage", "route"]
+LOG_MODULES = ["core", "auth", "blog", "microblog", "notes", "board", "cron", "comments", "topic", "about", "llm_config", "services", "mcp", "storage", "route"]
 
 # 全局 engine 引用（由 app 启动时注入，用于 SQLite handler）
 _engine: Optional[Any] = None
