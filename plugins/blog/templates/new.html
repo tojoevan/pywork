@@ -62,13 +62,13 @@ function initEditor() {
         counter: { enable: true, after: (count) => { document.getElementById('word-count').textContent = count; } },
         cache: { enable: !isEdit, id: 'pywork-blog-editor' },
         mode: 'wysiwyg',
+        value: isEdit ? existingContent : '',
         toolbar: ['headings', 'bold', 'italic', 'strike', '|', 'line', 'quote', '|', 'list', 'ordered-list', 'check', '|', 'code', 'inline-code', '|', 'link', 'table', '|', 'edit-mode', '|', 'undo', 'redo', '|', 'preview', 'fullscreen'],
         after: () => {
-            // 编辑模式：预填充内容
-            if (isEdit && existingContent) {
-                vditor.setValue(existingContent);
+            if (!isEdit) {
+                loadDraft();
+                startAutoSave();
             }
-            if (!isEdit) startAutoSave();
         }
     });
 }
@@ -183,7 +183,6 @@ async function init() {
     const loggedIn = await checkAuth();
     if (loggedIn) {
         initEditor();
-        if (!isEdit) setTimeout(loadDraft, 500);
     }
 }
 
