@@ -84,7 +84,7 @@
                         <div class="post-avatar">${avatar}</div>
                         <div class="post-body">
                             <div class="post-header">
-                                <span class="post-author">${post.author_name || '匿名'}</span>
+                                ${post.author_id ? `<a href="/author/${post.author_id}" class="post-author">${post.author_name || '匿名'}</a>` : `<span class="post-author">${post.author_name || '匿名'}</span>`}
                                 <span class="post-time">${time}</span>
                             </div>
                             <div class="post-content">${escapedContent}</div>

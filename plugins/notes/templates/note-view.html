@@ -22,14 +22,14 @@
         <div class="post-meta">
             <time>{{ note.updated_at | datefmt }}</time>
             {% if note.author_name %}
-            <span class="author">
+            <a href="/author/{{ note.author_id }}" class="author">
                 {% if note.author_avatar %}
                 <img src="{{ note.author_avatar }}" alt="{{ note.author_name }}" class="author-avatar-small">
                 {% else %}
                 <span class="author-avatar-small">{{ note.author_name[0] }}</span>
                 {% endif %}
                 {{ note.author_name }}
-            </span>
+            </a>
             {% endif %}
         </div>
     </header>

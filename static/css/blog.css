@@ -60,6 +60,11 @@
     color: #374151;
 }
 
+.post-meta .author:hover {
+    color: #10b981;
+    text-decoration: none;
+}
+
 .author-avatar-small {
     width: 1.5rem;
     height: 1.5rem;

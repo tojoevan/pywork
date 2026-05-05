@@ -17,14 +17,14 @@
                 {{ post.created_at | datefmt }}
             </time>
             {% if post.author_name %}
-            <span class="author">
+            <a href="/author/{{ post.author_id }}" class="author">
                 {% if post.author_avatar %}
                 <img src="{{ post.author_avatar }}" alt="{{ post.author_name }}" class="author-avatar-small">
                 {% else %}
                 <span class="author-avatar-small">{{ post.author_name[0] }}</span>
                 {% endif %}
                 {{ post.author_name }}
-            </span>
+            </a>
             {% endif %}
             {% if post.tags %}
             <div class="post-tags">

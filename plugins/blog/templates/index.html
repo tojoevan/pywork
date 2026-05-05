@@ -19,14 +19,14 @@
         {% for post in posts %}
         <article class="post-card" id="post-card-{{ post.id }}" data-id="{{ post.id }}">
             <div class="post-meta">
-                <span class="author">
+                <a href="/author/{{ post.author_id }}" class="author">
                     {% if post.author_avatar %}
                     <img src="{{ post.author_avatar }}" alt="{{ post.author_name }}" class="author-avatar-small">
                     {% else %}
                     <span class="author-avatar-small">{{ post.author_name[0] }}</span>
                     {% endif %}
                     {{ post.author_name }}
-                </span>
+                </a>
                 <time datetime="{{ post.created_at | datetime }}">
                     {{ post.created_at | datefmt }}
                 </time>

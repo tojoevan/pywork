@@ -230,6 +230,18 @@ class WorkbenchApp:
                     return HTMLResponse(content=html)
             return HTMLResponse(content='<h1>Post not found</h1><p><a href="/">← 返回首页</a></p>', status_code=404)
 
+        @self.app.get("/author/{user_id}", response_class=HTMLResponse)
+        async def author_page(user_id: int):
+            """作者主页"""
+            data = await self.home_service.get_author_data(user_id)
+            if not data:
+                return HTMLResponse(content='<h1>作者不存在</h1><p><a href="/">← 返回首页</a></p>', status_code=404)
+            html = await self.template_engine.render("author.html", {
+                **data,
+                "nav_page": "",
+            })
+            return HTMLResponse(content=html)
+
         # 认证路由
         @self.app.get("/login", response_class=HTMLResponse)
         async def login_page():

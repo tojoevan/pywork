@@ -19,14 +19,14 @@
         {% for note in notes %}
         <article class="post-card">
             <div class="post-meta">
-                <span class="author">
+                <a href="/author/{{ note.author_id }}" class="author">
                     {% if note.author_avatar %}
                     <img src="{{ note.author_avatar }}" alt="{{ note.author_name }}" class="author-avatar-small">
                     {% else %}
                     <span class="author-avatar-small">{{ note.author_name[0] }}</span>
                     {% endif %}
                     {{ note.author_name }}
-                </span>
+                </a>
                 <time datetime="{{ note.updated_at | datetime }}">
                     {{ note.updated_at | datefmt }}
                 </time>

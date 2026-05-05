@@ -1,0 +1,86 @@
+{% extends "base.html" %}
+
+{% block title %}{{ author.display_name }} - {{ Site.title | default('pyWork') }}{% endblock %}
+
+{% block content %}
+<div class="container author-page">
+
+    <!-- 作者信息卡 -->
+    <section class="author-card">
+        <div class="author-header">
+            {% if author.avatar %}
+            <img src="{{ author.avatar }}" alt="{{ author.display_name }}" class="author-avatar-lg">
+            {% else %}
+            <div class="author-avatar-lg">{{ author.display_name[0] }}</div>
+            {% endif %}
+            <div class="author-info">
+                <h1 class="author-display-name">{{ author.display_name }}</h1>
+                <p class="author-username">@{{ author.username }}</p>
+            </div>
+        </div>
+        <div class="author-stats-row">
+            <span class="stat-item"><span class="num" style="color:#10b981">{{ blog_count }}</span><span class="label">博客</span></span>
+            <span class="stat-item"><span class="num" style="color:#F8B878">{{ microblog_count }}</span><span class="label">微博</span></span>
+            <span class="stat-item"><span class="num" style="color:#5e8aba">{{ note_count }}</span><span class="label">笔记</span></span>
+        </div>
+    </section>
+
+    <!-- 内容流 -->
+    <section class="author-feed">
+        {% if posts %}
+        {% for post in posts %}
+        {% if post.type == 'microblog' %}
+        <article class="post post-microblog">
+            <div class="mb-body">
+                <div class="post-footer">
+                    <span class="author">{{ author.display_name }}</span>
+                    <span class="sep">·</span>
+                    <time>{{ post.created_at | datefmt }}</time>
+                </div>
+                <p class="microblog-body">{{ post.body }}</p>
+            </div>
+        </article>
+        {% elif post.type == 'note' %}
+        <article class="post post-note">
+            <h2 class="post-title">
+                <a href="/notes/{{ post.id }}">{{ post.title }}</a>
+            </h2>
+            <p class="post-summary">{{ post.body | excerpt(120) }}</p>
+            <div class="post-footer">
+                <span class="author">{{ author.display_name }}</span>
+                <span class="sep">·</span>
+                <time>{{ post.created_at | datefmt }}</time>
+            </div>
+        </article>
+        {% else %}
+        <article class="post">
+            <h2 class="post-title">
+                <a href="/blog/view/{{ post.id }}">{{ post.title }}</a>
+            </h2>
+            <p class="post-summary">{{ post.body | excerpt(160) }}</p>
+            <div class="post-footer">
+                <span class="author">{{ author.display_name }}</span>
+                <span class="sep">·</span>
+                <time>{{ post.created_at | datefmt }}</time>
+                {% if post.tags %}
+                <span class="sep">·</span>
+                <div class="post-tags">
+                    {% for tag in post.tags %}
+                    <a href="/blog?tag={{ tag }}" class="tag">{{ tag }}</a>
+                    {% endfor %}
+                </div>
+                {% endif %}
+            </div>
+        </article>
+        {% endif %}
+        {% endfor %}
+        {% else %}
+        <div class="empty">
+            <p>该作者暂无公开内容</p>
+            <a href="/" class="link">← 返回首页</a>
+        </div>
+        {% endif %}
+    </section>
+
+</div>
+{% endblock %}

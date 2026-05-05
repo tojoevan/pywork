@@ -23,7 +23,7 @@
                 {% for author in active_authors %}
                 <li>
                     <span class="dot"></span>
-                    <span class="author-name">{{ author.author_name }}</span>
+                    <a href="/author/{{ author.author_id }}" class="author-name author-name-link">{{ author.author_name }}</a>
                     <span class="author-stats"><span style="color:#10b981">{{ author.blog_count }}</span> / <span style="color:#F8B878">{{ author.microblog_count }}</span> / <span style="color:#5e8aba">{{ author.note_count }}</span></span>
                 </li>
                 {% endfor %}
@@ -43,7 +43,7 @@
         <article class="post post-microblog">
             <div class="mb-body">
                 <div class="post-footer">
-                    <span class="author">{{ post.author_name or '匿名' }}</span>
+                    {% if post.author_id %}<a href="/author/{{ post.author_id }}" class="author-link">{{ post.author_name or '匿名' }}</a>{% else %}<span class="author">{{ post.author_name or '匿名' }}</span>{% endif %}
                     <span class="sep">·</span>
                     <time>{{ post.created_at | datefmt }}</time>
                 </div>
@@ -58,7 +58,7 @@
             </h2>
             <p class="post-summary">{{ post.body | excerpt(120) }}</p>
             <div class="post-footer">
-                <span class="author">{{ post.author_name or '匿名' }}</span>
+                {% if post.author_id %}<a href="/author/{{ post.author_id }}" class="author-link">{{ post.author_name or '匿名' }}</a>{% else %}<span class="author">{{ post.author_name or '匿名' }}</span>{% endif %}
                 <span class="sep">·</span>
                 <time>{{ post.created_at | datefmt }}</time>
             </div>
@@ -71,7 +71,7 @@
             </h2>
             <p class="post-summary">{{ post.body | excerpt(160) }}</p>
             <div class="post-footer">
-                <span class="author">{{ post.author_name or '匿名' }}</span>
+                {% if post.author_id %}<a href="/author/{{ post.author_id }}" class="author-link">{{ post.author_name or '匿名' }}</a>{% else %}<span class="author">{{ post.author_name or '匿名' }}</span>{% endif %}
                 <span class="sep">·</span>
                 <time>{{ post.created_at | datefmt }}</time>
                 {% if post.tags %}

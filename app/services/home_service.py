@@ -17,6 +17,7 @@ class HomeFeedItem:
     body: str
     author_name: str
     author_avatar: Optional[str]
+    author_id: Optional[int]
     created_at: int
     tags: Optional[List[str]] = None
 
@@ -29,6 +30,7 @@ class HomeFeedItem:
             "body": self.body,
             "author_name": self.author_name,
             "author_avatar": self.author_avatar,
+            "author_id": self.author_id,
             "created_at": self.created_at,
         }
         if self.tags:
@@ -81,6 +83,7 @@ class HomeService:
             body=post.get("body", ""),
             author_name=post.get("author_name", "匿名"),
             author_avatar=post.get("author_avatar"),
+            author_id=post.get("author_id"),
             created_at=post.get("created_at", 0),
             tags=post.get("tags"),
         )
@@ -94,6 +97,7 @@ class HomeService:
             body=post.get("content", post.get("body", "")),
             author_name=post.get("author_name", "匿名"),
             author_avatar=post.get("author_avatar"),
+            author_id=post.get("author_id"),
             created_at=post.get("created_at", 0),
         )
 
@@ -106,6 +110,7 @@ class HomeService:
             body=note.get("body", ""),
             author_name=note.get("author_name", "匿名"),
             author_avatar=note.get("author_avatar"),
+            author_id=note.get("author_id"),
             created_at=note.get("created_at", 0),
         )
 
@@ -200,6 +205,68 @@ class HomeService:
             except Exception as e:
                 log.warning(f"Failed to get recent comments: {e}")
         return []
+
+    async def get_author_data(self, user_id: int) -> Optional[Dict[str, Any]]:
+        """获取作者主页数据：用户信息 + 公开内容（博客/微博/笔记按时间排序）"""
+        # 获取用户信息
+        auth_plugin = self._get_plugin("auth")
+        if not auth_plugin:
+            return None
+        user = await auth_plugin.get_user(user_id)
+        if not user:
+            return None
+
+        items: List[HomeFeedItem] = []
+
+        # 博客
+        blog_plugin = self._get_plugin("blog")
+        if blog_plugin:
+            try:
+                posts = await blog_plugin.list_posts(limit=100)
+                for p in posts:
+                    if p.get("author_id") == user_id and p.get("visibility") == "public":
+                        items.append(self._transform_blog_post(p))
+            except Exception as e:
+                log.warning(f"Failed to get author blogs: {e}")
+
+        # 微博
+        microblog_plugin = self._get_plugin("microblog")
+        if microblog_plugin:
+            try:
+                micro_posts = await microblog_plugin.list_posts(limit=100)
+                for p in micro_posts:
+                    if p.get("author_id") == user_id:
+                        items.append(self._transform_microblog(p))
+            except Exception as e:
+                log.warning(f"Failed to get author microblogs: {e}")
+
+        # 笔记（公开）
+        notes_plugin = self._get_plugin("notes")
+        if notes_plugin:
+            try:
+                notes = await notes_plugin.list_notes(visibility="public", limit=100)
+                for n in notes:
+                    if n.get("author_id") == user_id:
+                        items.append(self._transform_note(n))
+            except Exception as e:
+                log.warning(f"Failed to get author notes: {e}")
+
+        # 按时间倒序
+        items.sort(key=lambda x: x.created_at, reverse=True)
+
+        return {
+            "author": {
+                "id": user["id"],
+                "username": user.get("username", ""),
+                "display_name": user.get("display_name") or user.get("username", ""),
+                "avatar": user.get("avatar"),
+                "created_at": user.get("created_at", 0),
+            },
+            "posts": [item.to_dict() for item in items],
+            "blog_count": sum(1 for i in items if i.type == "post"),
+            "microblog_count": sum(1 for i in items if i.type == "microblog"),
+            "note_count": sum(1 for i in items if i.type == "note"),
+        }
 
     # ========================================================
     #  聚合接口

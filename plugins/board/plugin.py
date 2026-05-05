@@ -651,7 +651,7 @@ class BoardPlugin(Plugin):
         """获取活跃作者列表，优先从 active_authors 读取，否则实时计算"""
         now = int(time.time())
         rows = await self.engine.fetchall(
-            "SELECT author_name, author_avatar, "
+            "SELECT author_id, author_name, author_avatar, "
             "blog_count, microblog_count, note_count, updated_at "
             "FROM active_authors WHERE period = 'monthly' "
             "ORDER BY \"rank\" ASC LIMIT 8"
@@ -665,7 +665,7 @@ class BoardPlugin(Plugin):
             try:
                 await self._handle_active_authors()
                 rows = await self.engine.fetchall(
-                    "SELECT author_name, author_avatar, "
+                    "SELECT author_id, author_name, author_avatar, "
                     "blog_count, microblog_count, note_count, updated_at "
                     "FROM active_authors WHERE period = 'monthly' "
                     "ORDER BY \"rank\" ASC LIMIT 8"
