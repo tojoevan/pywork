@@ -62,7 +62,7 @@ function initEditor() {
         counter: { enable: true, after: (count) => { document.getElementById('word-count').textContent = count; } },
         cache: { enable: !isEdit, id: 'pywork-blog-editor' },
         mode: 'wysiwyg',
-        toolbar: ['headings', 'bold', 'italic', 'strike', '|', 'line', 'quote', '|', 'list', 'ordered-list', 'check', '|', 'code', 'inline-code', '|', 'link', 'table', '|', 'undo', 'redo', '|', 'preview', 'fullscreen'],
+        toolbar: ['headings', 'bold', 'italic', 'strike', '|', 'line', 'quote', '|', 'list', 'ordered-list', 'check', '|', 'code', 'inline-code', '|', 'link', 'table', '|', 'both', '|', 'undo', 'redo', '|', 'preview', 'fullscreen'],
         after: () => {
             // 编辑模式：预填充内容
             if (isEdit && existingContent) {
