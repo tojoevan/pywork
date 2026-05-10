@@ -983,7 +983,7 @@ class BoardPlugin(Plugin):
         defaults = {
             "title": "pyWork",
             "logo_text": "pyWork",
-            "footer_text": "© 2026 pyWork. All rights reserved.",
+            "footer_text": "© 2026 pyWork. All rights reserved. · <a href=\"/feed\" target=\"_blank\">Feed</a>",
             "description": "多用户数字工作台",
             "announcement": "",
             "github_client_id": "",
