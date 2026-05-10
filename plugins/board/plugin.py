@@ -524,7 +524,7 @@ class BoardPlugin(Plugin):
         author_ids = list(author_stats.keys())
         placeholders = ",".join("?" * len(author_ids))
         user_rows = await self.engine.fetchall(
-            f"SELECT id, COALESCE(display_name, username) AS name, avatar FROM users "
+            f"SELECT id, COALESCE(nickname, display_name, username) AS name, avatar FROM users "
             f"WHERE id IN ({placeholders})", author_ids
         )
         user_map = {int(r["id"]): r for r in user_rows}
@@ -609,7 +609,7 @@ class BoardPlugin(Plugin):
         # 获取最近 10 条已审核通过的评论
         rows = await self.engine.fetchall("""
             SELECT c.id, c.content, c.target_type, c.target_id, c.created_at,
-                   COALESCE(u.display_name, u.username) AS author_name
+                   COALESCE(u.nickname, u.display_name, u.username) AS author_name
             FROM comments c
             LEFT JOIN users u ON c.author_id = u.id
             WHERE c.status = 'approved'

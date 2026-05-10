@@ -245,7 +245,7 @@ Requirements:
         sql = f"""
             SELECT 
                 c.*,
-                COALESCE(u.display_name, u.username) as author_name,
+                COALESCE(u.nickname, u.display_name, u.username) as author_name,
                 u.avatar as author_avatar
             FROM blog_posts c
             LEFT JOIN users u ON c.author_id = u.id
@@ -305,7 +305,7 @@ Requirements:
             # 使用 FTS5 搜索
             rows = await self.engine.fetchall(
                 """SELECT b.id, b.title, b.body, b.author_id, b.created_at,
-                          COALESCE(u.display_name, u.username) as author_name
+                          COALESCE(u.nickname, u.display_name, u.username) as author_name
                    FROM blog_posts b
                    LEFT JOIN users u ON b.author_id = u.id
                    WHERE b.status = 'published'
@@ -321,7 +321,7 @@ Requirements:
             # FTS5 失败时回退到 LIKE 搜索
             rows = await self.engine.fetchall(
                 """SELECT b.id, b.title, b.body, b.author_id, b.created_at,
-                          COALESCE(u.display_name, u.username) as author_name
+                          COALESCE(u.nickname, u.display_name, u.username) as author_name
                    FROM blog_posts b
                    LEFT JOIN users u ON b.author_id = u.id
                    WHERE b.status = 'published'
@@ -473,7 +473,7 @@ Requirements:
         """博客详情页面（HTML）"""
         post_id = int(kwargs.get("post_id", 0))
         rows = await self.engine.fetchall(
-            """SELECT p.*, COALESCE(u.display_name, u.username) as author_name,
+            """SELECT p.*, COALESCE(u.nickname, u.display_name, u.username) as author_name,
                        u.avatar as author_avatar
                 FROM blog_posts p
                 LEFT JOIN users u ON p.author_id = u.id
@@ -592,7 +592,7 @@ Requirements:
         if post.get("author_id"):
             user = await self.engine.get("users", post["author_id"])
             if user:
-                post["author_name"] = user.get("display_name") or user.get("username", "匿名")
+                post["author_name"] = user.get("nickname") or user.get("display_name") or user.get("username", "匿名")
                 post["author_avatar"] = user.get("avatar")
             else:
                 post["author_name"] = "匿名"

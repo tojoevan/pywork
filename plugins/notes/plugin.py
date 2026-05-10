@@ -132,7 +132,7 @@ class NotesPlugin(Plugin):
             conditions.append("visibility = 'public'")
         
         sql = f"""
-            SELECT c.*, COALESCE(u.display_name, u.username) as author_name, u.avatar as author_avatar
+            SELECT c.*, COALESCE(u.nickname, u.display_name, u.username) as author_name, u.avatar as author_avatar
             FROM notes c
             LEFT JOIN users u ON c.author_id = u.id
             WHERE {' AND '.join(conditions)}
@@ -354,7 +354,7 @@ class NotesPlugin(Plugin):
         if note.get("author_id"):
             author = await self.engine.get("users", note["author_id"])
             if author:
-                note["author_name"] = author.get("display_name") or author.get("username", "匿名")
+                note["author_name"] = author.get("nickname") or author.get("display_name") or author.get("username", "匿名")
                 note["author_avatar"] = author.get("avatar")
         
         note["is_owner"] = is_owner or is_admin
@@ -380,7 +380,7 @@ class NotesPlugin(Plugin):
         if note.get("author_id"):
             author = await self.engine.get("users", note["author_id"])
             if author:
-                note["author_name"] = author.get("display_name") or author.get("username", "匿名")
+                note["author_name"] = author.get("nickname") or author.get("display_name") or author.get("username", "匿名")
                 note["author_avatar"] = author.get("avatar")
         
         note["is_owner"] = is_owner or is_admin

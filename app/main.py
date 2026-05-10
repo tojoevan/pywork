@@ -500,6 +500,15 @@ class WorkbenchApp:
                 return result
             return JSONResponse({"error": "Auth plugin not loaded"}, status_code=503)
 
+        @self.app.post("/auth/nickname")
+        async def update_nickname(request: Request):
+            """修改用户昵称"""
+            auth_plugin = self.plugin_manager.plugins.get("auth")
+            if auth_plugin:
+                result = await auth_plugin.update_nickname_api(request)
+                return JSONResponse(result)
+            return JSONResponse({"error": "Auth plugin not loaded"}, status_code=503)
+
         @self.app.get("/api/mcp-config")
         async def mcp_config(request: Request):
             """获取 MCP 配置(仅 API 模式,不暴露本地路径)"""
@@ -817,7 +826,7 @@ class WorkbenchApp:
             if auth_plugin and row["author_id"]:
                 user = await auth_plugin.get_user(row["author_id"])
                 if user:
-                    author_name = user.get("username", "匿名")
+                    author_name = user.get("nickname") or user.get("display_name") or user.get("username", "匿名")
 
             # 高亮关键词
             content = row["content"]
@@ -851,7 +860,7 @@ class WorkbenchApp:
             if auth_plugin and row["author_id"]:
                 user = await auth_plugin.get_user(row["author_id"])
                 if user:
-                    author_name = user.get("username", "匿名")
+                    author_name = user.get("nickname") or user.get("display_name") or user.get("username", "匿名")
 
             # 高亮标题
             title = self._highlight_excerpt(row["title"], query, max_len=100)

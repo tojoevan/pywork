@@ -324,7 +324,7 @@ class TopicPlugin(Plugin):
 
         sql = f"""
             SELECT t.*,
-                   COALESCE(u.display_name, u.username) as author_name,
+                   COALESCE(u.nickname, u.display_name, u.username) as author_name,
                    u.avatar as author_avatar,
                    (SELECT COUNT(*) FROM topic_replies r WHERE r.topic_id = t.id) as reply_count,
                    (SELECT COUNT(*) FROM topic_votes v WHERE v.target_type = 'topic' AND v.target_id = t.id AND v.vote_type = 'upvote') as upvote_count,
@@ -459,7 +459,7 @@ class TopicPlugin(Plugin):
         """Get topic detail with replies and vote counts"""
         topic = await self.engine.fetchone(
             """SELECT t.*,
-                      COALESCE(u.display_name, u.username) as author_name,
+                      COALESCE(u.nickname, u.display_name, u.username) as author_name,
                       u.avatar as author_avatar,
                       (SELECT COUNT(*) FROM topic_replies r WHERE r.topic_id = t.id) as reply_count,
                       (SELECT COUNT(*) FROM topic_votes v WHERE v.target_type = 'topic' AND v.target_id = t.id AND v.vote_type = 'upvote') as upvote_count,
@@ -475,7 +475,7 @@ class TopicPlugin(Plugin):
         # Get replies with vote counts
         replies = await self.engine.fetchall(
             """SELECT r.*,
-                      COALESCE(u.display_name, u.username) as author_name,
+                      COALESCE(u.nickname, u.display_name, u.username) as author_name,
                       u.avatar as author_avatar,
                       (SELECT COUNT(*) FROM topic_votes v WHERE v.target_type = 'reply' AND v.target_id = r.id AND v.vote_type = 'upvote') as upvote_count,
                       (SELECT COUNT(*) FROM topic_votes v WHERE v.target_type = 'reply' AND v.target_id = r.id AND v.vote_type = 'downvote') as downvote_count

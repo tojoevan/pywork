@@ -101,8 +101,8 @@
                     document.getElementById('user-info').style.display = 'inline-flex';
                     document.getElementById('user-info').style.visibility = 'visible';
                     document.getElementById('login-btn').style.display = 'none';
-                    document.getElementById('username-display').textContent = user.username;
-                    document.getElementById('user-avatar').textContent = user.username.charAt(0).toUpperCase();
+                    document.getElementById('username-display').textContent = user.nickname || user.username;
+                    document.getElementById('user-avatar').textContent = (user.nickname || user.username).charAt(0).toUpperCase();
 
                     // 获取未读通知数
                     fetch('/api/notifications/unread-count')

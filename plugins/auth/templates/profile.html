@@ -57,6 +57,19 @@
 
     <div class="profile-section">
         <h2>账号信息</h2>
+        <div class="profile-field" style="display:flex;align-items:center;justify-content:space-between;">
+            <div>
+                <label>昵称</label>
+                <span id="field-nickname">-</span>
+            </div>
+            <div style="display:flex;gap:8px;align-items:center;">
+                <input type="text" id="nickname-input" placeholder="输入新昵称" maxlength="20" style="display:none;padding:4px 8px;border:1px solid #ddd;border-radius:4px;font-size:13px;width:140px;">
+                <button id="btn-nickname-edit" class="btn-secondary" style="font-size:13px;padding:6px 14px;" onclick="toggleNicknameEdit()">修改</button>
+                <button id="btn-nickname-save" class="btn-primary" style="display:none;font-size:13px;padding:6px 14px;" onclick="saveNickname()">保存</button>
+                <button id="btn-nickname-cancel" class="btn-secondary" style="display:none;font-size:13px;padding:6px 14px;" onclick="cancelNicknameEdit()">取消</button>
+            </div>
+        </div>
+        <div id="nickname-msg" style="font-size:12px;margin-top:4px;display:none;"></div>
         <div class="profile-field">
             <label>用户名</label>
             <span id="field-username">-</span>
@@ -222,6 +235,7 @@ async function loadProfile() {
         document.getElementById('field-email').textContent = user.email || '未设置';
         document.getElementById('field-created').textContent = formatDate(user.created_at);
         document.getElementById('field-role').textContent = user.role === 'admin' ? '管理员' : '普通用户';
+        document.getElementById('field-nickname').textContent = user.nickname || '未设置';
         if (user.role === 'admin') {
             document.getElementById('admin-section').style.display = 'block';
         }
@@ -425,6 +439,68 @@ function toggleGithubBind() {
     } else {
         window.location.href = '/auth/github?state=bind';
     }
+}
+
+// 昵称修改
+function toggleNicknameEdit() {
+    var field = document.getElementById('field-nickname');
+    var input = document.getElementById('nickname-input');
+    var editBtn = document.getElementById('btn-nickname-edit');
+    var saveBtn = document.getElementById('btn-nickname-save');
+    var cancelBtn = document.getElementById('btn-nickname-cancel');
+    var msg = document.getElementById('nickname-msg');
+    input.value = field.textContent === '未设置' ? '' : field.textContent;
+    input.style.display = 'inline-block';
+    editBtn.style.display = 'none';
+    saveBtn.style.display = 'inline-block';
+    cancelBtn.style.display = 'inline-block';
+    msg.style.display = 'none';
+    input.focus();
+}
+
+function cancelNicknameEdit() {
+    var input = document.getElementById('nickname-input');
+    var editBtn = document.getElementById('btn-nickname-edit');
+    var saveBtn = document.getElementById('btn-nickname-save');
+    var cancelBtn = document.getElementById('btn-nickname-cancel');
+    var msg = document.getElementById('nickname-msg');
+    input.style.display = 'none';
+    editBtn.style.display = 'inline-block';
+    saveBtn.style.display = 'none';
+    cancelBtn.style.display = 'none';
+    msg.style.display = 'none';
+}
+
+async function saveNickname() {
+    var input = document.getElementById('nickname-input');
+    var msg = document.getElementById('nickname-msg');
+    var nickname = input.value.trim();
+    if (!nickname) { showNicknameMsg('昵称不能为空', false); return; }
+    try {
+        var res = await fetch('/auth/nickname', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ nickname: nickname })
+        });
+        var data = await res.json();
+        if (data.error) {
+            showNicknameMsg(data.error, false);
+            return;
+        }
+        showNicknameMsg('昵称修改成功', true);
+        document.getElementById('field-nickname').textContent = data.nickname;
+        cancelNicknameEdit();
+    } catch (e) {
+        showNicknameMsg('操作失败', false);
+    }
+}
+
+function showNicknameMsg(text, ok) {
+    var msg = document.getElementById('nickname-msg');
+    msg.textContent = text;
+    msg.style.display = 'block';
+    msg.style.color = ok ? '#10b981' : '#ef4444';
+    if (ok) setTimeout(function() { msg.style.display = 'none'; }, 3000);
 }
 
 loadProfile();

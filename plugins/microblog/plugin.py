@@ -161,7 +161,7 @@ class MicroblogPlugin(Plugin):
             status_filter = "c.status = 'public'"
         sql = f"""
             SELECT c.*, 
-                   COALESCE(u.display_name, u.username) as author_name,
+                   COALESCE(u.nickname, u.display_name, u.username) as author_name,
                    u.avatar as author_avatar
             FROM microblog_posts c
             LEFT JOIN users u ON c.author_id = u.id
@@ -193,7 +193,7 @@ class MicroblogPlugin(Plugin):
         """获取所有待审核微博（管理员用）"""
         sql = f"""
             SELECT c.*, 
-                   COALESCE(u.display_name, u.username) as author_name,
+                   COALESCE(u.nickname, u.display_name, u.username) as author_name,
                    u.avatar as author_avatar
             FROM microblog_posts c
             LEFT JOIN users u ON c.author_id = u.id

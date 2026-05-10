@@ -125,7 +125,7 @@
                 {% for comment in recent_comments %}
                 <li>
                     <a href="/{% if comment.target_type == 'blog' %}blog/view/{% elif comment.target_type == 'microblog' %}microblog#post-{% else %}notes/{% endif %}{{ comment.target_id }}" class="comment-link">
-                        {{ comment.content | excerpt(25) }} - {{ comment.author_name }}
+                        {{ comment.author_name }}：{{ comment.content | excerpt(25) }}
                     </a>
                 </li>
                 {% endfor %}

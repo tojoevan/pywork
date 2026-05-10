@@ -69,6 +69,16 @@ class AuthPlugin(Plugin):
             await self.engine.execute("ALTER TABLE users ADD COLUMN display_name TEXT")
         except:
             pass  # 字段已存在
+
+        # 确保 users 表有 nickname 字段
+        try:
+            await self.engine.execute("ALTER TABLE users ADD COLUMN nickname TEXT")
+        except:
+            pass
+        try:
+            await self.engine.execute("ALTER TABLE users ADD COLUMN nickname_last_changed INTEGER DEFAULT 0")
+        except:
+            pass
     
     async def _init_mcp_tokens_table(self):
         """创建 mcp_tokens 表"""
@@ -928,6 +938,54 @@ class AuthPlugin(Plugin):
             return {"success": True}
         except Exception as e:
             return {"error": f"解绑失败: {str(e)}"}
+
+    async def update_nickname_api(self, request):
+        """修改昵称 - 每分钟限1次，全局唯一"""
+        import re
+        token = request.cookies.get("auth_token", "")
+        if not token:
+            token = request.headers.get("Authorization", "").replace("Bearer ", "")
+        user = await self.get_user_by_token(token)
+        if not user:
+            return {"error": "未登录"}
+
+        body = await request.json()
+        nickname = (body.get("nickname") or "").strip()
+
+        if not nickname:
+            return {"error": "昵称不能为空"}
+        if len(nickname) < 2 or len(nickname) > 20:
+            return {"error": "昵称长度需要 2-20 个字符"}
+        if not re.match(r'^[\w一-鿿㐀-䶿\-]+$', nickname):
+            return {"error": "昵称只能包含中文、字母、数字、下划线和连字符"}
+
+        # 频率限制：每分钟1次
+        now = int(time.time())
+        last_changed = user.get("nickname_last_changed", 0) or 0
+        if now - last_changed < 60:
+            remaining = 60 - (now - last_changed)
+            return {"error": f"修改太频繁，请 {remaining} 秒后再试"}
+
+        # 全局唯一性检查（排除自己）
+        existing = await self.engine.fetchone(
+            "SELECT id FROM users WHERE nickname = ? AND id != ?", (nickname, user["id"])
+        )
+        if existing:
+            return {"error": "该昵称已被其他用户使用"}
+
+        await self.engine.execute(
+            "UPDATE users SET nickname = ?, nickname_last_changed = ? WHERE id = ?",
+            (nickname, now, user["id"])
+        )
+
+        # 验证写入成功
+        saved = await self.engine.fetchone(
+            "SELECT nickname FROM users WHERE id = ?", (user["id"],)
+        )
+        if not saved or saved.get("nickname") != nickname:
+            return {"error": "保存失败，请重试"}
+
+        return {"success": True, "nickname": nickname}
 
     # === MCP Token 管理 ===
 
