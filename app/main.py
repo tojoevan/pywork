@@ -187,22 +187,22 @@ class WorkbenchApp:
 
         @self.app.get("/feed")
         async def feed(request: Request):
-            """RSS feed - recent 7 days content"""
+            """RSS feed - recent 14 days content"""
             site_title = getattr(self._config, 'title', 'pyWork')
             base_url = str(getattr(self._config, 'base_url', '')).rstrip('/')
             if not base_url:
                 base_url = str(request.base_url).rstrip('/')
 
             now = int(time.time())
-            week_ago = now - 7 * 86400
+            two_weeks_ago = now - 14 * 86400
 
             items = []
             blog_plugin = self.plugin_manager.plugins.get("blog")
             if blog_plugin:
                 try:
-                    posts = await blog_plugin.list_posts(limit=50)
+                    posts = await blog_plugin.search_posts(limit=100)
                     for p in posts:
-                        if p.get("created_at", 0) >= week_ago and p.get("visibility") == "public":
+                        if p.get("created_at", 0) >= two_weeks_ago and p.get("status") == "public":
                             items.append({
                                 "title": p.get("title", ""),
                                 "link": f"{base_url}/blog/view/{p['id']}",
@@ -217,9 +217,9 @@ class WorkbenchApp:
             microblog_plugin = self.plugin_manager.plugins.get("microblog")
             if microblog_plugin:
                 try:
-                    posts = await microblog_plugin.list_posts(limit=50)
+                    posts = await microblog_plugin.list_posts(limit=100)
                     for p in posts:
-                        if p.get("created_at", 0) >= week_ago:
+                        if p.get("created_at", 0) >= two_weeks_ago:
                             content = p.get("content", p.get("body", ""))
                             items.append({
                                 "title": content[:60],
@@ -235,9 +235,9 @@ class WorkbenchApp:
             notes_plugin = self.plugin_manager.plugins.get("notes")
             if notes_plugin:
                 try:
-                    notes = await notes_plugin.list_notes(visibility="public", limit=50)
+                    notes = await notes_plugin.list_notes(visibility="public", limit=100)
                     for n in notes:
-                        if n.get("created_at", 0) >= week_ago:
+                        if n.get("created_at", 0) >= two_weeks_ago:
                             items.append({
                                 "title": n.get("title", "无标题"),
                                 "link": f"{base_url}/notes/{n['id']}",
@@ -255,7 +255,7 @@ class WorkbenchApp:
             channel = SubElement(rss, "channel")
             SubElement(channel, "title").text = site_title
             SubElement(channel, "link").text = base_url
-            SubElement(channel, "description").text = f"{site_title} - 最近一周更新"
+            SubElement(channel, "description").text = f"{site_title} - 最近两周更新"
             SubElement(channel, "language").text = "zh-cn"
 
             for item in items[:50]:
