@@ -91,6 +91,8 @@ SITE_CONFIG_KEYS = {
     "footer_text": "footer_text",
     "primary_color": "primary_color",
     "announcement": "announcement",
+    "github_client_id": "github_client_id",
+    "github_client_secret": "github_client_secret",
 }
 
 
