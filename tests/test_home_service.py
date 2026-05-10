@@ -73,6 +73,7 @@ class TestHomeFeedItem:
             body="Test Body",
             author_name="Alice",
             author_avatar="https://example.com/avatar.png",
+            author_id=1,
             created_at=1700000000,
             tags=["tag1", "tag2"],
         )
@@ -93,6 +94,7 @@ class TestHomeFeedItem:
             body="Microblog content",
             author_name="Bob",
             author_avatar=None,
+            author_id=2,
             created_at=1700001000,
         )
         result = item.to_dict()
@@ -109,6 +111,7 @@ class TestHomeFeedItem:
             body="Note Body",
             author_name="Charlie",
             author_avatar=None,
+            author_id=3,
             created_at=1700002000,
         )
         result = item.to_dict()

@@ -15,13 +15,23 @@ async def setup_blog():
         db_path = os.path.join(tmpdir, "test.db")
         engine = SQLiteEngine(db_path)
         await engine.start()
-        
+
+        # Add nickname/display_name columns (normally added by auth plugin migration)
+        try:
+            await engine.execute("ALTER TABLE users ADD COLUMN nickname TEXT DEFAULT ''")
+        except Exception:
+            pass
+        try:
+            await engine.execute("ALTER TABLE users ADD COLUMN display_name TEXT DEFAULT ''")
+        except Exception:
+            pass
+
         ctx = PluginContext(engine=engine, config={})
         plugin = BlogPlugin()
         await plugin.init(ctx)
-        
+
         yield plugin, engine
-        
+
         await engine.stop()
 
 
@@ -34,7 +44,8 @@ async def test_create_post(setup_blog):
         title="Test Post",
         content="This is a test post content",
         status="draft",
-        tags=["test", "blog"]
+        tags=["test", "blog"],
+        author_id=1
     )
     
     assert result["id"] > 0
@@ -48,9 +59,9 @@ async def test_search_posts(setup_blog):
     plugin, engine = setup_blog
     
     # Create multiple posts
-    await plugin.create_post(title="Python Tips", content="Python content", status="published")
-    await plugin.create_post(title="Go Tips", content="Go content", status="published")
-    await plugin.create_post(title="Draft Post", content="Draft content", status="draft")
+    await plugin.create_post(title="Python Tips", content="Python content", status="published", author_id=1)
+    await plugin.create_post(title="Go Tips", content="Go content", status="published", author_id=1)
+    await plugin.create_post(title="Draft Post", content="Draft content", status="draft", author_id=1)
     
     # Search all
     results = await plugin.search_posts(limit=10)
@@ -67,7 +78,7 @@ async def test_update_post(setup_blog):
     plugin, engine = setup_blog
     
     # Create
-    result = await plugin.create_post(title="Original", content="Original content")
+    result = await plugin.create_post(title="Original", content="Original content", author_id=1)
     post_id = result["id"]
     
     # Update
@@ -99,7 +110,7 @@ async def test_mcp_resources(setup_blog):
     plugin, engine = setup_blog
     
     # Create a post
-    await plugin.create_post(title="Resource Test", content="Resource content")
+    await plugin.create_post(title="Resource Test", content="Resource content", author_id=1)
     
     # Get resource
     resource_content = await plugin.list_all_posts()

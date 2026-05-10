@@ -222,10 +222,9 @@ class HomeService:
         blog_plugin = self._get_plugin("blog")
         if blog_plugin:
             try:
-                posts = await blog_plugin.list_posts(limit=200)
+                posts = await blog_plugin.list_posts(author_id=user_id, status="public", limit=200)
                 for p in posts:
-                    if p.get("author_id") == user_id and p.get("status") == "public":
-                        items.append(self._transform_blog_post(p))
+                    items.append(self._transform_blog_post(p))
             except Exception as e:
                 log.warning(f"Failed to get author blogs: {e}")
 
@@ -233,10 +232,9 @@ class HomeService:
         microblog_plugin = self._get_plugin("microblog")
         if microblog_plugin:
             try:
-                micro_posts = await microblog_plugin.list_posts(limit=200)
+                micro_posts = await microblog_plugin.list_posts(author_id=user_id, limit=200)
                 for p in micro_posts:
-                    if p.get("author_id") == user_id:
-                        items.append(self._transform_microblog(p))
+                    items.append(self._transform_microblog(p))
             except Exception as e:
                 log.warning(f"Failed to get author microblogs: {e}")
 
@@ -244,10 +242,9 @@ class HomeService:
         notes_plugin = self._get_plugin("notes")
         if notes_plugin:
             try:
-                notes = await notes_plugin.list_notes(visibility="public", limit=200)
+                notes = await notes_plugin.list_notes(visibility="public", author_id=user_id, limit=200)
                 for n in notes:
-                    if n.get("author_id") == user_id:
-                        items.append(self._transform_note(n))
+                    items.append(self._transform_note(n))
             except Exception as e:
                 log.warning(f"Failed to get author notes: {e}")
 

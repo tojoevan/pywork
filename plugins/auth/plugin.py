@@ -18,6 +18,7 @@ class AuthPlugin(Plugin):
     def __init__(self):
         self.sessions: Dict[str, Dict] = {}  # deprecated: session 已迁移到 SQLite，保留空 dict 以防外部引用
         self.captcha_codes: Dict[str, Dict] = {}  # 验证码缓存: {code_id: {code, expires}}
+        self._oauth_states: Dict[str, float] = {}  # OAuth state 缓存: {state: expires_at}
         self.engine = None
         self.config = None
 
@@ -61,7 +62,6 @@ class AuthPlugin(Plugin):
             )
         """)
         # 清理过期 session
-        import time
         await self.engine.execute("DELETE FROM sessions WHERE expires_at < ?", (int(time.time()),))
         
         # 确保 users 表有 display_name 字段
@@ -242,7 +242,6 @@ class AuthPlugin(Plugin):
         
         # 生成session
         token = self._generate_token()
-        import time
         expires_at = int(time.time()) + 7 * 24 * 3600  # 7天过期
         
         # 写入数据库
@@ -302,6 +301,12 @@ class AuthPlugin(Plugin):
         if not state:
             state = secrets.token_urlsafe(16)
 
+        # 存储 state 用于回调验证（10 分钟过期）
+        self._oauth_states[state] = time.time() + 600
+        # 清理过期 state
+        now = time.time()
+        self._oauth_states = {k: v for k, v in self._oauth_states.items() if v > now}
+
         params = {
             "client_id": client_id,
             "redirect_uri": redirect_uri,
@@ -313,6 +318,14 @@ class AuthPlugin(Plugin):
 
     async def github_callback(self, code: str, state: str = None, base_url: str = None) -> Dict:
         """处理 GitHub OAuth 回调"""
+        # 验证 state 参数防止 CSRF
+        if not state or state not in self._oauth_states:
+            return {"error": "无效的 OAuth state，请重新授权"}
+        if self._oauth_states[state] < time.time():
+            del self._oauth_states[state]
+            return {"error": "OAuth state 已过期，请重新授权"}
+        del self._oauth_states[state]
+
         client_id, client_secret, redirect_uri = await self._get_github_config()
         if not client_id or not client_secret:
             return {"error": "GitHub OAuth 未配置"}
@@ -346,7 +359,6 @@ class AuthPlugin(Plugin):
             
             # 生成 session
             token = self._generate_token()
-            import time
             expires_at = int(time.time()) + 7 * 24 * 3600  # 7天过期
             
             # 写入数据库
@@ -506,7 +518,6 @@ class AuthPlugin(Plugin):
     
     async def get_user_by_token(self, token: str) -> Optional[Dict]:
         """通过token获取用户（从数据库读取）"""
-        import time
         # 从数据库查询 session
         session = await self.engine.fetchone(
             "SELECT user_id, expires_at FROM sessions WHERE token = ?", (token,)
@@ -795,6 +806,8 @@ class AuthPlugin(Plugin):
                     key="auth_token",
                     value=token,
                     httponly=True,
+                    secure=request.url.scheme == "https",
+                    samesite="lax",
                     max_age=7 * 24 * 3600
                 )
                 return response
@@ -905,9 +918,10 @@ class AuthPlugin(Plugin):
                 "image": ""
             }
 
-    async def github_auth_url_api(self, request, base_url: str = None):
+    async def github_auth_url_api(self, request=None, base_url: str = None, state: str = None):
         """获取 GitHub OAuth 授权链接"""
-        state = request.query_params.get("state") if hasattr(request, 'query_params') else None
+        if not state and request and hasattr(request, 'query_params'):
+            state = request.query_params.get("state")
         url = await self.get_github_auth_url(state=state, base_url=base_url)
         if not url:
             return {"error": "GitHub OAuth 未配置"}

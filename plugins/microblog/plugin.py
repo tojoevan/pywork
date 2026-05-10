@@ -106,18 +106,18 @@ class MicroblogPlugin(Plugin):
             ),
         ]
 
-    async def _get_author_id(self, request) -> int:
-        """从请求中获取当前用户 ID"""
+    async def _get_author_id(self, request) -> Optional[int]:
+        """从请求中获取当前用户 ID，未登录返回 None"""
         user = await self.get_current_user(request)
         if user:
             return user["id"]
-        return 1  # 默认匿名
+        return None
 
     async def create_post(
         self,
         content: str,
         visibility: str = "public",
-        author_id: int = 1,
+        author_id: Optional[int] = None,
         is_anonymous: bool = False,
         mcp_token: str = None,
     ) -> Dict[str, Any]:
@@ -132,6 +132,10 @@ class MicroblogPlugin(Plugin):
                 author_id = user["id"]
             else:
                 return {"error": "无效的 MCP Token"}
+
+        # 匿名发布使用 0 作为 author_id（数据库 NOT NULL 约束）
+        if not author_id:
+            author_id = 0
 
         now = int(time.time())
         # 匿名用户 → 待审核状态；登录用户直接通过
@@ -153,23 +157,30 @@ class MicroblogPlugin(Plugin):
             return {"id": record_id, "created_at": now, "status": "pending", "message": "发布成功，待管理员审核通过后显示"}
         return {"id": record_id, "created_at": now}
 
-    async def list_posts(self, limit: int = 20, offset: int = 0, include_pending: bool = False, mcp_token: str = None) -> List[Dict]:
+    async def list_posts(self, limit: int = 20, offset: int = 0, include_pending: bool = False, author_id: Optional[int] = None, mcp_token: str = None) -> List[Dict]:
         # 默认只显示已审核通过的微博，include_pending=True 时显示 pending 状态
         if include_pending:
             status_filter = "c.status IN ('public', 'pending')"
         else:
             status_filter = "c.status = 'public'"
+        conditions = [status_filter]
+        params = [limit, offset]
+        if author_id is not None:
+            conditions.append("c.author_id = ?")
+        where_clause = " AND ".join(conditions)
         sql = f"""
-            SELECT c.*, 
+            SELECT c.*,
                    COALESCE(u.nickname, u.display_name, u.username) as author_name,
                    u.avatar as author_avatar
             FROM microblog_posts c
             LEFT JOIN users u ON c.author_id = u.id
-            WHERE {status_filter}
+            WHERE {where_clause}
             ORDER BY c.created_at DESC
             LIMIT ? OFFSET ?
         """
-        rows = await self.engine.fetchall(sql, (limit, offset))
+        if author_id is not None:
+            params.insert(0, author_id)
+        rows = await self.engine.fetchall(sql, tuple(params))
         for row in rows:
             if not row.get("author_name"):
                 row["author_name"] = "匿名"

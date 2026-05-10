@@ -152,7 +152,7 @@ Requirements:
         content: str,
         status: str = "draft",
         tags: Optional[List[str]] = None,
-        author_id: int = 1,
+        author_id: Optional[int] = None,
         mcp_token: str = None
     ) -> Dict[str, Any]:
         """Create a blog post"""
@@ -163,6 +163,9 @@ Requirements:
                 author_id = user["id"]
             else:
                 return {"error": "无效的 MCP Token"}
+
+        if not author_id:
+            return {"error": "未登录，无法创建文章"}
 
         now = int(time.time())
 
@@ -221,25 +224,30 @@ Requirements:
         query: Optional[str] = None,
         tag: Optional[str] = None,
         status: Optional[str] = None,
+        author_id: Optional[int] = None,
         limit: int = 10,
         offset: int = 0
     ) -> List[Dict[str, Any]]:
         """Search blog posts"""
         conditions = []
         params = []
-        
+
         if query:
             # Use FTS for full-text search
             conditions.append("id IN (SELECT rowid FROM blog_posts_fts WHERE blog_posts_fts MATCH ?)")
             params.append(query)
-        
+
         if tag:
             conditions.append("tags LIKE ?")
             params.append(f'%"{tag}"%')
-        
+
         if status:
             conditions.append("status = ?")
             params.append(status)
+
+        if author_id is not None:
+            conditions.append("c.author_id = ?")
+            params.append(author_id)
         
         where_clause = f"WHERE {' AND '.join(conditions)}" if conditions else ""
         sql = f"""
@@ -298,8 +306,6 @@ Requirements:
 
     async def search_fts(self, query: str, limit: int = 20) -> list:
         """FTS5 全文搜索，返回带高亮的结果（用于全局搜索）"""
-        import re
-
         # FTS5 MATCH 搜索
         try:
             # 使用 FTS5 搜索
@@ -350,27 +356,8 @@ Requirements:
 
     def _highlight_text(self, text: str, query: str, max_len: int = 200) -> str:
         """生成带高亮的文本片段"""
-        if not text:
-            return ""
-
-        # 截取片段
-        if len(text) > max_len:
-            idx = text.lower().find(query.lower())
-            if idx >= 0:
-                start = max(0, idx - max_len // 3)
-                text = text[start:start + max_len]
-                if start > 0:
-                    text = "..." + text
-                if len(text) >= max_len:
-                    text = text[:max_len] + "..."
-            else:
-                text = text[:max_len] + "..."
-
-        # 高亮关键词
-        pattern = re.compile(re.escape(query), re.IGNORECASE)
-        text = pattern.sub(lambda m: f'<span class="highlight">{m.group()}</span>', text)
-
-        return text
+        from app.utils import highlight_excerpt
+        return highlight_excerpt(text, query, max_len)
     
     async def search_posts_paginated(
         self,
@@ -456,9 +443,9 @@ Requirements:
 """
     
     # HTTP API handlers (FastAPI style)
-    async def list_posts(self, **kwargs):
+    async def list_posts(self, author_id: Optional[int] = None, status: Optional[str] = None, limit: int = 20, **kwargs):
         """List posts API"""
-        return await self.search_posts(limit=20)
+        return await self.search_posts(author_id=author_id, status=status, limit=limit)
     
     async def new_post_page(self, request):
         """新建博客页面"""
@@ -562,11 +549,11 @@ Requirements:
             return self.error_json("标题和内容不能为空")
         
         # 获取当前用户
-        author_id = 1  # 默认作者
         user = await self.get_current_user(request)
-        if user:
-            author_id = user["id"]
-        
+        if not user:
+            return self.error_json("未登录，无法创建文章", 401)
+        author_id = user["id"]
+
         return await self.create_post(
             title=title,
             content=content,

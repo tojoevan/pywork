@@ -203,7 +203,7 @@ class TopicPlugin(Plugin):
         title: str,
         description: str = "",
         deadline_hours: int = 72,
-        author_id: int = 1,
+        author_id: Optional[int] = None,
         mcp_token: str = None,
         **kwargs
     ) -> Dict[str, Any]:
@@ -214,6 +214,9 @@ class TopicPlugin(Plugin):
                 author_id = user["id"]
             else:
                 return {"error": "无效的 MCP Token"}
+
+        if not author_id:
+            return {"error": "未登录，无法创建话题"}
 
         now = int(time.time())
         deadline = now + deadline_hours * 3600
@@ -354,7 +357,7 @@ class TopicPlugin(Plugin):
         topic_id: int,
         content: str,
         parent_id: int = None,
-        author_id: int = 1,
+        author_id: Optional[int] = None,
         mcp_token: str = None,
         **kwargs
     ) -> Dict[str, Any]:
@@ -365,6 +368,9 @@ class TopicPlugin(Plugin):
                 author_id = user["id"]
             else:
                 return {"error": "无效的 MCP Token"}
+
+        if not author_id:
+            return {"error": "未登录，无法回复话题"}
 
         # Check topic exists and is open
         topic = await self.engine.fetchone(
@@ -405,7 +411,7 @@ class TopicPlugin(Plugin):
         target_type: str,
         target_id: int,
         vote_type: str,
-        author_id: int = 1,
+        author_id: Optional[int] = None,
         mcp_token: str = None,
         **kwargs
     ) -> Dict[str, Any]:
@@ -416,6 +422,9 @@ class TopicPlugin(Plugin):
                 author_id = user["id"]
             else:
                 return {"error": "无效的 MCP Token"}
+
+        if not author_id:
+            return {"error": "未登录，无法投票"}
 
         # Check for existing vote
         existing = await self.engine.fetchone(

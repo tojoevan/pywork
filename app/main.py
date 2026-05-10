@@ -3,6 +3,7 @@ import asyncio
 import argparse
 import os
 import time
+from contextlib import asynccontextmanager
 from datetime import datetime, timezone
 from typing import Optional
 from xml.etree.ElementTree import Element, SubElement, tostring
@@ -94,7 +95,7 @@ class WorkbenchApp:
 
         # Load plugins
         log.info(f"Loading plugins: {self.enabled_plugins}")
-        self.plugin_manager._template_engine = self.template_engine
+        self.plugin_manager.template_engine = self.template_engine
         try:
             await self.plugin_manager.load_all(self.enabled_plugins)
         except Exception as e:
@@ -458,7 +459,7 @@ class WorkbenchApp:
             if auth_plugin:
                 base_url = str(request.base_url).rstrip("/")
                 oauth_state = request.query_params.get("state", "")
-                result = await auth_plugin.github_auth_url_api(type('Request', (), {'query_params': {"state": oauth_state}})(), base_url=base_url)
+                result = await auth_plugin.github_auth_url_api(base_url=base_url, state=oauth_state)
                 if "url" in result:
                     from fastapi.responses import RedirectResponse
                     return RedirectResponse(url=result["url"])
@@ -483,6 +484,8 @@ class WorkbenchApp:
                         key="auth_token",
                         value=result.get("token"),
                         httponly=True,
+                        secure=request.url.scheme == "https",
+                        samesite="lax",
                         max_age=7 * 24 * 3600  # 7天
                     )
                     return response
@@ -568,6 +571,19 @@ class WorkbenchApp:
         @self.app.post("/mcp")
         async def mcp_handler(request: Request):
             """MCP HTTP endpoint - receives JSON-RPC requests"""
+            # IP 频率限制
+            client_ip = request.client.host if request.client else "unknown"
+            now = time.time()
+            timestamps = self._mcp_rate_limit.get(client_ip, [])
+            timestamps = [t for t in timestamps if now - t < self._mcp_rate_limit_window]
+            if len(timestamps) >= self._mcp_rate_limit_max:
+                return JSONResponse(
+                    {"jsonrpc": "2.0", "id": None, "error": {"code": -32000, "message": "请求过于频繁，请稍后再试"}},
+                    status_code=429
+                )
+            timestamps.append(now)
+            self._mcp_rate_limit[client_ip] = timestamps
+
             body = await request.json()
             method = body.get("method", "")
             params = body.get("params", {})
@@ -602,11 +618,15 @@ class WorkbenchApp:
         self._search_rate_limit = {}  # {ip: last_search_time}
         self._search_rate_limit_interval = 30  # 秒
 
+        # MCP 频率限制：每个 IP 每分钟最多 30 次请求
+        self._mcp_rate_limit = {}  # {ip: [timestamps]}
+        self._mcp_rate_limit_max = 30
+        self._mcp_rate_limit_window = 60  # 秒
+
         # 全局搜索路由
         @self.app.get("/search", response_class=HTMLResponse)
         async def global_search(request: Request):
             """全局搜索页面"""
-            import time
             start_time = time.time()
 
             # IP 频率限制
@@ -879,41 +899,18 @@ class WorkbenchApp:
 
     def _highlight_excerpt(self, text: str, query: str, max_len: int = 200) -> str:
         """生成带高亮的摘要"""
-        if not text:
-            return ""
-
-        # 截取摘要
-        if len(text) > max_len:
-            # 尝试从关键词位置开始截取
-            idx = text.lower().find(query.lower())
-            if idx >= 0:
-                start = max(0, idx - max_len // 3)
-                text = text[start:start + max_len]
-                if start > 0:
-                    text = "..." + text
-                if start + max_len < len(text):
-                    text = text + "..."
-            else:
-                text = text[:max_len] + "..."
-
-        # 高亮关键词（不区分大小写）
-        import re
-        pattern = re.compile(re.escape(query), re.IGNORECASE)
-        text = pattern.sub(lambda m: f'<span class="highlight">{m.group()}</span>', text)
-
-        return text
+        from app.utils import highlight_excerpt
+        return highlight_excerpt(text, query, max_len)
 
     def run_http(self, host: str = "0.0.0.0", port: int = 8080):
         """Run HTTP server"""
-
-        @self.app.on_event("startup")
-        async def on_startup():
+        @asynccontextmanager
+        async def lifespan(app):
             await self.startup()
-
-        @self.app.on_event("shutdown")
-        async def on_shutdown():
+            yield
             await self.shutdown()
 
+        self.app.router.lifespan_context = lifespan
         uvicorn.run(self.app, host=host, port=port)
 
     async def run_mcp_stdio(self):
@@ -985,15 +982,14 @@ def __getattr__(name: str):
                 db_path=os.environ.get("PYWORK_DB", "./data/pywork.db"),
                 plugin_dir=os.environ.get("PYWORK_PLUGINS", "./plugins"),
             )
-            
-            @workbench.app.on_event("startup")
-            async def on_startup():
-                await workbench.startup()
 
-            @workbench.app.on_event("shutdown")
-            async def on_shutdown():
+            @asynccontextmanager
+            async def lifespan(app):
+                await workbench.startup()
+                yield
                 await workbench.shutdown()
-            
+
+            workbench.app.router.lifespan_context = lifespan
             _asgi_app = workbench.app
         return _asgi_app
     raise AttributeError(f"module {__name__!r} has no attribute {name!r}")

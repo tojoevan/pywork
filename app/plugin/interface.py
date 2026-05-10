@@ -235,13 +235,14 @@ a{{color:#3498db;text-decoration:none}}a:hover{{text-decoration:underline}}
 
 class PluginManager:
     """Plugin manager"""
-    
+
     def __init__(self, engine: Engine, plugin_dir: str = "./plugins"):
         self.engine = engine
         self.plugin_dir = plugin_dir
         self.plugins: Dict[str, Plugin] = {}
         self.contexts: Dict[str, PluginContext] = {}
         self.config = None  # 由 WorkbenchApp.startup() 注入 AppConfig
+        self.template_engine = None  # 由 WorkbenchApp.startup() 注入
     
     async def load_plugin(self, name: str, config: Optional[Dict[str, Any]] = None) -> Plugin:
         """Load a plugin by name"""
@@ -274,7 +275,7 @@ class PluginManager:
         
         # Instantiate and initialize
         plugin = plugin_class()
-        template_engine = getattr(self, '_template_engine', None)
+        template_engine = self.template_engine
         # 优先使用 PluginManager 级别的 config，其次使用 load_plugin 传入的
         effective_config = config or getattr(self, 'config', None)
         ctx = PluginContext(engine=self.engine, config=effective_config, plugin_manager=self, template_engine=template_engine)
