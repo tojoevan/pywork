@@ -113,6 +113,7 @@ class BoardPlugin(Plugin):
             Route("/board/logs/api", "GET", self.list_logs_api, "board.logs_list"),
             Route("/board/logs/api/count", "GET", self.count_logs_api, "board.logs_count"),
             Route("/board/moderation", "GET", self.moderation_page, "board.moderation_page"),
+            Route("/board/comments", "GET", self.comments_page, "board.comments_page"),
         ]
 
     # ========================================================
@@ -269,6 +270,36 @@ class BoardPlugin(Plugin):
             "SELECT * FROM cron_jobs ORDER BY created_at DESC"
         )
         return [dict(r) for r in rows]
+
+    async def _list_pending_comments(self) -> List[Dict]:
+        sql = """
+            SELECT g.id, g.nickname, g.body as content, g.email, g.created_at,
+                   u.username, u.avatar
+            FROM guestbook_entries g
+            LEFT JOIN users u ON g.author_id = u.id
+            WHERE g.status = 'pending'
+            ORDER BY g.created_at DESC
+        """
+        rows = await self.engine.fetchall(sql)
+        for row in rows:
+            if not row.get("nickname"):
+                row["nickname"] = "匿名"
+        return rows
+
+    async def _list_approved_comments(self) -> List[Dict]:
+        sql = """
+            SELECT g.id, g.nickname, g.body as content, g.email, g.created_at,
+                   u.username, u.avatar
+            FROM guestbook_entries g
+            LEFT JOIN users u ON g.author_id = u.id
+            WHERE g.status = 'public'
+            ORDER BY g.created_at DESC
+        """
+        rows = await self.engine.fetchall(sql)
+        for row in rows:
+            if not row.get("nickname"):
+                row["nickname"] = "匿名"
+        return rows
 
     async def _get_cron_job(self, job_id: int) -> Optional[Dict]:
         row = await self.engine.fetchone(
@@ -801,6 +832,10 @@ class BoardPlugin(Plugin):
         current_user = await self.get_current_user(request)
         jobs = await self._list_cron_jobs()
 
+        # 读取留言
+        pending_comments = await self._list_pending_comments()
+        approved_comments = await self._list_approved_comments()
+
         # 读取看板任务（供看板 tab 使用）
         rows = await self.engine.fetchall(
             "SELECT * FROM board_tasks ORDER BY status, sort_order ASC, created_at DESC"
@@ -829,6 +864,8 @@ class BoardPlugin(Plugin):
                     "medium": "🟡 中",
                     "high": "🔴 高",
                 },
+                "pending_comments": pending_comments,
+                "approved_comments": approved_comments,
             }
         )
         return HTMLResponse(content=html)
@@ -960,6 +997,63 @@ class BoardPlugin(Plugin):
             )
         )
 
+    async def comments_page(self, request, **kwargs):
+        """留言审核页面"""
+        from starlette.responses import HTMLResponse
+
+        redirect = await self.require_admin_or_redirect(request)
+        if redirect:
+            return redirect
+
+        current_user = await self.get_current_user(request)
+
+        # 读取看板任务（供看板 tab 使用）
+        rows = await self.engine.fetchall(
+            "SELECT * FROM board_tasks ORDER BY status, sort_order ASC, created_at DESC"
+        )
+        tasks = [dict(r) for r in rows]
+        columns = {"todo": [], "in-progress": [], "done": []}
+        for task in tasks:
+            status = task.get("status", "todo")
+            if status in columns:
+                columns[status].append(task)
+
+        # 读取定时任务
+        cron_jobs = await self._list_cron_jobs()
+
+        # 读取留言
+        pending_comments = await self._list_pending_comments()
+        approved_comments = await self._list_approved_comments()
+
+        # 读取微博待审核
+        mb_plugin = self.ctx.get_plugin("microblog")
+        pending_posts = []
+        if mb_plugin:
+            pending_posts = await mb_plugin.get_pending_posts()
+
+        html = await self.template_engine.render(
+            "board.html",
+            {
+                "nav_page": "board",
+                "section": "comments",
+                "current_user": current_user,
+                "tasks": tasks,
+                "columns": columns,
+                "PRIORITY_LABELS": {
+                    "low": "🟢 低",
+                    "medium": "🟡 中",
+                    "high": "🔴 高",
+                },
+                "cron_jobs": cron_jobs,
+                "PRESET_JOBS": PRESET_JOBS,
+                "INTERVAL_OPTIONS": INTERVAL_OPTIONS,
+                "pending_posts": pending_posts,
+                "pending_comments": pending_comments,
+                "approved_comments": approved_comments,
+            }
+        )
+        return HTMLResponse(content=html)
+
     async def get_settings_api(self, request, **kwargs):
         """GET /board/settings/api - 获取当前设置"""
         from starlette.responses import JSONResponse
@@ -1061,6 +1155,10 @@ class BoardPlugin(Plugin):
         # 读取定时任务
         cron_jobs = await self._list_cron_jobs()
 
+        # 读取留言
+        pending_comments = await self._list_pending_comments()
+        approved_comments = await self._list_approved_comments()
+
         # 按状态分组看板任务
         columns = {"todo": [], "in-progress": [], "done": []}
         for task in tasks:
@@ -1085,6 +1183,8 @@ class BoardPlugin(Plugin):
                 "PRESET_JOBS": PRESET_JOBS,
                 "INTERVAL_OPTIONS": INTERVAL_OPTIONS,
                 "pending_posts": [],
+                "pending_comments": pending_comments,
+                "approved_comments": approved_comments,
             }
         )
         return HTMLResponse(content=html)

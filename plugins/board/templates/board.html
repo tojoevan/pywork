@@ -19,14 +19,18 @@
         {% elif section == 'moderation' %}
         <h1>📝 微博审核</h1>
         <p class="board-desc">审核匿名用户发布的微博，通过后才会显示在微博广场。</p>
+        {% elif section == 'comments' %}
+        <h1>💬 留言审核</h1>
+        <p class="board-desc">管理关于页面的用户留言</p>
         {% else %}
-        <h1>📋 看板</h1>
+        <h1>📋 看板任务</h1>
         <p class="board-desc">任务管理，仅管理员可用</p>
         {% endif %}
         <div class="tab-nav">
-            <a href="/board" class="tab-btn{% if section == 'board' %} active{% endif %}">看板</a>
+            <a href="/board" class="tab-btn{% if section == 'board' %} active{% endif %}">看板任务</a>
             <a href="/board/cron" class="tab-btn{% if section == 'cron' %} active{% endif %}">定时任务</a>
             <a href="/board/moderation" class="tab-btn{% if section == 'moderation' %} active{% endif %}">微博审核</a>
+            <a href="/board/comments" class="tab-btn{% if section == 'comments' %} active{% endif %}">💬 留言审核</a>
             <a href="/board/logs" class="tab-btn">📜 日志</a>
             <a href="/board/settings" class="tab-btn">网站设置</a>
         </div>
@@ -247,6 +251,58 @@
     <div class="tab-panel{% if section != 'moderation' %} hidden{% endif %}" id="panel-moderation">
         <div class="moderation-container">
             <div class="moderation-list" id="moderation-list">
+            </div>
+        </div>
+    </div>
+
+    {# ============================================================ #}
+    {#  留言审核区                                              #}
+    {# ============================================================ #}
+    <div class="tab-panel{% if section != 'comments' %} hidden{% endif %}" id="panel-comments">
+        <div class="comments-review">
+            <div class="comments-group">
+                <h3 class="comments-group-title">待审核 ({{ pending_comments | length }})</h3>
+                {% if pending_comments %}
+                <div class="comments-list">
+                    {% for comment in pending_comments %}
+                    <div class="comment-item" id="comment-{{ comment.id }}">
+                        <div class="comment-header">
+                            <span class="comment-author">{{ comment.nickname }}</span>
+                            <span class="comment-time">{{ comment.created_at | datefmt }}</span>
+                        </div>
+                        <div class="comment-body">{{ comment.content | e }}</div>
+                        <div class="comment-actions">
+                            <button class="btn-approve-comment" onclick="approveComment({{ comment.id }})">✅ 通过</button>
+                            <button class="btn-reject-comment" onclick="deleteComment({{ comment.id }})">❌ 拒绝</button>
+                        </div>
+                    </div>
+                    {% endfor %}
+                </div>
+                {% else %}
+                <div class="comments-empty">暂无待审核留言</div>
+                {% endif %}
+            </div>
+
+            <div class="comments-group">
+                <h3 class="comments-group-title">已通过 ({{ approved_comments | length }})</h3>
+                {% if approved_comments %}
+                <div class="comments-list">
+                    {% for comment in approved_comments %}
+                    <div class="comment-item" id="comment-{{ comment.id }}">
+                        <div class="comment-header">
+                            <span class="comment-author">{{ comment.nickname }}</span>
+                            <span class="comment-time">{{ comment.created_at | datefmt }}</span>
+                        </div>
+                        <div class="comment-body">{{ comment.content | e }}</div>
+                        <div class="comment-actions">
+                            <button class="btn-reject-comment" onclick="deleteComment({{ comment.id }})">🗑️ 删除</button>
+                        </div>
+                    </div>
+                    {% endfor %}
+                </div>
+                {% else %}
+                <div class="comments-empty">暂无已通过留言</div>
+                {% endif %}
             </div>
         </div>
     </div>
@@ -500,6 +556,31 @@ function escapeHtml(str) {
 function formatTime(ts) {
     const d = new Date(ts * 1000);
     return `${d.getMonth()+1}-${d.getDate()} ${d.getHours().toString().padStart(2,'0')}:${d.getMinutes().toString().padStart(2,'0')}`;
+}
+
+{# ============================================================ #}
+{#  留言审核：通过 / 删除                                      #}
+{# ============================================================ #}
+async function approveComment(id) {
+    const res = await fetch(`/about/comments/${id}/approve`, { method: 'POST' });
+    const data = await res.json();
+    if (data.error) { alert(data.error); return; }
+    const el = document.getElementById(`comment-${id}`);
+    if (el) el.remove();
+    // 检查是否还有待审核
+    const container = document.querySelector('#panel-comments .comments-group:first-of-type .comments-list');
+    if (container && container.querySelectorAll('.comment-item').length === 0) {
+        container.innerHTML = '<div class="comments-empty">暂无待审核留言</div>';
+    }
+}
+
+async function deleteComment(id) {
+    if (!confirm('确定删除该留言？')) return;
+    const res = await fetch(`/about/comments/${id}`, { method: 'DELETE' });
+    const data = await res.json();
+    if (data.error) { alert(data.error); return; }
+    const el = document.getElementById(`comment-${id}`);
+    if (el) el.remove();
 }
 
 // 注入 pending_posts 到 JS
