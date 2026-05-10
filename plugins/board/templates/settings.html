@@ -250,9 +250,9 @@
             <div class="hint">保存后不会回显，留空表示不修改</div>
         </div>
         <div class="form-group">
-            <label>Callback URL</label>
-            <input type="text" value="/auth/github/callback" readonly style="background:#f9fafb;cursor:not-allowed;">
-            <div class="hint">在 GitHub OAuth App 中填写：你的域名 + /auth/github/callback</div>
+            <label for="github_redirect_uri">Callback URL</label>
+            <input type="text" id="github_redirect_uri" name="github_redirect_uri" placeholder="https://你的域名/auth/github/callback">
+            <div class="hint">完整地址，需与 GitHub OAuth App 中配置一致</div>
         </div>
         <div class="form-actions">
             <button type="submit" class="btn-save" id="githubSaveBtn">保存</button>
@@ -333,6 +333,7 @@ async function loadSettings() {
         document.getElementById('announcement').value = data.announcement || '';
         document.getElementById('primary_color').value = data.primary_color || '#10b981';
         document.getElementById('github_client_id').value = data.github_client_id || '';
+        document.getElementById('github_redirect_uri').value = data.github_redirect_uri || '';
     } catch (e) {
         console.error('加载设置失败:', e);
     }
@@ -393,6 +394,7 @@ document.getElementById('githubForm').addEventListener('submit', async (e) => {
 
     const data = {
         github_client_id: document.getElementById('github_client_id').value.trim(),
+        github_redirect_uri: document.getElementById('github_redirect_uri').value.trim(),
     };
     const secret = document.getElementById('github_client_secret').value;
     if (secret) data.github_client_secret = secret;

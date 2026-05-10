@@ -93,6 +93,7 @@ SITE_CONFIG_KEYS = {
     "announcement": "announcement",
     "github_client_id": "github_client_id",
     "github_client_secret": "github_client_secret",
+    "github_redirect_uri": "github_redirect_uri",
 }
 
 
