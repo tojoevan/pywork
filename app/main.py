@@ -83,8 +83,11 @@ class WorkbenchApp:
         setup_logging(data_dir=data_dir, log_level=self._config.log_level, engine=self.engine)
         log.info(f"数据目录: {data_dir}")
 
-        # Initialize template engine (pass engine for lazy site config loading)
-        self.template_engine = TemplateEngine(self.template_dir, engine=self.engine)
+        # Initialize template engine (pass engine and site_config_manager for unified cache)
+        self.template_engine = TemplateEngine(
+            self.template_dir, engine=self.engine,
+            site_config_manager=self.site_config_manager
+        )
 
         # Add plugin template directories
         for plugin_name in self.enabled_plugins:

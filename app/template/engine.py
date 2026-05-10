@@ -181,10 +181,11 @@ def markdown_filter(text: str) -> str:
 
 class TemplateEngine:
     """Jinja2 template engine with custom filters"""
-    
-    def __init__(self, template_dir: str = "./templates", engine=None):
+
+    def __init__(self, template_dir: str = "./templates", engine=None, site_config_manager=None):
         self.template_dir = template_dir
         self._engine = engine  # SQLiteEngine reference for lazy site config loading
+        self._site_config_manager = site_config_manager  # SiteConfigManager for unified cache
         self._site_cache = None
         
         # 支持多目录加载（主模板 + 插件模板）
@@ -238,20 +239,33 @@ class TemplateEngine:
         self.env.loader = ChoiceLoader(loaders)
     
     async def _load_site_config_async(self) -> Dict[str, Any]:
-        """Async load site config from database"""
-        if self._site_cache is not None:
-            return self._site_cache
-        
+        """Async load site config from SiteConfigManager or database"""
         default = {
             'title': 'pyWork',
             'description': '多用户数字工作台',
             'year': datetime.now().year
         }
-        
+
+        # 优先使用 SiteConfigManager（统一缓存源）
+        if self._site_config_manager is not None:
+            try:
+                settings = await self._site_config_manager.load()
+                if settings:
+                    config = dict(default)
+                    config.update(settings)
+                    return config
+            except Exception:
+                pass
+            return default
+
+        # 回退：直接查询数据库（兼容无 SiteConfigManager 的场景）
+        if self._site_cache is not None:
+            return self._site_cache
+
         if self._engine is None:
             self._site_cache = default
             return default
-        
+
         try:
             rows = await self._engine.fetchall("SELECT key, value FROM site_config")
             if rows:
@@ -263,7 +277,7 @@ class TemplateEngine:
                 self._site_cache = default
         except Exception:
             self._site_cache = default
-        
+
         return self._site_cache
     
     async def render(
