@@ -258,25 +258,36 @@ class AuthPlugin(Plugin):
         redirect_uri = self.github_redirect_uri
         try:
             rows = await self.engine.fetchall(
-                "SELECT key, value FROM site_config WHERE key IN (?, ?)",
-                ("github_client_id", "github_client_secret")
+                "SELECT key, value FROM site_config WHERE key IN (?, ?, ?)",
+                ("github_client_id", "github_client_secret", "github_redirect_uri")
             )
             for row in rows:
                 if row["key"] == "github_client_id" and row["value"]:
                     client_id = row["value"]
                 elif row["key"] == "github_client_secret" and row["value"]:
                     client_secret = row["value"]
+                elif row["key"] == "github_redirect_uri" and row["value"]:
+                    redirect_uri = row["value"]
         except Exception:
             pass
         if not redirect_uri:
             redirect_uri = "/auth/github/callback"
         return client_id, client_secret, redirect_uri
 
-    async def get_github_auth_url(self, state: str = None) -> str:
+    async def get_github_auth_url(self, state: str = None, base_url: str = None) -> str:
         """生成 GitHub 授权 URL"""
         client_id, _, redirect_uri = await self._get_github_config()
         if not client_id:
             return None
+
+        # redirect_uri 需要完整 URL
+        if redirect_uri and not redirect_uri.startswith("http"):
+            if base_url:
+                redirect_uri = base_url + redirect_uri
+            else:
+                redirect_uri = None
+        if not redirect_uri and base_url:
+            redirect_uri = base_url + "/auth/github/callback"
 
         if not state:
             state = secrets.token_urlsafe(16)
@@ -290,12 +301,19 @@ class AuthPlugin(Plugin):
 
         return f"https://github.com/login/oauth/authorize?{urllib.parse.urlencode(params)}"
 
-    async def github_callback(self, code: str, state: str = None) -> Dict:
+    async def github_callback(self, code: str, state: str = None, base_url: str = None) -> Dict:
         """处理 GitHub OAuth 回调"""
         client_id, client_secret, redirect_uri = await self._get_github_config()
         if not client_id or not client_secret:
             return {"error": "GitHub OAuth 未配置"}
-        
+
+        # 构建完整 redirect_uri
+        if redirect_uri and not redirect_uri.startswith("http"):
+            if base_url:
+                redirect_uri = base_url + redirect_uri
+        if not redirect_uri and base_url:
+            redirect_uri = base_url + "/auth/github/callback"
+
         try:
             # 用 code 换取 access_token
             token_data = await self._exchange_github_code(code, client_id, client_secret, redirect_uri)
@@ -877,14 +895,14 @@ class AuthPlugin(Plugin):
                 "image": ""
             }
 
-    async def github_auth_url_api(self, request):
+    async def github_auth_url_api(self, request, base_url: str = None):
         """获取 GitHub OAuth 授权链接"""
-        url = await self.get_github_auth_url()
+        url = await self.get_github_auth_url(base_url=base_url)
         if not url:
             return {"error": "GitHub OAuth 未配置"}
         return {"url": url}
     
-    async def github_callback_api(self, request):
+    async def github_callback_api(self, request, base_url: str = None):
         """GitHub OAuth 回调"""
         code = request.query_params.get("code")
         state = request.query_params.get("state")
@@ -892,7 +910,7 @@ class AuthPlugin(Plugin):
         if not code:
             return {"error": "缺少 code 参数"}
 
-        return await self.github_callback(code, state)
+        return await self.github_callback(code, state, base_url=base_url)
 
     # === MCP Token 管理 ===
 

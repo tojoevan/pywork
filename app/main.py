@@ -452,11 +452,12 @@ class WorkbenchApp:
 
         # GitHub OAuth 路由
         @self.app.get("/auth/github")
-        async def github_auth():
+        async def github_auth(request: Request):
             """GitHub OAuth 授权"""
             auth_plugin = self.plugin_manager.plugins.get("auth")
             if auth_plugin:
-                result = await auth_plugin.github_auth_url_api(type('Request', (), {'query_params': {}})())
+                base_url = str(request.base_url).rstrip("/")
+                result = await auth_plugin.github_auth_url_api(type('Request', (), {'query_params': {}})(), base_url=base_url)
                 if "url" in result:
                     from fastapi.responses import RedirectResponse
                     return RedirectResponse(url=result["url"])
@@ -468,7 +469,8 @@ class WorkbenchApp:
             """GitHub OAuth 回调"""
             auth_plugin = self.plugin_manager.plugins.get("auth")
             if auth_plugin:
-                result = await auth_plugin.github_callback_api(request)
+                base_url = str(request.base_url).rstrip("/")
+                result = await auth_plugin.github_callback_api(request, base_url=base_url)
                 if "success" in result and result.get("success"):
                     # 登录成功,重定向到首页
                     from fastapi.responses import RedirectResponse
