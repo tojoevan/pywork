@@ -61,6 +61,9 @@ class AuthPlugin(Plugin):
                 expires_at INTEGER NOT NULL
             )
         """)
+        # 添加索引
+        await self.engine.execute("CREATE INDEX IF NOT EXISTS idx_sessions_user_id ON sessions(user_id)")
+        await self.engine.execute("CREATE INDEX IF NOT EXISTS idx_sessions_expires_at ON sessions(expires_at)")
         # 清理过期 session
         await self.engine.execute("DELETE FROM sessions WHERE expires_at < ?", (int(time.time()),))
         
@@ -93,6 +96,8 @@ class AuthPlugin(Plugin):
                 last_used INTEGER DEFAULT 0
             )
         """)
+        # 添加索引
+        await self.engine.execute("CREATE INDEX IF NOT EXISTS idx_mcp_tokens_user_id ON mcp_tokens(user_id)")
         # 尝试添加新字段（兼容旧数据库）
         try:
             await self.engine.execute("ALTER TABLE mcp_tokens ADD COLUMN agent_name TEXT UNIQUE")

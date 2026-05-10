@@ -289,6 +289,8 @@ class SQLiteEngine(Engine):
         ON comments(author_id);
     CREATE INDEX IF NOT EXISTS idx_comments_status
         ON comments(status);
+    CREATE INDEX IF NOT EXISTS idx_comments_created_at
+        ON comments(created_at);
 
     -- Notifications
     CREATE TABLE IF NOT EXISTS notifications (
