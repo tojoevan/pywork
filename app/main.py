@@ -20,6 +20,7 @@ from app.template import TemplateEngine
 from app.log import setup_logging, get_logger
 from app.config import build_config, AppConfig, SiteConfigManager, config_to_dict
 from app.services.home_service import HomeService
+from app.rate_limiter import RateLimiter, SlidingWindowRateLimiter
 
 # 模块级 logger
 log = get_logger(__name__, "core")
@@ -576,16 +577,14 @@ class WorkbenchApp:
             """MCP HTTP endpoint - receives JSON-RPC requests"""
             # IP 频率限制
             client_ip = request.client.host if request.client else "unknown"
-            now = time.time()
-            timestamps = self._mcp_rate_limit.get(client_ip, [])
-            timestamps = [t for t in timestamps if now - t < self._mcp_rate_limit_window]
-            if len(timestamps) >= self._mcp_rate_limit_max:
+            allowed, count = await self._mcp_limiter.check_and_record(
+                client_ip, self._mcp_rate_limit_max, self._mcp_rate_limit_window
+            )
+            if not allowed:
                 return JSONResponse(
                     {"jsonrpc": "2.0", "id": None, "error": {"code": -32000, "message": "请求过于频繁，请稍后再试"}},
                     status_code=429
                 )
-            timestamps.append(now)
-            self._mcp_rate_limit[client_ip] = timestamps
 
             body = await request.json()
             method = body.get("method", "")
@@ -618,11 +617,11 @@ class WorkbenchApp:
             }}
 
         # 搜索频率限制：每个 IP 每 30 秒搜索一次
-        self._search_rate_limit = {}  # {ip: last_search_time}
+        self._search_limiter = RateLimiter(self.engine, key_prefix="search:")
         self._search_rate_limit_interval = 30  # 秒
 
         # MCP 频率限制：每个 IP 每分钟最多 30 次请求
-        self._mcp_rate_limit = {}  # {ip: [timestamps]}
+        self._mcp_limiter = SlidingWindowRateLimiter(self.engine, key_prefix="mcp:")
         self._mcp_rate_limit_max = 30
         self._mcp_rate_limit_window = 60  # 秒
 
@@ -634,11 +633,12 @@ class WorkbenchApp:
 
             # IP 频率限制
             client_ip = request.client.host if request.client else "unknown"
-            now = time.time()
-            last_search = self._search_rate_limit.get(client_ip, 0)
-            if now - last_search < self._search_rate_limit_interval:
+            allowed, remaining = await self._search_limiter.check_and_record(
+                client_ip, self._search_rate_limit_interval
+            )
+            if not allowed:
                 # 返回提示页面
-                remaining = int(self._search_rate_limit_interval - (now - last_search))
+                pass  # remaining 已在 check_and_record 中计算
                 html = await self.template_engine.render("search.html", {
                     "query": "",
                     "total": 0,

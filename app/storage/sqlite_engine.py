@@ -21,7 +21,7 @@ class SQLiteEngine(Engine):
         'comments', 'notifications',
         'topic_discussions', 'topic_replies', 'topic_votes', 'llm_configs',
         'nav_links', 'nav_link_hides',
-        '_meta', '_raft_log', 'app_logs',
+        '_meta', '_raft_log', 'app_logs', 'rate_limits',
     })
     
     # Core business tables
@@ -261,6 +261,14 @@ class SQLiteEngine(Engine):
     CREATE INDEX IF NOT EXISTS idx_app_logs_level ON app_logs(level);
     CREATE INDEX IF NOT EXISTS idx_app_logs_module ON app_logs(module);
     CREATE INDEX IF NOT EXISTS idx_app_logs_created ON app_logs(created_at);
+
+    -- Rate limits
+    CREATE TABLE IF NOT EXISTS rate_limits (
+        key TEXT PRIMARY KEY,
+        value TEXT NOT NULL,
+        expires_at INTEGER NOT NULL
+    );
+    CREATE INDEX IF NOT EXISTS idx_rate_limits_expires ON rate_limits(expires_at);
 
     {comments_and_notifications}
     """

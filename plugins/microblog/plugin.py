@@ -4,6 +4,7 @@ import time
 import json
 
 from app.plugin import Plugin, PluginContext, MCPTool, MCPResource, MCPPrompt, Route
+from app.rate_limiter import RateLimiter
 
 
 class MicroblogPlugin(Plugin):
@@ -15,8 +16,7 @@ class MicroblogPlugin(Plugin):
 
     def __init__(self):
         super().__init__()
-        # 频率控制：IP -> 最后发布时间（秒）
-        self._ip_rate_limit: Dict[str, float] = {}
+        self._ip_limiter = None  # 延迟初始化
 
     @property
     def name(self) -> str:
@@ -32,6 +32,7 @@ class MicroblogPlugin(Plugin):
         self.ctx = ctx
         self._ctx = ctx  # 供基类鉴权方法使用
         self.template_engine = ctx.template_engine
+        self._ip_limiter = RateLimiter(self.engine, key_prefix="microblog:")
 
         # 修复历史脏数据：status 被错误设为 visibility 值（如 followers/private）
         try:
@@ -302,16 +303,11 @@ class MicroblogPlugin(Plugin):
         
         # 匿名用户频率控制
         if is_anonymous:
-            now = time.time()
-            last_post = self._ip_rate_limit.get(client_ip, 0)
-            if now - last_post < self.ANONYMOUS_RATE_LIMIT:
-                remaining = int(self.ANONYMOUS_RATE_LIMIT - (now - last_post))
+            allowed, remaining = await self._ip_limiter.check_and_record(
+                client_ip, self.ANONYMOUS_RATE_LIMIT
+            )
+            if not allowed:
                 return self.error_json(f"发布过于频繁，请 {remaining} 秒后再试", 429)
-            # 更新发布时间
-            self._ip_rate_limit[client_ip] = now
-            # 清理过期的记录（防止内存泄漏）
-            expired = now - 300  # 5分钟前的记录
-            self._ip_rate_limit = {k: v for k, v in self._ip_rate_limit.items() if v > expired}
         
         author_id = await self._get_author_id(request)
         return await self.create_post(content=content, author_id=author_id, is_anonymous=is_anonymous)
