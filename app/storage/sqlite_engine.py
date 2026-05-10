@@ -21,7 +21,7 @@ class SQLiteEngine(Engine):
         'comments', 'notifications',
         'topic_discussions', 'topic_replies', 'topic_votes', 'llm_configs',
         'nav_links', 'nav_link_hides',
-        '_meta', '_raft_log', 'app_logs', 'rate_limits',
+        '_meta', '_raft_log', 'app_logs', 'rate_limits', 'captchas',
     })
     
     # Core business tables
@@ -269,6 +269,14 @@ class SQLiteEngine(Engine):
         expires_at INTEGER NOT NULL
     );
     CREATE INDEX IF NOT EXISTS idx_rate_limits_expires ON rate_limits(expires_at);
+
+    -- Captchas
+    CREATE TABLE IF NOT EXISTS captchas (
+        code_id TEXT PRIMARY KEY,
+        code TEXT NOT NULL,
+        expires_at INTEGER NOT NULL
+    );
+    CREATE INDEX IF NOT EXISTS idx_captchas_expires ON captchas(expires_at);
 
     {comments_and_notifications}
     """

@@ -17,7 +17,6 @@ class AuthPlugin(Plugin):
     
     def __init__(self):
         self.sessions: Dict[str, Dict] = {}  # deprecated: session 已迁移到 SQLite，保留空 dict 以防外部引用
-        self.captcha_codes: Dict[str, Dict] = {}  # 验证码缓存: {code_id: {code, expires}}
         self._oauth_states: Dict[str, float] = {}  # OAuth state 缓存: {state: expires_at}
         self.engine = None
         self.config = None
@@ -133,35 +132,47 @@ class AuthPlugin(Plugin):
         """HTTP routes"""
         return []  # 路由在 main.py 中注册
     
-    def _generate_captcha(self) -> tuple:
+    async def _generate_captcha(self) -> tuple:
         """生成验证码，返回 (code_id, code_text)"""
         code_id = secrets.token_urlsafe(16)
         # 生成4位数字验证码
         code = ''.join([str(secrets.randbelow(10)) for _ in range(4)])
-        expires = int(time.time()) + 300  # 5分钟有效期
-        self.captcha_codes[code_id] = {
-            "code": code,
-            "expires": expires
-        }
+        expires_at = int(time.time()) + 300  # 5分钟有效期
+        await self.engine.execute(
+            "INSERT INTO captchas (code_id, code, expires_at) VALUES (?, ?, ?)",
+            (code_id, code, expires_at)
+        )
+        # 清理过期验证码
+        await self._cleanup_captchas()
         return code_id, code
     
-    def _verify_captcha(self, code_id: str, code: str) -> bool:
+    async def _verify_captcha(self, code_id: str, code: str) -> bool:
         """验证验证码"""
         if not code_id or not code:
             return False
-        data = self.captcha_codes.get(code_id)
-        if not data:
+        row = await self.engine.fetchone(
+            "SELECT code, expires_at FROM captchas WHERE code_id = ?",
+            (code_id,)
+        )
+        if not row:
             return False
         # 检查是否过期
-        if int(time.time()) > data["expires"]:
-            del self.captcha_codes[code_id]
+        if int(time.time()) > row["expires_at"]:
+            await self.engine.execute("DELETE FROM captchas WHERE code_id = ?", (code_id,))
             return False
         # 验证代码（不区分大小写）
-        if data["code"].lower() == code.lower():
+        if row["code"].lower() == code.lower():
             # 验证成功后删除，防止重复使用
-            del self.captcha_codes[code_id]
+            await self.engine.execute("DELETE FROM captchas WHERE code_id = ?", (code_id,))
             return True
         return False
+
+    async def _cleanup_captchas(self) -> None:
+        """清理过期验证码"""
+        await self.engine.execute(
+            "DELETE FROM captchas WHERE expires_at < ?",
+            (int(time.time()),)
+        )
     
     def _hash_password(self, password: str, salt: str = None) -> tuple:
         """密码加密"""
@@ -203,7 +214,7 @@ class AuthPlugin(Plugin):
         # 验证验证码
         if not captcha_id or not captcha_code:
             return {"error": "请输入验证码"}
-        if not self._verify_captcha(captcha_id, captcha_code):
+        if not await self._verify_captcha(captcha_id, captcha_code):
             return {"error": "验证码错误或已过期"}
         
         # 检查用户名是否存在
@@ -887,7 +898,7 @@ class AuthPlugin(Plugin):
         import base64
         from io import BytesIO
 
-        code_id, code = self._generate_captcha()
+        code_id, code = await self._generate_captcha()
 
         # 生成简单的验证码图片 (PIL)
         try:
