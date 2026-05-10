@@ -54,3 +54,29 @@ def decrypt_value(fernet: Fernet, ciphertext: str) -> str:
 def is_encrypted(value: str) -> bool:
     """判断是否已加密"""
     return value.startswith(_ENCRYPT_PREFIX)
+
+
+# ============================================================
+#  Token 哈希（用于 MCP Token 等只需验证、不需恢复的场景）
+# ============================================================
+
+_TOKEN_HASH_PREFIX = "sha256:"
+
+
+def hash_token(token: str) -> str:
+    """SHA-256 哈希 token，返回 sha256:hex 格式"""
+    h = hashlib.sha256(token.encode()).hexdigest()
+    return _TOKEN_HASH_PREFIX + h
+
+
+def verify_token_hash(token: str, stored: str) -> bool:
+    """验证 token 是否匹配存储的哈希"""
+    if stored.startswith(_TOKEN_HASH_PREFIX):
+        return hash_token(token) == stored
+    # 兼容明文（平滑升级）
+    return token == stored
+
+
+def is_hashed(value: str) -> bool:
+    """判断是否已哈希"""
+    return value.startswith(_TOKEN_HASH_PREFIX)

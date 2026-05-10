@@ -102,7 +102,28 @@ class AuthPlugin(Plugin):
             await self.engine.execute("ALTER TABLE mcp_tokens ADD COLUMN agent_user_id INTEGER")
         except:
             pass
-    
+        try:
+            await self.engine.execute("ALTER TABLE mcp_tokens ADD COLUMN token_prefix TEXT DEFAULT ''")
+        except:
+            pass
+        # 迁移：将已有明文 token 哈希化
+        await self._migrate_mcp_tokens()
+
+    async def _migrate_mcp_tokens(self) -> None:
+        """一次性迁移：将已有明文 token 哈希化（幂等）"""
+        from app.crypto import is_hashed, hash_token
+        rows = await self.engine.fetchall(
+            "SELECT token FROM mcp_tokens WHERE token NOT LIKE 'sha256:%'"
+        )
+        for row in rows:
+            plain = row["token"]
+            hashed = hash_token(plain)
+            prefix = plain[:8]
+            await self.engine.execute(
+                "UPDATE mcp_tokens SET token = ?, token_prefix = ? WHERE token = ?",
+                (hashed, prefix, plain)
+            )
+
     def routes(self):
         """HTTP routes"""
         return []  # 路由在 main.py 中注册
@@ -1071,13 +1092,16 @@ class AuthPlugin(Plugin):
         # Token名称默认使用agent_name
         token_name = name or agent_name
         
-        # 生成token
+        # 生成token（存储哈希，返回原文）
         token = secrets.token_urlsafe(32)
         created_at = int(time.time())
+        from app.crypto import hash_token
+        token_hash = hash_token(token)
+        token_prefix = token[:8]
 
         await self.engine.execute(
-            "INSERT INTO mcp_tokens (token, user_id, name, agent_name, agent_user_id, created_at) VALUES (?, ?, ?, ?, ?, ?)",
-            (token, user_id, token_name, agent_name, agent_user_id, created_at)
+            "INSERT INTO mcp_tokens (token, user_id, name, agent_name, agent_user_id, created_at, token_prefix) VALUES (?, ?, ?, ?, ?, ?, ?)",
+            (token_hash, user_id, token_name, agent_name, agent_user_id, created_at, token_prefix)
         )
 
         return {
@@ -1090,13 +1114,15 @@ class AuthPlugin(Plugin):
 
     async def revoke_mcp_token(self, token: str) -> bool:
         """撤销 MCP Token（完整 token）"""
+        from app.crypto import hash_token
+        token_hash = hash_token(token)
         row = await self.engine.fetchone(
-            "SELECT token FROM mcp_tokens WHERE token = ?", (token,)
+            "SELECT token FROM mcp_tokens WHERE token = ?", (token_hash,)
         )
         if not row:
             return False
         await self.engine.execute(
-            "DELETE FROM mcp_tokens WHERE token = ?", (token,)
+            "DELETE FROM mcp_tokens WHERE token = ?", (token_hash,)
         )
         return True
 
@@ -1105,8 +1131,8 @@ class AuthPlugin(Plugin):
         if len(token_prefix) < 8:
             return False
         row = await self.engine.fetchone(
-            "SELECT token FROM mcp_tokens WHERE user_id = ? AND token LIKE ?",
-            (user_id, f"{token_prefix}%")
+            "SELECT token FROM mcp_tokens WHERE user_id = ? AND token_prefix = ?",
+            (user_id, token_prefix)
         )
         if not row:
             return False
@@ -1118,33 +1144,43 @@ class AuthPlugin(Plugin):
     async def list_mcp_tokens(self, user_id: int) -> List[Dict]:
         """列出用户的 MCP Tokens"""
         rows = await self.engine.fetchall(
-            "SELECT token, name, created_at, last_used FROM mcp_tokens WHERE user_id = ? ORDER BY created_at DESC",
+            "SELECT token, token_prefix, name, created_at, last_used FROM mcp_tokens WHERE user_id = ? ORDER BY created_at DESC",
             (user_id,)
         )
-        return [
-            {
-                "id": dict(r)["token"][:16],
-                "prefix": dict(r)["token"][:8],
-                "name": dict(r)["name"],
-                "created_at": dict(r)["created_at"],
-                "last_used": dict(r)["last_used"]
-            }
-            for r in rows
-        ]
+        result = []
+        for r in rows:
+            r = dict(r)
+            prefix = r.get("token_prefix") or r["token"][:8]
+            result.append({
+                "id": prefix + "****",
+                "prefix": prefix,
+                "name": r["name"],
+                "created_at": r["created_at"],
+                "last_used": r["last_used"]
+            })
+        return result
 
     async def get_user_by_mcp_token(self, token: str) -> Optional[Dict]:
         """通过 MCP Token 获取用户（优先返回agent身份）"""
+        from app.crypto import hash_token
+        token_hash = hash_token(token)
         row = await self.engine.fetchone(
             "SELECT user_id, agent_name, agent_user_id, name, last_used FROM mcp_tokens WHERE token = ?",
-            (token,)
+            (token_hash,)
         )
         if not row:
-            return None
+            # 兼容明文（平滑升级期间）
+            row = await self.engine.fetchone(
+                "SELECT user_id, agent_name, agent_user_id, name, last_used FROM mcp_tokens WHERE token = ?",
+                (token,)
+            )
+            if not row:
+                return None
 
         # 更新最后使用时间
         await self.engine.execute(
             "UPDATE mcp_tokens SET last_used = ? WHERE token = ?",
-            (int(time.time()), token)
+            (int(time.time()), token_hash)
         )
 
         row_dict = dict(row)
