@@ -250,32 +250,55 @@ class AuthPlugin(Plugin):
         return {"success": True}
     
     # === GitHub OAuth ===
-    
-    def get_github_auth_url(self, state: str = None) -> str:
+
+    async def _get_github_config(self):
+        """从数据库实时读取 GitHub OAuth 配置"""
+        client_id = self.github_client_id
+        client_secret = self.github_client_secret
+        redirect_uri = self.github_redirect_uri
+        try:
+            rows = await self.engine.fetchall(
+                "SELECT key, value FROM site_config WHERE key IN (?, ?)",
+                ("github_client_id", "github_client_secret")
+            )
+            for row in rows:
+                if row["key"] == "github_client_id" and row["value"]:
+                    client_id = row["value"]
+                elif row["key"] == "github_client_secret" and row["value"]:
+                    client_secret = row["value"]
+        except Exception:
+            pass
+        if not redirect_uri:
+            redirect_uri = "/auth/github/callback"
+        return client_id, client_secret, redirect_uri
+
+    async def get_github_auth_url(self, state: str = None) -> str:
         """生成 GitHub 授权 URL"""
-        if not self.github_client_id:
+        client_id, _, redirect_uri = await self._get_github_config()
+        if not client_id:
             return None
-        
+
         if not state:
             state = secrets.token_urlsafe(16)
-        
+
         params = {
-            "client_id": self.github_client_id,
-            "redirect_uri": self.github_redirect_uri,
+            "client_id": client_id,
+            "redirect_uri": redirect_uri,
             "scope": "read:user user:email",
             "state": state
         }
-        
+
         return f"https://github.com/login/oauth/authorize?{urllib.parse.urlencode(params)}"
-    
+
     async def github_callback(self, code: str, state: str = None) -> Dict:
         """处理 GitHub OAuth 回调"""
-        if not self.github_client_id or not self.github_client_secret:
+        client_id, client_secret, redirect_uri = await self._get_github_config()
+        if not client_id or not client_secret:
             return {"error": "GitHub OAuth 未配置"}
         
         try:
             # 用 code 换取 access_token
-            token_data = await self._exchange_github_code(code)
+            token_data = await self._exchange_github_code(code, client_id, client_secret, redirect_uri)
             if "error" in token_data:
                 return token_data
             
@@ -309,19 +332,19 @@ class AuthPlugin(Plugin):
         except Exception as e:
             return {"error": f"OAuth 错误: {str(e)}"}
     
-    async def _exchange_github_code(self, code: str) -> Dict:
+    async def _exchange_github_code(self, code: str, client_id: str, client_secret: str, redirect_uri: str) -> Dict:
         """用 code 换取 access_token"""
         import aiohttp
-        
+
         async with aiohttp.ClientSession() as session:
             async with session.post(
                 "https://github.com/login/oauth/access_token",
                 headers={"Accept": "application/json"},
                 data={
-                    "client_id": self.github_client_id,
-                    "client_secret": self.github_client_secret,
+                    "client_id": client_id,
+                    "client_secret": client_secret,
                     "code": code,
-                    "redirect_uri": self.github_redirect_uri
+                    "redirect_uri": redirect_uri
                 }
             ) as resp:
                 data = await resp.json()
@@ -856,7 +879,7 @@ class AuthPlugin(Plugin):
 
     async def github_auth_url_api(self, request):
         """获取 GitHub OAuth 授权链接"""
-        url = self.get_github_auth_url()
+        url = await self.get_github_auth_url()
         if not url:
             return {"error": "GitHub OAuth 未配置"}
         return {"url": url}
