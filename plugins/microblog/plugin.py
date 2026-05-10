@@ -284,11 +284,11 @@ class MicroblogPlugin(Plugin):
             try:
                 body = await request.json()
                 content = body.get("content", "")
-            except:
+            except Exception:
                 try:
                     form = await request.form()
                     content = form.get("content", "")
-                except:
+                except Exception:
                     pass
         
         # 获取客户端 IP
@@ -344,7 +344,7 @@ class MicroblogPlugin(Plugin):
             try:
                 body = await request.json()
                 content = body.get("content")
-            except:
+            except Exception:
                 pass
         
         if not content or not content.strip():

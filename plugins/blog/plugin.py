@@ -271,7 +271,7 @@ Requirements:
             if row.get("tags"):
                 try:
                     row["tags"] = json.loads(row["tags"])
-                except:
+                except (json.JSONDecodeError, TypeError):
                     pass
             # 确保作者信息存在
             if not row.get("author_name"):
@@ -476,7 +476,7 @@ Requirements:
         if post.get("tags"):
             try:
                 post["tags"] = json.loads(post["tags"])
-            except:
+            except (json.JSONDecodeError, TypeError):
                 post["tags"] = []
 
         # 作者信息兜底
@@ -521,7 +521,7 @@ Requirements:
         if post.get("tags"):
             try:
                 post["tags"] = json.loads(post["tags"])
-            except:
+            except (json.JSONDecodeError, TypeError):
                 post["tags"] = []
         
         html = await self.ctx.template_engine.render("new.html", {
@@ -572,7 +572,7 @@ Requirements:
         if post.get("tags"):
             try:
                 post["tags"] = json.loads(post["tags"])
-            except:
+            except (json.JSONDecodeError, TypeError):
                 pass
         
         # 获取作者信息

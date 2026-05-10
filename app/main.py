@@ -526,7 +526,7 @@ class WorkbenchApp:
                 s.connect(("8.8.8.8", 80))
                 local_ip = s.getsockname()[0]
                 s.close()
-            except:
+            except Exception:
                 local_ip = "127.0.0.1"
 
             # 检测是否生产环境

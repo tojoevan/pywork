@@ -587,15 +587,16 @@ class BoardPlugin(Plugin):
         # 按使用频率排序，取前 20 个
         sorted_tags = sorted(tag_counts.items(), key=lambda x: x[1], reverse=True)[:20]
 
-        # 清空旧数据并写入新数据
-        await self.engine.execute("DELETE FROM hot_tags")
+        # 清空旧数据并写入新数据（事务保证原子性）
         lines = []
-        for rank, (tag_name, post_count) in enumerate(sorted_tags, 1):
-            await self.engine.execute(
-                "INSERT INTO hot_tags (tag_name, post_count, \"rank\", updated_at) VALUES (?, ?, ?, ?)",
-                (tag_name, post_count, rank, now)
-            )
-            lines.append(f"{rank}. {tag_name}({post_count})")
+        async with self.engine.transaction():
+            await self.engine.execute("DELETE FROM hot_tags")
+            for rank, (tag_name, post_count) in enumerate(sorted_tags, 1):
+                await self.engine.execute(
+                    "INSERT INTO hot_tags (tag_name, post_count, \"rank\", updated_at) VALUES (?, ?, ?, ?)",
+                    (tag_name, post_count, rank, now)
+                )
+                lines.append(f"{rank}. {tag_name}({post_count})")
 
         return "热门标签: " + ", ".join(lines)
 
@@ -627,50 +628,51 @@ class BoardPlugin(Plugin):
             "note": "notes",
         }
 
-        # 清空旧数据
-        await self.engine.execute("DELETE FROM recent_comments")
-
+        # 清空旧数据并写入新数据（事务保证原子性）
         lines = []
-        for row in rows:
-            try:
-                row = dict(row)
-            except Exception:
-                pass
-            comment_id = int(row.get("id", 0))
-            author_name = str(row.get("author_name", "") or "匿名")
-            content = str(row.get("content", "") or "")
-            target_type = str(row.get("target_type", ""))
-            target_id = int(row.get("target_id", 0))
-            created_at = int(row.get("created_at", 0))
+        async with self.engine.transaction():
+            await self.engine.execute("DELETE FROM recent_comments")
 
-            # 获取目标标题
-            target_title = ""
-            table = TARGET_TABLES.get(target_type)
-            if table:
+            for row in rows:
                 try:
-                    target_row = await self.engine.fetchone(
-                        f"SELECT title FROM {table} WHERE id = ?",
-                        (target_id,)
-                    )
-                    if target_row:
-                        target_title = str(target_row.get("title", "") or "")
+                    row = dict(row)
                 except Exception:
                     pass
+                comment_id = int(row.get("id", 0))
+                author_name = str(row.get("author_name", "") or "匿名")
+                content = str(row.get("content", "") or "")
+                target_type = str(row.get("target_type", ""))
+                target_id = int(row.get("target_id", 0))
+                created_at = int(row.get("created_at", 0))
 
-            # 写入 recent_comments 表
-            try:
-                await self.engine.execute("""
-                    INSERT INTO recent_comments
-                        (comment_id, author_name, content, target_type, target_id, target_title, created_at, updated_at)
-                    VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-                """, (comment_id, author_name, content[:200], target_type, target_id, target_title[:100], created_at, now))
-            except Exception as e:
-                self.log.warning(f"Failed to insert recent comment {comment_id}: {e}")
-                continue
+                # 获取目标标题
+                target_title = ""
+                table = TARGET_TABLES.get(target_type)
+                if table:
+                    try:
+                        target_row = await self.engine.fetchone(
+                            f"SELECT title FROM {table} WHERE id = ?",
+                            (target_id,)
+                        )
+                        if target_row:
+                            target_title = str(target_row.get("title", "") or "")
+                    except Exception:
+                        pass
 
-            # 截断显示内容
-            display_content = content[:30] + "..." if len(content) > 30 else content
-            lines.append(f"{author_name}: {display_content}")
+                # 写入 recent_comments 表
+                try:
+                    await self.engine.execute("""
+                        INSERT INTO recent_comments
+                            (comment_id, author_name, content, target_type, target_id, target_title, created_at, updated_at)
+                        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                    """, (comment_id, author_name, content[:200], target_type, target_id, target_title[:100], created_at, now))
+                except Exception as e:
+                    self.log.warning(f"Failed to insert recent comment {comment_id}: {e}")
+                    continue
+
+                # 截断显示内容
+                display_content = content[:30] + "..." if len(content) > 30 else content
+                lines.append(f"{author_name}: {display_content}")
 
         return f"最新评论 ({len(rows)}条): " + "; ".join(lines[:5])
 

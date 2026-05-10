@@ -67,17 +67,17 @@ class AuthPlugin(Plugin):
         # 确保 users 表有 display_name 字段
         try:
             await self.engine.execute("ALTER TABLE users ADD COLUMN display_name TEXT")
-        except:
+        except Exception:
             pass  # 字段已存在
 
         # 确保 users 表有 nickname 字段
         try:
             await self.engine.execute("ALTER TABLE users ADD COLUMN nickname TEXT")
-        except:
+        except Exception:
             pass
         try:
             await self.engine.execute("ALTER TABLE users ADD COLUMN nickname_last_changed INTEGER DEFAULT 0")
-        except:
+        except Exception:
             pass
     
     async def _init_mcp_tokens_table(self):
@@ -96,15 +96,15 @@ class AuthPlugin(Plugin):
         # 尝试添加新字段（兼容旧数据库）
         try:
             await self.engine.execute("ALTER TABLE mcp_tokens ADD COLUMN agent_name TEXT UNIQUE")
-        except:
+        except Exception:
             pass
         try:
             await self.engine.execute("ALTER TABLE mcp_tokens ADD COLUMN agent_user_id INTEGER")
-        except:
+        except Exception:
             pass
         try:
             await self.engine.execute("ALTER TABLE mcp_tokens ADD COLUMN token_prefix TEXT DEFAULT ''")
-        except:
+        except Exception:
             pass
         # 迁移：将已有明文 token 哈希化
         await self._migrate_mcp_tokens()
@@ -255,7 +255,7 @@ class AuthPlugin(Plugin):
             salt, hash_val = self._split_password_hash(user["password_hash"])
             if not salt:
                 return {"error": "用户数据异常"}
-        except:
+        except (ValueError, TypeError, KeyError):
             return {"error": "用户数据异常"}
         
         if not self._verify_password(password, salt, hash_val):
@@ -468,8 +468,8 @@ class AuthPlugin(Plugin):
                 if "password_hash" in user:
                     del user["password_hash"]
                 return user
-        except:
-            pass# 字段可能不存在，继续创建
+        except Exception:
+            pass  # 字段可能不存在，继续创建
         
         # 尝试通过邮箱查找
         if github_email:
@@ -482,7 +482,7 @@ class AuthPlugin(Plugin):
                         "UPDATE users SET github_id = ? WHERE id = ?",
                         (github_id, user["id"])
                     )
-                except:
+                except Exception:
                     pass
                 if "password_hash" in user:
                     del user["password_hash"]
@@ -508,7 +508,7 @@ class AuthPlugin(Plugin):
                 "INSERT INTO users (username, email, created_at, role, avatar, github_id) VALUES (?, ?, ?, ?, ?, ?)",
                 (username, github_email, created_at, role, github_avatar, github_id)
             )
-        except:
+        except Exception:
             # 如果 github_id 字段不存在，使用基本字段
             await self.engine.execute(
                 "INSERT INTO users (username, email, created_at, role, avatar) VALUES (?, ?, ?, ?, ?)",
@@ -585,7 +585,7 @@ class AuthPlugin(Plugin):
             salt, hash_val = self._split_password_hash(user["password_hash"])
             if not salt:
                 return {"error": "用户数据异常"}
-        except:
+        except (ValueError, TypeError, KeyError):
             return {"error": "用户数据异常"}
         
         if not self._verify_password(old_password, salt, hash_val):
@@ -907,7 +907,7 @@ class AuthPlugin(Plugin):
             # 绘制文字
             try:
                 font = ImageFont.truetype("/System/Library/Fonts/Helvetica.ttc", 24)
-            except:
+            except (OSError, IOError):
                 font = ImageFont.load_default()
 
             # 居中绘制验证码
