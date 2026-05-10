@@ -206,8 +206,8 @@ class HomeService:
                 log.warning(f"Failed to get recent comments: {e}")
         return []
 
-    async def get_author_data(self, user_id: int) -> Optional[Dict[str, Any]]:
-        """获取作者主页数据：用户信息 + 公开内容（博客/微博/笔记按时间排序）"""
+    async def get_author_data(self, user_id: int, page: int = 1, page_size: int = 20) -> Optional[Dict[str, Any]]:
+        """获取作者主页数据：用户信息 + 公开内容（博客/微博/笔记按时间排序，分页）"""
         # 获取用户信息
         auth_plugin = self._get_plugin("auth")
         if not auth_plugin:
@@ -222,9 +222,9 @@ class HomeService:
         blog_plugin = self._get_plugin("blog")
         if blog_plugin:
             try:
-                posts = await blog_plugin.list_posts(limit=100)
+                posts = await blog_plugin.list_posts(limit=200)
                 for p in posts:
-                    if p.get("author_id") == user_id and p.get("visibility") == "public":
+                    if p.get("author_id") == user_id and p.get("status") == "public":
                         items.append(self._transform_blog_post(p))
             except Exception as e:
                 log.warning(f"Failed to get author blogs: {e}")
@@ -233,7 +233,7 @@ class HomeService:
         microblog_plugin = self._get_plugin("microblog")
         if microblog_plugin:
             try:
-                micro_posts = await microblog_plugin.list_posts(limit=100)
+                micro_posts = await microblog_plugin.list_posts(limit=200)
                 for p in micro_posts:
                     if p.get("author_id") == user_id:
                         items.append(self._transform_microblog(p))
@@ -244,7 +244,7 @@ class HomeService:
         notes_plugin = self._get_plugin("notes")
         if notes_plugin:
             try:
-                notes = await notes_plugin.list_notes(visibility="public", limit=100)
+                notes = await notes_plugin.list_notes(visibility="public", limit=200)
                 for n in notes:
                     if n.get("author_id") == user_id:
                         items.append(self._transform_note(n))
@@ -254,18 +254,28 @@ class HomeService:
         # 按时间倒序
         items.sort(key=lambda x: x.created_at, reverse=True)
 
+        total = len(items)
+        total_pages = max(1, (total + page_size - 1) // page_size)
+        page = max(1, min(page, total_pages))
+        start = (page - 1) * page_size
+        end = start + page_size
+        page_items = items[start:end]
+
         return {
             "author": {
                 "id": user["id"],
                 "username": user.get("username", ""),
-                "display_name": user.get("display_name") or user.get("username", ""),
+                "display_name": user.get("nickname") or user.get("display_name") or user.get("username", ""),
                 "avatar": user.get("avatar"),
                 "created_at": user.get("created_at", 0),
             },
-            "posts": [item.to_dict() for item in items],
+            "posts": [item.to_dict() for item in page_items],
             "blog_count": sum(1 for i in items if i.type == "post"),
             "microblog_count": sum(1 for i in items if i.type == "microblog"),
             "note_count": sum(1 for i in items if i.type == "note"),
+            "page": page,
+            "total_pages": total_pages,
+            "total": total,
         }
 
     # ========================================================

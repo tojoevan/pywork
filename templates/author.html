@@ -2,6 +2,39 @@
 
 {% block title %}{{ author.display_name }} - {{ Site.title | default('pyWork') }}{% endblock %}
 
+{% block head %}
+<style>
+.pagination {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    gap: 1rem;
+    margin-top: 2rem;
+    padding: 1rem 0;
+}
+.page-btn {
+    padding: 0.4rem 1rem;
+    border: 1px solid var(--border-color, #e5e7eb);
+    border-radius: 6px;
+    font-size: 0.875rem;
+    color: var(--text-primary, #1a1a1a);
+    text-decoration: none;
+    transition: all 0.2s;
+}
+.page-btn:hover:not(.disabled) {
+    background: var(--bg-hover, #f3f4f6);
+}
+.page-btn.disabled {
+    opacity: 0.4;
+    cursor: not-allowed;
+}
+.page-info {
+    font-size: 0.875rem;
+    color: var(--text-muted, #9ca3af);
+}
+</style>
+{% endblock %}
+
 {% block content %}
 <div class="container author-page">
 
@@ -78,6 +111,22 @@
         <div class="empty">
             <p>该作者暂无公开内容</p>
             <a href="/" class="link">← 返回首页</a>
+        </div>
+        {% endif %}
+
+        {% if total_pages > 1 %}
+        <div class="pagination">
+            {% if page > 1 %}
+            <a href="/author/{{ author.id }}?page={{ page - 1 }}" class="page-btn">上一页</a>
+            {% else %}
+            <span class="page-btn disabled">上一页</span>
+            {% endif %}
+            <span class="page-info">{{ page }} / {{ total_pages }}</span>
+            {% if page < total_pages %}
+            <a href="/author/{{ author.id }}?page={{ page + 1 }}" class="page-btn">下一页</a>
+            {% else %}
+            <span class="page-btn disabled">下一页</span>
+            {% endif %}
         </div>
         {% endif %}
     </section>

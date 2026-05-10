@@ -321,9 +321,9 @@ class WorkbenchApp:
             return HTMLResponse(content='<h1>Post not found</h1><p><a href="/">← 返回首页</a></p>', status_code=404)
 
         @self.app.get("/author/{user_id}", response_class=HTMLResponse)
-        async def author_page(user_id: int):
+        async def author_page(user_id: int, page: int = 1):
             """作者主页"""
-            data = await self.home_service.get_author_data(user_id)
+            data = await self.home_service.get_author_data(user_id, page=page)
             if not data:
                 return HTMLResponse(content='<h1>作者不存在</h1><p><a href="/">← 返回首页</a></p>', status_code=404)
             html = await self.template_engine.render("author.html", {
