@@ -1309,13 +1309,15 @@ class BoardPlugin(Plugin):
             params.extend([kw, kw])
 
         where_clause = " AND ".join(conditions)
-        order_clause = f"created_at {order.upper()}"
-
-        rows = await self.engine.fetchall(
-            f"SELECT id, level, module, message, context, traceback, created_at "
-            f"FROM app_logs WHERE {where_clause} ORDER BY {order_clause} LIMIT ? OFFSET ?",
-            params + [limit, offset],
+        # order 已验证只允许 asc/desc，直接拼接是安全的
+        order_direction = order.upper()
+        sql = (
+            "SELECT id, level, module, message, context, traceback, created_at "
+            "FROM app_logs WHERE " + where_clause +
+            " ORDER BY created_at " + order_direction +
+            " LIMIT ? OFFSET ?"
         )
+        rows = await self.engine.fetchall(sql, params + [limit, offset])
         logs = [dict(r) for r in rows]
 
         return JSONResponse({
@@ -1357,10 +1359,8 @@ class BoardPlugin(Plugin):
             params.extend([kw, kw])
 
         where_clause = " AND ".join(conditions)
-        row = await self.engine.fetchone(
-            f"SELECT COUNT(*) as total FROM app_logs WHERE {where_clause}",
-            params,
-        )
+        sql = "SELECT COUNT(*) as total FROM app_logs WHERE " + where_clause
+        row = await self.engine.fetchone(sql, params)
         return JSONResponse({"total": row["total"] if row else 0})
 
     # ========================================================
