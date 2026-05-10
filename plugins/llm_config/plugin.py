@@ -24,6 +24,7 @@ class LlmConfigPlugin(Plugin):
         self.ctx = ctx
         self._ctx = ctx
         await self._ensure_tables()
+        await self._init_encryption()
 
     async def _ensure_tables(self) -> None:
         """Create llm_configs table if not exists"""
@@ -45,6 +46,26 @@ class LlmConfigPlugin(Plugin):
         await self.engine.execute("""
         CREATE INDEX IF NOT EXISTS idx_llm_configs_name ON llm_configs(name)
         """)
+
+    async def _init_encryption(self) -> None:
+        """初始化加密器并迁移已有明文密钥"""
+        from app.crypto import get_or_create_secret_key, make_encryptor
+        secret_key = await get_or_create_secret_key(self.engine)
+        self._fernet = make_encryptor(secret_key)
+        await self._migrate_plaintext_keys()
+
+    async def _migrate_plaintext_keys(self) -> None:
+        """一次性迁移：将已有明文 api_key 加密（幂等）"""
+        from app.crypto import is_encrypted, encrypt_value
+        rows = await self.engine.fetchall(
+            "SELECT id, api_key FROM llm_configs WHERE api_key NOT LIKE 'fernet:%'"
+        )
+        for row in rows:
+            encrypted = encrypt_value(self._fernet, row["api_key"])
+            await self.engine.execute(
+                "UPDATE llm_configs SET api_key = ? WHERE id = ?",
+                (encrypted, row["id"])
+            )
 
     def routes(self) -> List[Route]:
         return [
@@ -161,27 +182,37 @@ class LlmConfigPlugin(Plugin):
 
     async def list_configs(self, **kwargs) -> List[Dict[str, Any]]:
         """List all LLM configs (with masked api_key)"""
+        from app.crypto import decrypt_value
         rows = await self.engine.fetchall(
             "SELECT * FROM llm_configs ORDER BY is_default DESC, created_at DESC"
         )
         configs = []
         for row in rows:
-            row["api_key_masked"] = self._mask_api_key(row.get("api_key", ""))
+            raw_key = decrypt_value(self._fernet, row.get("api_key", ""))
+            row["api_key_masked"] = self._mask_api_key(raw_key)
             row.pop("api_key", None)
             configs.append(row)
         return configs
 
     async def get_config(self, config_id: int) -> Optional[Dict[str, Any]]:
-        """Get a single config (with real api_key for internal use)"""
-        return await self.engine.fetchone(
+        """Get a single config (with decrypted api_key for internal use)"""
+        from app.crypto import decrypt_value
+        row = await self.engine.fetchone(
             "SELECT * FROM llm_configs WHERE id = ?", (config_id,)
         )
+        if row:
+            row["api_key"] = decrypt_value(self._fernet, row.get("api_key", ""))
+        return row
 
     async def get_default_config(self) -> Optional[Dict[str, Any]]:
-        """Get the default config"""
-        return await self.engine.fetchone(
+        """Get the default config (with decrypted api_key)"""
+        from app.crypto import decrypt_value
+        row = await self.engine.fetchone(
             "SELECT * FROM llm_configs WHERE is_default = 1 LIMIT 1"
         )
+        if row:
+            row["api_key"] = decrypt_value(self._fernet, row.get("api_key", ""))
+        return row
 
     async def create_config(
         self,
@@ -211,10 +242,11 @@ class LlmConfigPlugin(Plugin):
         if is_default:
             await self.engine.execute("UPDATE llm_configs SET is_default = 0")
 
+        from app.crypto import encrypt_value
         data = {
             "name": name,
             "base_url": base_url.rstrip("/"),
-            "api_key": api_key,
+            "api_key": encrypt_value(self._fernet, api_key),
             "model": model,
             "temperature": temperature,
             "max_tokens": max_tokens,
@@ -262,7 +294,8 @@ class LlmConfigPlugin(Plugin):
             existing["base_url"] = kwargs["base_url"].rstrip("/")
 
         if "api_key" in kwargs and kwargs["api_key"]:
-            existing["api_key"] = kwargs["api_key"]
+            from app.crypto import encrypt_value
+            existing["api_key"] = encrypt_value(self._fernet, kwargs["api_key"])
 
         for key in ["temperature", "max_tokens"]:
             if key in kwargs and kwargs[key] is not None:
