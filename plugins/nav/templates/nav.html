@@ -1,0 +1,240 @@
+{% extends "base.html" %}
+
+{% block title %}{{ Site.title | default('pyWork') }} - 导航{% endblock %}
+
+{% block head %}
+<link rel="stylesheet" href="/static/css/nav.css?v=20260510">
+{% endblock %}
+
+{% block content %}
+<div class="nav-page">
+    <div class="nav-header">
+        <h1>导航</h1>
+        {% if user %}
+        <button class="btn btn-primary" onclick="openModal()">+ 添加</button>
+        {% endif %}
+    </div>
+
+    {% if groups %}
+    <div class="nav-groups">
+        {% for group in groups %}
+        <section class="nav-group">
+            {% if group.tag %}
+            <h2 class="nav-group-title">{{ group.tag }}</h2>
+            {% else %}
+            <h2 class="nav-group-title nav-group-untagged">未分类</h2>
+            {% endif %}
+            <div class="nav-grid">
+                {% for link in group.links %}
+                <div class="nav-card" data-id="{{ link.id }}" data-visibility="{{ link.visibility }}">
+                    <a href="{{ link.url }}" target="_blank" rel="noopener noreferrer" class="nav-card-link">
+                        {% if link.icon %}
+                        <img src="{{ link.icon }}" alt="" class="nav-card-icon" onerror="this.style.display='none'">
+                        {% else %}
+                        <span class="nav-card-icon-placeholder">{{ link.title[0] | upper }}</span>
+                        {% endif %}
+                        <div class="nav-card-body">
+                            <span class="nav-card-title">{{ link.title }}</span>
+                            {% if link.description %}
+                            <span class="nav-card-desc">{{ link.description }}</span>
+                            {% endif %}
+                        </div>
+                    </a>
+                    {% if user %}
+                    <div class="nav-card-actions">
+                        {% if user.id == link.author_id or is_admin %}
+                        <button class="nav-action-btn" onclick="editLink({{ link.id }})" title="编辑">✏️</button>
+                        <button class="nav-action-btn nav-action-delete" onclick="deleteLink({{ link.id }})" title="删除">🗑️</button>
+                        {% elif link.visibility == 'public' %}
+                        {% if link.id in hidden_ids %}
+                        <button class="nav-action-btn nav-action-unhide" onclick="unhideLink({{ link.id }})" title="取消隐藏">👁</button>
+                        {% else %}
+                        <button class="nav-action-btn nav-action-hide" onclick="hideLink({{ link.id }})" title="隐藏">🙈</button>
+                        {% endif %}
+                        {% endif %}
+                    </div>
+                    {% endif %}
+                </div>
+                {% endfor %}
+            </div>
+        </section>
+        {% endfor %}
+    </div>
+    {% else %}
+    <div class="nav-empty">
+        <p>暂无收藏的网址</p>
+        {% if user %}
+        <p>点击上方「+ 添加」按钮收藏你的第一个网址</p>
+        {% endif %}
+    </div>
+    {% endif %}
+</div>
+
+<!-- 添加/编辑弹窗 -->
+{% if user %}
+<div class="nav-modal-overlay" id="navModal" style="display:none;">
+    <div class="nav-modal">
+        <div class="nav-modal-header">
+            <h3 id="modalTitle">添加网址</h3>
+            <button class="nav-modal-close" onclick="closeModal()">&times;</button>
+        </div>
+        <form id="navForm" onsubmit="submitForm(event)">
+            <input type="hidden" id="editId" value="">
+            <div class="nav-form-group">
+                <label for="linkTitle">标题 <span class="required">*</span></label>
+                <input type="text" id="linkTitle" name="title" required placeholder="网站名称" autocomplete="off">
+            </div>
+            <div class="nav-form-group">
+                <label for="linkUrl">网址 <span class="required">*</span></label>
+                <input type="text" id="linkUrl" name="url" required placeholder="example.com" autocomplete="off">
+            </div>
+            <div class="nav-form-group">
+                <label for="linkDesc">描述</label>
+                <input type="text" id="linkDesc" name="description" placeholder="简短描述（可选）" autocomplete="off">
+            </div>
+            <div class="nav-form-group">
+                <label for="linkTags">标签</label>
+                <input type="text" id="linkTags" name="tags" placeholder="多个标签用逗号分隔" autocomplete="off">
+            </div>
+            <div class="nav-form-group">
+                <label for="linkVisibility">可见性</label>
+                <select id="linkVisibility" name="visibility">
+                    <option value="public">公开</option>
+                    <option value="private">隐私</option>
+                </select>
+            </div>
+            <div class="nav-form-actions">
+                <button type="button" class="btn btn-secondary" onclick="closeModal()">取消</button>
+                <button type="submit" class="btn btn-primary" id="submitBtn">添加</button>
+            </div>
+        </form>
+    </div>
+</div>
+{% endif %}
+{% endblock %}
+
+{% block scripts %}
+{% if user %}
+<script>
+function openModal(editData) {
+    document.getElementById('navModal').style.display = 'flex';
+    if (editData) {
+        document.getElementById('modalTitle').textContent = '编辑网址';
+        document.getElementById('submitBtn').textContent = '保存';
+        document.getElementById('editId').value = editData.id;
+        document.getElementById('linkTitle').value = editData.title || '';
+        document.getElementById('linkUrl').value = editData.url || '';
+        document.getElementById('linkDesc').value = editData.description || '';
+        document.getElementById('linkTags').value = (editData.tags || []).join(', ');
+        document.getElementById('linkVisibility').value = editData.visibility || 'public';
+    } else {
+        document.getElementById('modalTitle').textContent = '添加网址';
+        document.getElementById('submitBtn').textContent = '添加';
+        document.getElementById('editId').value = '';
+        document.getElementById('navForm').reset();
+    }
+    document.getElementById('linkTitle').focus();
+}
+
+function closeModal() {
+    document.getElementById('navModal').style.display = 'none';
+}
+
+async function submitForm(e) {
+    e.preventDefault();
+    const editId = document.getElementById('editId').value;
+    const data = {
+        title: document.getElementById('linkTitle').value.trim(),
+        url: document.getElementById('linkUrl').value.trim(),
+        description: document.getElementById('linkDesc').value.trim(),
+        tags: document.getElementById('linkTags').value.trim(),
+        visibility: document.getElementById('linkVisibility').value,
+    };
+
+    try {
+        const url = editId ? `/nav/${editId}` : '/nav';
+        const method = editId ? 'PUT' : 'POST';
+        const resp = await fetch(url, {
+            method,
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify(data),
+        });
+        const result = await resp.json();
+        if (result.error) {
+            alert(result.error);
+            return;
+        }
+        closeModal();
+        window.location.reload();
+    } catch (err) {
+        alert('操作失败：' + err.message);
+    }
+}
+
+async function editLink(id) {
+    const card = document.querySelector(`.nav-card[data-id="${id}"]`);
+    if (!card) return;
+    // Fetch link data from the page
+    const linkEl = card.querySelector('.nav-card-link');
+    const title = card.querySelector('.nav-card-title')?.textContent || '';
+    const desc = card.querySelector('.nav-card-desc')?.textContent || '';
+    const url = linkEl?.href || '';
+    // We need tags - fetch from API
+    try {
+        const resp = await fetch(`/api/nav?visibility=all&limit=999`);
+        const data = await resp.json();
+        const link = (data.links || []).find(l => l.id === id);
+        if (link) {
+            openModal(link);
+        } else {
+            openModal({id, title, url, description: desc, tags: [], visibility: card.dataset.visibility});
+        }
+    } catch {
+        openModal({id, title, url, description: desc, tags: [], visibility: card.dataset.visibility});
+    }
+}
+
+async function deleteLink(id) {
+    if (!confirm('确定删除这个网址？')) return;
+    try {
+        const resp = await fetch(`/nav/${id}`, {method: 'DELETE'});
+        const result = await resp.json();
+        if (result.error) {
+            alert(result.error);
+            return;
+        }
+        window.location.reload();
+    } catch (err) {
+        alert('删除失败：' + err.message);
+    }
+}
+
+async function hideLink(id) {
+    try {
+        await fetch(`/nav/${id}/hide`, {method: 'POST'});
+        window.location.reload();
+    } catch (err) {
+        alert('操作失败');
+    }
+}
+
+async function unhideLink(id) {
+    try {
+        await fetch(`/nav/${id}/hide`, {method: 'DELETE'});
+        window.location.reload();
+    } catch (err) {
+        alert('操作失败');
+    }
+}
+
+// ESC to close modal
+document.addEventListener('keydown', e => {
+    if (e.key === 'Escape') closeModal();
+});
+// Click overlay to close modal
+document.getElementById('navModal')?.addEventListener('click', e => {
+    if (e.target === e.currentTarget) closeModal();
+});
+</script>
+{% endif %}
+{% endblock %}

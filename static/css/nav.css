@@ -1,0 +1,327 @@
+/* Navigation / Bookmark page styles */
+
+.nav-page {
+    max-width: 1000px;
+    margin: 0 auto;
+    padding: 0 1rem;
+}
+
+.nav-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 24px 0 16px;
+}
+
+.nav-header h1 {
+    font-size: 1.5rem;
+    font-weight: 600;
+    margin: 0;
+}
+
+/* Groups */
+.nav-groups {
+    display: flex;
+    flex-direction: column;
+    gap: 28px;
+    padding-bottom: 40px;
+}
+
+.nav-group-title {
+    font-size: 0.85rem;
+    font-weight: 600;
+    color: var(--text-color, #1f2937);
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    margin-bottom: 10px;
+    padding-bottom: 6px;
+    border-bottom: 1px solid var(--border-color, #e5e7eb);
+}
+
+.nav-group-untagged {
+    color: #9ca3af;
+}
+
+/* Grid */
+.nav-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+    gap: 10px;
+}
+
+/* Card */
+.nav-card {
+    display: flex;
+    align-items: center;
+    border: 1px solid var(--border-color, #e5e7eb);
+    border-radius: 8px;
+    background: var(--bg-color, #fff);
+    transition: border-color 0.15s, box-shadow 0.15s;
+    position: relative;
+    overflow: hidden;
+}
+
+.nav-card:hover {
+    border-color: var(--primary-color, #3b82f6);
+    box-shadow: 0 1px 4px rgba(0,0,0,0.06);
+}
+
+.nav-card[data-visibility="private"] {
+    border-style: dashed;
+    opacity: 0.85;
+}
+
+.nav-card-link {
+    flex: 1;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 10px 12px;
+    text-decoration: none;
+    color: var(--text-color, #1f2937);
+    min-width: 0;
+}
+
+.nav-card-link:hover {
+    text-decoration: none;
+}
+
+.nav-card-icon {
+    width: 20px;
+    height: 20px;
+    border-radius: 4px;
+    flex-shrink: 0;
+    object-fit: contain;
+}
+
+.nav-card-icon-placeholder {
+    width: 24px;
+    height: 24px;
+    border-radius: 6px;
+    background: var(--primary-color, #3b82f6);
+    color: #fff;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 0.75rem;
+    font-weight: 600;
+    flex-shrink: 0;
+}
+
+.nav-card-body {
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+}
+
+.nav-card-title {
+    font-size: 0.875rem;
+    font-weight: 500;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.nav-card-desc {
+    font-size: 0.75rem;
+    color: #9ca3af;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+/* Actions */
+.nav-card-actions {
+    display: flex;
+    gap: 2px;
+    padding-right: 6px;
+    opacity: 0;
+    transition: opacity 0.15s;
+    flex-shrink: 0;
+}
+
+.nav-card:hover .nav-card-actions {
+    opacity: 1;
+}
+
+.nav-action-btn {
+    background: none;
+    border: none;
+    cursor: pointer;
+    padding: 4px 5px;
+    font-size: 0.7rem;
+    border-radius: 4px;
+    color: #9ca3af;
+    transition: background 0.15s, color 0.15s;
+    line-height: 1;
+}
+
+.nav-action-btn:hover {
+    background: #f3f4f6;
+    color: var(--text-color, #1f2937);
+}
+
+.nav-action-delete:hover {
+    background: #fef2f2;
+    color: #ef4444;
+}
+
+.nav-action-hide:hover,
+.nav-action-unhide:hover {
+    background: #eff6ff;
+    color: var(--primary-color, #3b82f6);
+}
+
+/* Empty state */
+.nav-empty {
+    text-align: center;
+    padding: 80px 20px;
+    color: #9ca3af;
+}
+
+.nav-empty p {
+    margin: 4px 0;
+}
+
+/* Modal */
+.nav-modal-overlay {
+    position: fixed;
+    inset: 0;
+    background: rgba(0,0,0,0.4);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 1000;
+}
+
+.nav-modal {
+    background: var(--bg-color, #fff);
+    border-radius: 12px;
+    width: 90%;
+    max-width: 440px;
+    box-shadow: 0 20px 60px rgba(0,0,0,0.15);
+    overflow: hidden;
+}
+
+.nav-modal-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 16px 20px;
+    border-bottom: 1px solid var(--border-color, #e5e7eb);
+}
+
+.nav-modal-header h3 {
+    margin: 0;
+    font-size: 1.1rem;
+    font-weight: 600;
+}
+
+.nav-modal-close {
+    background: none;
+    border: none;
+    font-size: 1.5rem;
+    cursor: pointer;
+    color: #9ca3af;
+    padding: 0;
+    line-height: 1;
+}
+
+.nav-modal-close:hover {
+    color: var(--text-color, #1f2937);
+}
+
+#navForm {
+    padding: 16px 20px 20px;
+}
+
+.nav-form-group {
+    margin-bottom: 14px;
+}
+
+.nav-form-group label {
+    display: block;
+    font-size: 0.8rem;
+    font-weight: 500;
+    color: #6b7280;
+    margin-bottom: 4px;
+}
+
+.required {
+    color: #ef4444;
+}
+
+.nav-form-group input,
+.nav-form-group select {
+    width: 100%;
+    padding: 8px 10px;
+    border: 1px solid var(--border-color, #e5e7eb);
+    border-radius: 6px;
+    font-size: 0.9rem;
+    background: var(--bg-color, #fff);
+    color: var(--text-color, #1f2937);
+    transition: border-color 0.15s;
+    box-sizing: border-box;
+}
+
+.nav-form-group input:focus,
+.nav-form-group select:focus {
+    outline: none;
+    border-color: var(--primary-color, #3b82f6);
+}
+
+.nav-form-actions {
+    display: flex;
+    justify-content: flex-end;
+    gap: 8px;
+    margin-top: 20px;
+}
+
+/* Buttons */
+.btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    padding: 8px 16px;
+    font-size: 0.875rem;
+    font-weight: 500;
+    border-radius: 6px;
+    border: 1px solid transparent;
+    cursor: pointer;
+    transition: background 0.15s, border-color 0.15s;
+}
+
+.btn-primary {
+    background: var(--primary-color, #3b82f6);
+    color: #fff;
+}
+
+.btn-primary:hover {
+    opacity: 0.9;
+}
+
+.btn-secondary {
+    background: var(--bg-color, #fff);
+    border-color: var(--border-color, #e5e7eb);
+    color: var(--text-color, #1f2937);
+}
+
+.btn-secondary:hover {
+    background: #f9fafb;
+}
+
+/* Responsive */
+@media (max-width: 640px) {
+    .nav-grid {
+        grid-template-columns: 1fr;
+    }
+
+    .nav-card-actions {
+        opacity: 1;
+    }
+
+    .nav-header {
+        flex-wrap: wrap;
+        gap: 8px;
+    }
+}
