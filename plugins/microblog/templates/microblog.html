@@ -45,6 +45,7 @@
 
 <script>
     const currentAuthorId = {{ current_author_id | tojson }};
+    const isAdmin = {{ is_admin | tojson }};
     let editingPostId = null;
     let currentOffset = 0;
     const pageSize = 20;
@@ -90,7 +91,7 @@
                             <div class="post-content">${escapedContent}</div>
                             <div class="post-actions">
                                 ${isOwner ? `<button class="btn-edit" data-content="${escapedContent}" onclick="openEditModal(${post.id})">编辑</button>` : ''}
-                                ${isOwner ? `<button class="btn-delete" onclick="deletePost(${post.id})">删除</button>` : ''}
+                                ${(isOwner || isAdmin) ? `<button class="btn-delete" onclick="deletePost(${post.id})">删除</button>` : ''}
                             </div>
                             <div class="microblog-comments" id="mb-comments-${post.id}"></div>
                         </div>

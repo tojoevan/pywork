@@ -261,16 +261,19 @@ class MicroblogPlugin(Plugin):
         
         # 获取当前登录用户
         current_author_id = None
+        is_admin = False
         user = await self.get_current_user(request)
         if user:
             current_author_id = user["id"]
-        
+            is_admin = user.get("role") == "admin"
+
         html = await self.template_engine.render(
             "microblog.html",
             {
                 "posts": posts,
                 "nav_page": "microblog",
                 "current_author_id": current_author_id,
+                "is_admin": is_admin,
             }
         )
         return HTMLResponse(content=html)
@@ -358,16 +361,16 @@ class MicroblogPlugin(Plugin):
         return {"id": post_id, "updated": True}
 
     async def delete_api(self, post_id: int, request, **kwargs):
-        # 鉴权：只有作者或 admin 才能删除
+        # 鉴权：只有作者才能删除
         user = await self.get_current_user(request)
-        
+
         post = await self.engine.get("microblog_posts", post_id)
         if not post:
             return self.error_json("微博不存在", 404)
-        
+
         if not user:
             return self.error_json("请先登录", 401)
-        
+
         if post.get("author_id") != user["id"] and user.get("role") != "admin":
             return self.error_json("无权限删除他人的微博", 403)
         
