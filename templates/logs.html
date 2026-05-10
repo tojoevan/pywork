@@ -59,23 +59,24 @@
 
 {% block content %}
 <div class="board-container">
-    <p class="board-desc">查看网站运行日志</p>
-    <div class="tab-nav">
-        <a href="/board" class="tab-btn" style="color:inherit">看板</a>
-        <a href="/board/cron" class="tab-btn" style="color:inherit">定时任务</a>
-        <a href="/board/moderation" class="tab-btn" style="color:inherit">微博审核</a>
-        <a href="/board/logs" class="tab-btn active" style="color:inherit">📜 日志</a>
-        <a href="/board/settings" class="tab-btn" style="color:inherit">网站设置</a>
-    </div>
-</div>
-
-<div class="logs-container">
-    <div class="logs-header">
-        <div>
-            <h1>📜 应用日志</h1>
-            <p class="log-count" id="log-count">加载中...</p>
+    <div class="board-header">
+        <h1>📜 应用日志</h1>
+        <p class="board-desc">查看网站运行日志</p>
+        <div class="tab-nav">
+            <a href="/board" class="tab-btn">看板</a>
+            <a href="/board/cron" class="tab-btn">定时任务</a>
+            <a href="/board/moderation" class="tab-btn">微博审核</a>
+            <a href="/board/logs" class="tab-btn{% if section == 'logs' %} active{% endif %}">📜 日志</a>
+            <a href="/board/settings" class="tab-btn">网站设置</a>
         </div>
     </div>
+
+    <div class="logs-container">
+        <div class="logs-header">
+            <div>
+                <p class="log-count" id="log-count">加载中...</p>
+            </div>
+        </div>
 
     {# 筛选栏 #}
     <div class="log-filter">

@@ -801,6 +801,17 @@ class BoardPlugin(Plugin):
         current_user = await self.get_current_user(request)
         jobs = await self._list_cron_jobs()
 
+        # 读取看板任务（供看板 tab 使用）
+        rows = await self.engine.fetchall(
+            "SELECT * FROM board_tasks ORDER BY status, sort_order ASC, created_at DESC"
+        )
+        tasks = [dict(r) for r in rows]
+        columns = {"todo": [], "in-progress": [], "done": []}
+        for task in tasks:
+            status = task.get("status", "todo")
+            if status in columns:
+                columns[status].append(task)
+
         html = await self.template_engine.render(
             "board.html",
             {
@@ -811,6 +822,13 @@ class BoardPlugin(Plugin):
                 "PRESET_JOBS": PRESET_JOBS,
                 "INTERVAL_OPTIONS": INTERVAL_OPTIONS,
                 "pending_posts": [],
+                "tasks": tasks,
+                "columns": columns,
+                "PRIORITY_LABELS": {
+                    "low": "🟢 低",
+                    "medium": "🟡 中",
+                    "high": "🔴 高",
+                },
             }
         )
         return HTMLResponse(content=html)

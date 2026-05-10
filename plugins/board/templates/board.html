@@ -13,22 +13,30 @@
     {#  顶部 Tab 切换                                          #}
     {# ============================================================ #}
     <div class="board-header">
+        {% if section == 'cron' %}
+        <h1>⏰ 定时任务</h1>
+        <p class="board-desc">管理定时执行的后台任务</p>
+        {% elif section == 'moderation' %}
+        <h1>📝 微博审核</h1>
+        <p class="board-desc">审核匿名用户发布的微博，通过后才会显示在微博广场。</p>
+        {% else %}
         <h1>📋 看板</h1>
         <p class="board-desc">任务管理，仅管理员可用</p>
+        {% endif %}
         <div class="tab-nav">
-            <button class="tab-btn active" data-tab="board">看板</button>
-            <button class="tab-btn" data-tab="cron">定时任务</button>
-            <button class="tab-btn" data-tab="moderation">微博审核</button>
-            <a href="/board/logs" class="tab-btn" style="color:inherit">📜 日志</a>
-            <a href="/board/settings" class="tab-btn" style="color:inherit">网站设置</a>
+            <a href="/board" class="tab-btn{% if section == 'board' %} active{% endif %}">看板</a>
+            <a href="/board/cron" class="tab-btn{% if section == 'cron' %} active{% endif %}">定时任务</a>
+            <a href="/board/moderation" class="tab-btn{% if section == 'moderation' %} active{% endif %}">微博审核</a>
+            <a href="/board/logs" class="tab-btn">📜 日志</a>
+            <a href="/board/settings" class="tab-btn">网站设置</a>
         </div>
     </div>
 
     {# ============================================================ #}
     {#  看板区                                                  #}
     {# ============================================================ #}
-    <div class="tab-panel" id="panel-board">
-        {% if section == 'board' or section == 'moderation' %}
+    <div class="tab-panel{% if section != 'board' %} hidden{% endif %}" id="panel-board">
+    {% if columns is defined %}
 
         <!-- 新建任务 -->
         <div class="board-add">
@@ -124,7 +132,7 @@
                 </div>
             </div>
         </div>
-        {% endif %}
+    {% endif %}
     </div>
 
     {# ============================================================ #}
@@ -236,12 +244,8 @@
     {# ============================================================ #}
     {#  微博审核区                                              #}
     {# ============================================================ #}
-    <div class="tab-panel hidden" id="panel-moderation">
+    <div class="tab-panel{% if section != 'moderation' %} hidden{% endif %}" id="panel-moderation">
         <div class="moderation-container">
-            <div class="moderation-header">
-                <h3>📝 微博审核</h3>
-                <p class="moderation-desc">审核匿名用户发布的微博，通过后才会显示在微博广场。</p>
-            </div>
             <div class="moderation-list" id="moderation-list">
             </div>
         </div>
@@ -250,36 +254,6 @@
 </div>
 
 <script>
-{# ============================================================ #}
-{#  Tab 切换                                                #}
-{# ============================================================ #}
-document.querySelectorAll('.tab-btn').forEach(btn => {
-    btn.addEventListener('click', () => {
-        document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
-        btn.classList.add('active');
-        const tab = btn.dataset.tab;
-        document.querySelectorAll('.tab-panel').forEach(p => {
-            p.classList.toggle('hidden', p.id !== `panel-${tab}`);
-        });
-        // 更新 URL
-        if (tab === 'board') history.replaceState(null, '', '/board');
-        else if (tab === 'cron') history.replaceState(null, '', '/board/cron');
-        else if (tab === 'moderation') history.replaceState(null, '', '/board/moderation');
-
-        // 加载审核列表
-        if (tab === 'moderation') loadModerationList();
-    });
-});
-
-// 根据当前 URL 初始化 tab
-(function initTab() {
-    const path = location.pathname;
-    if (path === '/board/cron') {
-        document.querySelector('[data-tab="cron"]').click();
-    } else if (path === '/board/moderation') {
-        document.querySelector('[data-tab="moderation"]').click();
-    }
-})();
 
 {# ============================================================ #}
 {#  看板：移动 / 删除 任务                                     #}

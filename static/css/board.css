@@ -259,15 +259,25 @@
     cursor: pointer;
     font-size: 14px;
     transition: all 0.2s;
+    text-decoration: none;
+    display: inline-block;
+    line-height: 1.4;
+}
+
+a.tab-btn,
+a.tab-btn:hover {
+    color: inherit;
+    text-decoration: none;
 }
 
 .tab-btn:hover {
     background: var(--bg-hover, #eee);
 }
 
-.tab-btn.active {
+.tab-btn.active,
+a.tab-btn.active {
     background: var(--green-primary, #22c55e);
-    color: white;
+    color: white !important;
     border-color: var(--green-primary, #22c55e);
 }
 
