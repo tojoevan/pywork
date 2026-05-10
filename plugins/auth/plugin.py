@@ -897,7 +897,8 @@ class AuthPlugin(Plugin):
 
     async def github_auth_url_api(self, request, base_url: str = None):
         """获取 GitHub OAuth 授权链接"""
-        url = await self.get_github_auth_url(base_url=base_url)
+        state = request.query_params.get("state") if hasattr(request, 'query_params') else None
+        url = await self.get_github_auth_url(state=state, base_url=base_url)
         if not url:
             return {"error": "GitHub OAuth 未配置"}
         return {"url": url}
@@ -911,6 +912,22 @@ class AuthPlugin(Plugin):
             return {"error": "缺少 code 参数"}
 
         return await self.github_callback(code, state, base_url=base_url)
+
+    async def github_unbind_api(self, request):
+        """解除 GitHub 绑定"""
+        token = request.cookies.get("auth_token", "")
+        if not token:
+            token = request.headers.get("Authorization", "").replace("Bearer ", "")
+        user = await self.get_user_by_token(token)
+        if not user:
+            return {"error": "未登录"}
+        try:
+            await self.engine.execute(
+                "UPDATE users SET github_id = NULL WHERE id = ?", (user["id"],)
+            )
+            return {"success": True}
+        except Exception as e:
+            return {"error": f"解绑失败: {str(e)}"}
 
     # === MCP Token 管理 ===
 

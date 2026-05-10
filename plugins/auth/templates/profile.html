@@ -77,9 +77,12 @@
 
     <div class="profile-section">
         <h2>账号绑定</h2>
-        <div class="profile-field">
-            <label>GitHub</label>
-            <span id="field-github">未绑定</span>
+        <div class="profile-field" style="display:flex;align-items:center;justify-content:space-between;">
+            <div>
+                <label>GitHub</label>
+                <span id="field-github">-</span>
+            </div>
+            <button id="btn-github-bind" class="btn-secondary" style="font-size:13px;padding:6px 14px;" onclick="toggleGithubBind()">绑定 GitHub</button>
         </div>
     </div>
 
@@ -139,7 +142,6 @@
 
     <div class="profile-actions">
         <a href="/" class="btn-secondary">返回首页</a>
-        <a href="/auth/github" class="btn-secondary">绑定 GitHub</a>
         <a href="#" class="btn-danger" id="logout-btn">退出登录</a>
     </div>
 </div>
@@ -225,8 +227,18 @@ async function loadProfile() {
         }
         document.getElementById('avatar-initial').textContent = user.username.charAt(0).toUpperCase();
 
+        var githubEl = document.getElementById('field-github');
+        var githubBtn = document.getElementById('btn-github-bind');
         if (user.github_id) {
-            document.getElementById('field-github').textContent = '已绑定';
+            githubEl.innerHTML = '已绑定 <span style="color:#10b981;font-size:12px;">✓</span>';
+            githubBtn.textContent = '解除绑定';
+            githubBtn.className = 'btn-danger';
+            githubBtn.dataset.bound = '1';
+        } else {
+            githubEl.textContent = '未绑定';
+            githubBtn.textContent = '绑定 GitHub';
+            githubBtn.className = 'btn-secondary';
+            githubBtn.dataset.bound = '0';
         }
     } catch (e) {
         console.error('加载用户信息失败', e);
@@ -397,6 +409,23 @@ document.getElementById('logout-btn').addEventListener('click', function(e) {
     e.preventDefault();
     fetch('/auth/logout', { method: 'POST' }).then(() => window.location.href = '/login');
 });
+
+// GitHub 绑定/解绑
+function toggleGithubBind() {
+    var btn = document.getElementById('btn-github-bind');
+    if (btn.dataset.bound === '1') {
+        if (!confirm('确定解除 GitHub 绑定？')) return;
+        fetch('/auth/github/unbind', { method: 'POST' })
+            .then(function(r) { return r.json(); })
+            .then(function(data) {
+                if (data.error) { alert(data.error); return; }
+                loadProfile();
+            })
+            .catch(function() { alert('操作失败'); });
+    } else {
+        window.location.href = '/auth/github?state=bind';
+    }
+}
 
 loadProfile();
 loadMcpConfig();

@@ -457,7 +457,8 @@ class WorkbenchApp:
             auth_plugin = self.plugin_manager.plugins.get("auth")
             if auth_plugin:
                 base_url = str(request.base_url).rstrip("/")
-                result = await auth_plugin.github_auth_url_api(type('Request', (), {'query_params': {}})(), base_url=base_url)
+                oauth_state = request.query_params.get("state", "")
+                result = await auth_plugin.github_auth_url_api(type('Request', (), {'query_params': {"state": oauth_state}})(), base_url=base_url)
                 if "url" in result:
                     from fastapi.responses import RedirectResponse
                     return RedirectResponse(url=result["url"])
@@ -472,9 +473,11 @@ class WorkbenchApp:
                 base_url = str(request.base_url).rstrip("/")
                 result = await auth_plugin.github_callback_api(request, base_url=base_url)
                 if "success" in result and result.get("success"):
-                    # 登录成功,重定向到首页
+                    # 登录成功，根据 state 判断跳转
                     from fastapi.responses import RedirectResponse
-                    response = RedirectResponse(url="/", status_code=302)
+                    callback_state = request.query_params.get("state", "")
+                    redirect_to = "/profile" if callback_state == "bind" else "/"
+                    response = RedirectResponse(url=redirect_to, status_code=302)
                     # 设置 cookie
                     response.set_cookie(
                         key="auth_token",
@@ -485,6 +488,15 @@ class WorkbenchApp:
                     return response
                 if isinstance(result, dict) and result.get("error"):
                     return JSONResponse(result, status_code=400)
+                return result
+            return JSONResponse({"error": "Auth plugin not loaded"}, status_code=503)
+
+        @self.app.post("/auth/github/unbind")
+        async def github_unbind(request: Request):
+            """解除 GitHub 绑定"""
+            auth_plugin = self.plugin_manager.plugins.get("auth")
+            if auth_plugin:
+                result = await auth_plugin.github_unbind_api(request)
                 return result
             return JSONResponse({"error": "Auth plugin not loaded"}, status_code=503)
 
