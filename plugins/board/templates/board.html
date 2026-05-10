@@ -20,7 +20,7 @@
         <h1>📝 微博审核</h1>
         <p class="board-desc">审核匿名用户发布的微博，通过后才会显示在微博广场。</p>
         {% elif section == 'comments' %}
-        <h1>💬 留言审核</h1>
+        <h1>留言审核</h1>
         <p class="board-desc">管理关于页面的用户留言</p>
         {% else %}
         <h1>📋 看板任务</h1>
@@ -30,8 +30,8 @@
             <a href="/board" class="tab-btn{% if section == 'board' %} active{% endif %}">看板任务</a>
             <a href="/board/cron" class="tab-btn{% if section == 'cron' %} active{% endif %}">定时任务</a>
             <a href="/board/moderation" class="tab-btn{% if section == 'moderation' %} active{% endif %}">微博审核</a>
-            <a href="/board/comments" class="tab-btn{% if section == 'comments' %} active{% endif %}">💬 留言审核</a>
-            <a href="/board/logs" class="tab-btn">📜 日志</a>
+            <a href="/board/comments" class="tab-btn{% if section == 'comments' %} active{% endif %}">留言审核</a>
+            <a href="/board/logs" class="tab-btn">日志查询</a>
             <a href="/board/settings" class="tab-btn">网站设置</a>
         </div>
     </div>

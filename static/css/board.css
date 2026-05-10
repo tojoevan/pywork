@@ -8,7 +8,7 @@
 
 .board-header {
     text-align: center;
-    padding: 48px 0 32px;
+    padding: 24px 0 32px;
     margin-bottom: 32px;
     border-bottom: 1px solid var(--border-color);
 }
