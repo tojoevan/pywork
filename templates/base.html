@@ -5,6 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>{% block title %}{{ Site.title | default('pyWork') }}{% endblock %}</title>
     <link rel="icon" href="/static/favicon.svg" type="image/svg+xml">
+    <link rel="alternate" type="application/rss+xml" title="{{ Site.title | default('pyWork') }}" href="/feed">
 
     <!-- 静态资源 -->
     <link rel="stylesheet" href="/static/css/base.css?v=20260423">

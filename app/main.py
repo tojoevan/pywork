@@ -2,7 +2,10 @@
 import asyncio
 import argparse
 import os
+import time
+from datetime import datetime, timezone
 from typing import Optional
+from xml.etree.ElementTree import Element, SubElement, tostring
 
 from fastapi import FastAPI, Request
 from fastapi.responses import JSONResponse, HTMLResponse
@@ -181,6 +184,93 @@ class WorkbenchApp:
         @self.app.get("/health")
         async def health():
             return {"status": "ok"}
+
+        @self.app.get("/feed")
+        async def feed(request: Request):
+            """RSS feed - recent 7 days content"""
+            site_title = getattr(self._config, 'title', 'pyWork')
+            base_url = str(getattr(self._config, 'base_url', '')).rstrip('/')
+            if not base_url:
+                base_url = str(request.base_url).rstrip('/')
+
+            now = int(time.time())
+            week_ago = now - 7 * 86400
+
+            items = []
+            blog_plugin = self.plugin_manager.plugins.get("blog")
+            if blog_plugin:
+                try:
+                    posts = await blog_plugin.list_posts(limit=50)
+                    for p in posts:
+                        if p.get("created_at", 0) >= week_ago and p.get("visibility") == "public":
+                            items.append({
+                                "title": p.get("title", ""),
+                                "link": f"{base_url}/blog/view/{p['id']}",
+                                "description": p.get("body", "")[:500],
+                                "pub_date": datetime.fromtimestamp(p["created_at"], tz=timezone.utc),
+                                "author": p.get("author_name", ""),
+                                "guid": f"{base_url}/blog/view/{p['id']}",
+                            })
+                except Exception:
+                    pass
+
+            microblog_plugin = self.plugin_manager.plugins.get("microblog")
+            if microblog_plugin:
+                try:
+                    posts = await microblog_plugin.list_posts(limit=50)
+                    for p in posts:
+                        if p.get("created_at", 0) >= week_ago:
+                            content = p.get("content", p.get("body", ""))
+                            items.append({
+                                "title": content[:60],
+                                "link": f"{base_url}/microblog",
+                                "description": content,
+                                "pub_date": datetime.fromtimestamp(p["created_at"], tz=timezone.utc),
+                                "author": p.get("author_name", ""),
+                                "guid": f"{base_url}/microblog#{p['id']}",
+                            })
+                except Exception:
+                    pass
+
+            notes_plugin = self.plugin_manager.plugins.get("notes")
+            if notes_plugin:
+                try:
+                    notes = await notes_plugin.list_notes(visibility="public", limit=50)
+                    for n in notes:
+                        if n.get("created_at", 0) >= week_ago:
+                            items.append({
+                                "title": n.get("title", "无标题"),
+                                "link": f"{base_url}/notes/{n['id']}",
+                                "description": n.get("body", "")[:500],
+                                "pub_date": datetime.fromtimestamp(n["created_at"], tz=timezone.utc),
+                                "author": n.get("author_name", ""),
+                                "guid": f"{base_url}/notes/{n['id']}",
+                            })
+                except Exception:
+                    pass
+
+            items.sort(key=lambda x: x["pub_date"], reverse=True)
+
+            rss = Element("rss", version="2.0")
+            channel = SubElement(rss, "channel")
+            SubElement(channel, "title").text = site_title
+            SubElement(channel, "link").text = base_url
+            SubElement(channel, "description").text = f"{site_title} - 最近一周更新"
+            SubElement(channel, "language").text = "zh-cn"
+
+            for item in items[:50]:
+                el = SubElement(channel, "item")
+                SubElement(el, "title").text = item["title"]
+                SubElement(el, "link").text = item["link"]
+                SubElement(el, "description").text = item["description"]
+                SubElement(el, "pubDate").text = item["pub_date"].strftime("%a, %d %b %Y %H:%M:%S +0000")
+                SubElement(el, "guid").text = item["guid"]
+                if item["author"]:
+                    SubElement(el, "author").text = item["author"]
+
+            xml_bytes = tostring(rss, encoding="unicode", xml_declaration=False)
+            xml = '<?xml version="1.0" encoding="UTF-8"?>' + xml_bytes
+            return HTMLResponse(content=xml, media_type="application/rss+xml; charset=utf-8")
 
         @self.app.get("/api")
         async def api_info():
