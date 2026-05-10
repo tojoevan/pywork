@@ -37,6 +37,10 @@
 | `about` | 留言板，访客留言 + 管理员审核 |
 | `notes` | 笔记，公开/私有，Markdown 支持 |
 | `board` | 看板（管理员）、定时任务（统计）、网站设置 |
+| `comments` | 统一评论系统（博客/微博/笔记），支持嵌套回复和审核 |
+| `llm_config` | LLM 配置管理，支持多模型切换和 MCP 调用 |
+| `topic` | 主题讨论，支持投票和多轮对话 |
+| `nav` | 导航链接管理，支持用户自定义隐藏 |
 
 ## 页面布局
 
@@ -104,7 +108,11 @@ pyWork/
 │   ├── microblog/            # 微博插件（匿名发布+审核）
 │   ├── about/                # 留言板插件（访客留言+审核）
 │   ├── notes/                # 笔记插件（公开/私有）
-│   └── board/                # 看板插件（任务、定时任务、设置）
+│   ├── board/                # 看板插件（任务、定时任务、设置）
+│   ├── comments/             # 评论插件（统一评论系统）
+│   ├── llm_config/           # LLM 配置插件（多模型管理）
+│   ├── topic/                # 主题讨论插件（投票、对话）
+│   └── nav/                  # 导航链接插件
 ├── templates/                # 公共模板（base.html、home.html）
 ├── static/                   # 静态资源（CSS）
 ├── tests/                    # 测试用例
@@ -369,8 +377,9 @@ AI 助手 → tools/call (name="blog.create_post", arguments={...}, meta={token:
 ### 其他防护
 
 - **SQL 注入**：表名白名单校验 + 参数化查询
-- **XSS**：Markdown 渲染前对用户输入做 HTML 白名单过滤，阻止 `javascript:` 协议
-- **CSRF**：状态修改操作要求用户已登录，MCP Token 独立于 Session
+- **XSS**：Markdown 渲染前对用户输入做 HTML 白名单过滤，搜索高亮自动转义
+- **CSRF**：Cookie 设置 `SameSite="lax"` + `httponly=True`，所有状态修改端点要求登录认证
+- **密钥安全**：LLM API Key 使用 Fernet 加密存储，MCP Token 使用 SHA-256 哈希存储
 
 ## 性能优化
 
@@ -394,44 +403,41 @@ AI 助手 → tools/call (name="blog.create_post", arguments={...}, meta={token:
 
 # 代码审查总结
 
-> 审查日期：2026-04-20 ~ 2026-04-22 | 状态：全部完成
+> 审查日期：2026-04-20 ~ 2026-04-22（首次）、2026-05-11（二次审查）
 
-本次代码审查发现并修复了 23 个问题，新增 117 个测试用例，项目已具备生产部署条件。
+## 首次审查（2026-04-20 ~ 2026-04-22）
 
-## 修复统计
+发现并修复了 23 个问题，新增 117 个测试用例。
 
-| 级别 | 总数 | 说明 |
-|------|------|------|
-| P0 | 3 | 紧急 Bug，影响核心功能 |
-| P1 | 6 | 高优问题，安全隐患 |
-| P2 | 5 | 中期改进，架构优化 |
-| P3 | 9 | 低优改进，代码质量 |
-| **合计** | **23** | **100% 完成** |
+## 二次审查（2026-05-11）
 
-## 关键修复
+发现并修复了 12 个问题，涵盖安全、代码质量、架构和性能。
+
+### 修复统计
+
+| 级别 | 总数 | 已修复 | 说明 |
+|------|------|--------|------|
+| P0 | 5 | 5 | 安全问题（XSS、Cookie、OAuth、密钥存储） |
+| P1 | 4 | 4 | 代码质量（裸 except、自动 commit、速率限制） |
+| P2 | 7 | 7 | 架构/性能（缓存、索引、SQL、验证码） |
+| **合计** | **16** | **16** | **100% 完成** |
+
+### 关键修复
 
 | 问题 | 修复方案 |
 |------|----------|
-| 闭包变量捕获 Bug | 默认参数值捕获 `_route=route` |
-| visibility 字段缺失 | Migration 001 自动添加 |
-| SQL 注入风险 | 表名白名单 `ALLOWED_TABLES` |
-| MCP Token 内存存储 | 迁移到 `mcp_tokens` 表 |
-| 鉴权逻辑重复 | Plugin 基类统一方法 |
-| contents 表职责过载 | Migration 002 拆分为 4 张表 |
-| FTS5 被注释 | Migration 004 启用 + 自动同步触发器 |
-| 无日志框架 | `app/log.py` 三通道输出 |
-| 无配置验证 | `app/config.py` Pydantic 模型 |
-| 首页逻辑内联 | `HomeService` 并行聚合 |
-
-## 测试覆盖
-
-| 测试文件 | 用例数 | 覆盖范围 |
-|----------|--------|----------|
-| test_home_service.py | 19 | HomeService 首页数据聚合 |
-| test_auth.py | 27 | 验证码、密码哈希、注册、登录、Session、MCP Token、GitHub OAuth |
-| test_mcp.py | 33 | MCP 协议握手、tools/resources/prompts、错误处理 |
-| test_plugins.py | 38 | Blog/Notes/Microblog CRUD、跨插件、边界情况 |
-| **总计** | **117** | — |
+| XSS 搜索高亮注入 | `markupsafe.escape` 转义 |
+| Cookie 缺少安全属性 | 添加 `secure`、`samesite="lax"` |
+| OAuth State 未验证 | 授权前存储 state，回调时校验 |
+| LLM API Key 明文存储 | Fernet 加密存储，启动时自动迁移 |
+| MCP Token 明文存储 | SHA-256 哈希存储，启动时自动迁移 |
+| 20+ 处裸 except | 替换为具体异常类型 |
+| 批量操作无原子性 | 使用 `transaction()` 上下文管理器 |
+| 两套独立缓存不一致 | TemplateEngine 统一使用 SiteConfigManager |
+| 缺少数据库索引 | 添加 sessions/mcp_tokens/comments 索引 |
+| 内存型速率限制 | 迁移到 SQLite，支持重启保持 |
+| 验证码内存存储 | 迁移到 SQLite，自动清理过期记录 |
+| CSRF 防护不足 | SameSite="lax" + 全端点登录认证 |
 
 ---
 
