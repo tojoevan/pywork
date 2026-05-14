@@ -69,6 +69,54 @@
     line-height: 1.6;
 }
 
+.feature-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 0.75rem;
+}
+
+.feature-card {
+    display: flex;
+    align-items: flex-start;
+    gap: 0.75rem;
+    padding: 1rem;
+    background: white;
+    border: 1px solid var(--border-color);
+    border-radius: 0.5rem;
+    transition: border-color 0.15s;
+}
+
+.feature-card:hover {
+    border-color: var(--primary-color, #10b981);
+}
+
+.feature-icon {
+    font-size: 1.25rem;
+    line-height: 1;
+    flex-shrink: 0;
+    margin-top: 0.125rem;
+}
+
+.feature-info h3 {
+    font-size: 0.9375rem;
+    font-weight: 600;
+    margin: 0 0 0.25rem;
+    color: var(--text-color);
+}
+
+.feature-info p {
+    font-size: 0.8125rem;
+    color: #6b7280;
+    margin: 0;
+    line-height: 1.5;
+}
+
+@media (max-width: 640px) {
+    .feature-grid {
+        grid-template-columns: 1fr;
+    }
+}
+
 /* 留言板 */
 .guestbook {
     border-top: 1px solid var(--border-color);

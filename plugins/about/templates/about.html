@@ -11,13 +11,13 @@
     <!-- 头部 -->
     <div class="about-header">
         <h1>关于</h1>
-        <p class="about-description">了解这个项目，留下你的想法</p>
+        <p class="about-description">{{ Site.description | default('多用户数字工作台') }}</p>
     </div>
 
     <!-- 关于内容 -->
     <div class="about-content">
         <section class="about-section">
-            <h2>pyWork</h2>
+            <h2>{{ Site.title | default('pyWork') }}</h2>
             <p>基于 Python + FastAPI + SQLite 构建的多用户数字工作台。插件化架构，MCP 协议集成 AI，轻量但可扩展。</p>
             <p><a href="https://github.com/tojoevan/pywork" target="_blank" rel="noopener noreferrer">GitHub 开源地址</a></p>
         </section>
@@ -28,19 +28,79 @@
                 <span class="tech-tag">Python</span>
                 <span class="tech-tag">FastAPI</span>
                 <span class="tech-tag">SQLite</span>
-                <span class="tech-tag">MCP</span>
                 <span class="tech-tag">Jinja2</span>
+                <span class="tech-tag">MCP</span>
+                <span class="tech-tag">aiohttp</span>
             </div>
         </section>
 
         <section class="about-section">
-            <h2>功能</h2>
-            <ul class="feature-list">
-                <li>📝 博客 — Markdown 写作，标签分类</li>
-                <li>💬 微博 — 快速分享想法</li>
-                <li>🔌 插件系统 — 热插拔，MCP 工具集成</li>
-                <li>🔐 认证 — 注册登录，GitHub OAuth</li>
-            </ul>
+            <h2>功能模块</h2>
+            <div class="feature-grid">
+                <div class="feature-card">
+                    <div class="feature-icon">📝</div>
+                    <div class="feature-info">
+                        <h3>博客</h3>
+                        <p>Markdown 写作，标签分类，全文搜索</p>
+                    </div>
+                </div>
+                <div class="feature-card">
+                    <div class="feature-icon">💬</div>
+                    <div class="feature-info">
+                        <h3>微博</h3>
+                        <p>快速分享想法与灵感</p>
+                    </div>
+                </div>
+                <div class="feature-card">
+                    <div class="feature-icon">🗣</div>
+                    <div class="feature-info">
+                        <h3>主题讨论</h3>
+                        <p>发起话题，多人参与讨论</p>
+                    </div>
+                </div>
+                <div class="feature-card">
+                    <div class="feature-icon">📡</div>
+                    <div class="feature-info">
+                        <h3>RSS 阅读器</h3>
+                        <p>订阅 Feed，定时抓取，集中阅读</p>
+                    </div>
+                </div>
+                <div class="feature-card">
+                    <div class="feature-icon">🔗</div>
+                    <div class="feature-info">
+                        <h3>导航收藏</h3>
+                        <p>分组管理常用链接与书签</p>
+                    </div>
+                </div>
+                <div class="feature-card">
+                    <div class="feature-icon">📋</div>
+                    <div class="feature-info">
+                        <h3>笔记</h3>
+                        <p>轻量笔记，随时记录</p>
+                    </div>
+                </div>
+                <div class="feature-card">
+                    <div class="feature-icon">📊</div>
+                    <div class="feature-info">
+                        <h3>看板</h3>
+                        <p>定时任务管理与状态看板</p>
+                    </div>
+                </div>
+                <div class="feature-card">
+                    <div class="feature-icon">🔌</div>
+                    <div class="feature-info">
+                        <h3>插件系统</h3>
+                        <p>热插拔架构，MCP 工具集成 AI</p>
+                    </div>
+                </div>
+                <div class="feature-card">
+                    <div class="feature-icon">🔐</div>
+                    <div class="feature-info">
+                        <h3>认证</h3>
+                        <p>注册登录，GitHub OAuth</p>
+                    </div>
+                </div>
+            </div>
         </section>
     </div>
 
