@@ -1,6 +1,8 @@
 /* Navigation / Bookmark page styles */
 
 .nav-page {
+    max-width: 688px;
+    margin: 0 auto;
     padding: 0;
 }
 
