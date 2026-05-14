@@ -116,7 +116,7 @@ class SQLiteEngine(Engine):
         site_url TEXT DEFAULT '',
         last_fetched INTEGER DEFAULT 0,
         last_error TEXT DEFAULT '',
-        fetch_interval INTEGER DEFAULT 1800,
+        fetch_interval INTEGER DEFAULT 3600,
         added_by INTEGER NOT NULL,
         created_at INTEGER NOT NULL,
         updated_at INTEGER NOT NULL

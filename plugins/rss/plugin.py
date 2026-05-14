@@ -64,8 +64,14 @@ class RssPlugin(Plugin):
         await asyncio.sleep(10)
         while self._fetch_running:
             try:
-                rows = await self.engine.fetchall("SELECT id FROM rss_feeds ORDER BY id")
-                feed_ids = [row["id"] for row in rows]
+                now_ts = int(time.time())
+                rows = await self.engine.fetchall(
+                    "SELECT id, fetch_interval, last_fetched FROM rss_feeds ORDER BY id"
+                )
+                feed_ids = [
+                    row["id"] for row in rows
+                    if now_ts - row["last_fetched"] >= row["fetch_interval"]
+                ]
                 if not feed_ids:
                     await self._wait_until_next_hour()
                     continue

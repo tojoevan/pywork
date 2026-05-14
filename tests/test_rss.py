@@ -83,7 +83,7 @@ class MockEngine:
             results = []
             for row in self.tables.get("rss_feeds", {}).values():
                 if row.get("last_fetched", 0) == 0 or \
-                   row.get("last_fetched", 0) + row.get("fetch_interval", 1800) <= now:
+                   row.get("last_fetched", 0) + row.get("fetch_interval", 3600) <= now:
                     results.append(dict(row))
             return results
         if "rss_feeds" in sql:
@@ -103,7 +103,7 @@ class MockEngine:
             self.tables["rss_feeds"][fid] = {
                 "id": fid, "url": params[0], "title": "", "description": "",
                 "site_url": "", "last_fetched": 0, "last_error": "",
-                "fetch_interval": 1800, "added_by": params[1],
+                "fetch_interval": 3600, "added_by": params[1],
                 "created_at": params[2], "updated_at": params[3],
             }
         if "INSERT OR IGNORE INTO rss_items" in sql:
@@ -152,7 +152,7 @@ def seed_feed(engine, feed_id, url="https://example.com/feed.xml", title="Test F
     engine.tables["rss_feeds"][feed_id] = {
         "id": feed_id, "url": url, "title": title, "description": "desc",
         "site_url": "https://example.com", "last_fetched": last_fetched,
-        "last_error": "", "fetch_interval": 1800, "added_by": added_by,
+        "last_error": "", "fetch_interval": 3600, "added_by": added_by,
         "created_at": now, "updated_at": now,
     }
     if feed_id >= engine._next_id.get("rss_feeds", 1):
