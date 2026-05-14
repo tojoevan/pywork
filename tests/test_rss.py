@@ -1,4 +1,5 @@
 """Tests for plugins/rss/plugin.py — RssPlugin"""
+import asyncio
 import pytest
 import time
 import xml.etree.ElementTree as ET
@@ -684,6 +685,42 @@ class TestHttpHandlers:
 # ============================================================
 #  Edge Cases
 # ============================================================
+
+class TestFetchSchedule:
+    @pytest.mark.asyncio
+    async def test_wait_until_next_hour(self):
+        plugin, _ = await init_plugin()
+        import time as _time
+        start = _time.time()
+        # Mock sleep to avoid actually waiting
+        sleep_args = []
+        original_sleep = asyncio.sleep
+
+        async def mock_sleep(secs):
+            sleep_args.append(secs)
+
+        asyncio.sleep = mock_sleep
+        try:
+            await plugin._wait_until_next_hour()
+        finally:
+            asyncio.sleep = original_sleep
+        assert len(sleep_args) == 1
+        assert 0 < sleep_args[0] <= 3600
+
+    @pytest.mark.asyncio
+    async def test_fetch_loop_empty_feeds_waits(self):
+        plugin, engine = await init_plugin()
+        plugin._fetch_running = True
+        calls = []
+
+        async def mock_wait():
+            calls.append("wait")
+            plugin._fetch_running = False
+
+        plugin._wait_until_next_hour = mock_wait
+        await plugin._fetch_loop()
+        assert "wait" in calls
+
 
 class TestEdgeCases:
     @pytest.mark.asyncio

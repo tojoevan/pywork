@@ -64,24 +64,39 @@ class RssPlugin(Plugin):
         await asyncio.sleep(10)
         while self._fetch_running:
             try:
-                await self._fetch_due_feeds()
+                rows = await self.engine.fetchall("SELECT id FROM rss_feeds ORDER BY id")
+                feed_ids = [row["id"] for row in rows]
+                if not feed_ids:
+                    await self._wait_until_next_hour()
+                    continue
+
+                cycle_start = int(time.time())
+                for fid in feed_ids:
+                    if not self._fetch_running:
+                        return
+                    try:
+                        await self.fetch_feed(fid)
+                    except Exception as e:
+                        self.log.error(f"RSS fetch feed {fid} error: {e}")
+                    if self._fetch_running:
+                        await asyncio.sleep(60)
+
+                elapsed = int(time.time()) - cycle_start
+                self.log.info(f"RSS cycle done, {len(feed_ids)} feeds, {elapsed}s elapsed")
+                await self._wait_until_next_hour()
+            except asyncio.CancelledError:
+                return
             except Exception as e:
                 self.log.error(f"RSS fetch loop error: {e}")
-            await asyncio.sleep(60)
+                await self._wait_until_next_hour()
 
-    async def _fetch_due_feeds(self) -> None:
-        now = int(time.time())
-        rows = await self.engine.fetchall(
-            "SELECT id FROM rss_feeds WHERE last_fetched = 0 OR last_fetched + fetch_interval <= ?",
-            (now,)
-        )
-        for row in rows:
-            if not self._fetch_running:
-                break
-            try:
-                await self.fetch_feed(row["id"])
-            except Exception as e:
-                self.log.error(f"RSS fetch feed {row['id']} error: {e}")
+    async def _wait_until_next_hour(self) -> None:
+        """等到下一个整点小时"""
+        now = time.time()
+        next_hour = (int(now) // 3600 + 1) * 3600
+        wait = next_hour - now
+        self.log.info(f"RSS fetcher sleeping {wait:.0f}s until next hour")
+        await asyncio.sleep(wait)
 
     # === 核心数据方法 ===
 
