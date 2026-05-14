@@ -665,9 +665,6 @@ class WorkbenchApp:
                 })
                 return HTMLResponse(content=html)
 
-            # 记录搜索时间
-            self._search_rate_limit[client_ip] = now
-
             # 获取各插件
             blog_plugin = self.plugin_manager.plugins.get("blog")
             microblog_plugin = self.plugin_manager.plugins.get("microblog")
