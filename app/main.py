@@ -645,6 +645,9 @@ class WorkbenchApp:
                     "blog_results": [],
                     "microblog_results": [],
                     "notes_results": [],
+                    "topic_results": [],
+                    "nav_results": [],
+                    "rss_results": [],
                     "duration_ms": 0,
                     "nav_page": "search",
                     "rate_limited": True,
@@ -660,6 +663,9 @@ class WorkbenchApp:
                     "blog_results": [],
                     "microblog_results": [],
                     "notes_results": [],
+                    "topic_results": [],
+                    "nav_results": [],
+                    "rss_results": [],
                     "duration_ms": 0,
                     "nav_page": "search"
                 })
@@ -675,6 +681,9 @@ class WorkbenchApp:
             blog_results = []
             microblog_results = []
             notes_results = []
+            topic_results = []
+            nav_results = []
+            rss_results = []
 
             async def search_blog():
                 nonlocal blog_results
@@ -688,7 +697,6 @@ class WorkbenchApp:
                 nonlocal microblog_results
                 if microblog_plugin:
                     try:
-                        # 微博使用 LIKE 搜索
                         microblog_results = await self._search_microblog(query, microblog_plugin, auth_plugin, limit=20)
                     except Exception as e:
                         log.warning(f"Microblog search error: {e}")
@@ -701,10 +709,35 @@ class WorkbenchApp:
                     except Exception as e:
                         log.warning(f"Notes search error: {e}")
 
-            await asyncio.gather(search_blog(), search_microblog(), search_notes())
+            async def search_topics():
+                nonlocal topic_results
+                try:
+                    topic_results = await self._search_topics(query, auth_plugin, limit=20)
+                except Exception as e:
+                    log.warning(f"Topic search error: {e}")
+
+            async def search_nav():
+                nonlocal nav_results
+                try:
+                    nav_results = await self._search_nav(query, auth_plugin, limit=20)
+                except Exception as e:
+                    log.warning(f"Nav search error: {e}")
+
+            async def search_rss():
+                nonlocal rss_results
+                try:
+                    rss_results = await self._search_rss(query, limit=20)
+                except Exception as e:
+                    log.warning(f"RSS search error: {e}")
+
+            await asyncio.gather(
+                search_blog(), search_microblog(), search_notes(),
+                search_topics(), search_nav(), search_rss()
+            )
 
             duration_ms = int((time.time() - start_time) * 1000)
-            total = len(blog_results) + len(microblog_results) + len(notes_results)
+            total = len(blog_results) + len(microblog_results) + len(notes_results) + \
+                    len(topic_results) + len(nav_results) + len(rss_results)
 
             html = await self.template_engine.render("search.html", {
                 "query": query,
@@ -712,6 +745,9 @@ class WorkbenchApp:
                 "blog_results": blog_results,
                 "microblog_results": microblog_results,
                 "notes_results": notes_results,
+                "topic_results": topic_results,
+                "nav_results": nav_results,
+                "rss_results": rss_results,
                 "duration_ms": duration_ms,
                 "nav_page": "search"
             })
@@ -735,6 +771,9 @@ class WorkbenchApp:
             blog_results = []
             microblog_results = []
             notes_results = []
+            topic_results = []
+            nav_results = []
+            rss_results = []
 
             if blog_plugin and hasattr(blog_plugin, 'search_fts'):
                 blog_results = await blog_plugin.search_fts(query, limit=limit)
@@ -745,14 +784,22 @@ class WorkbenchApp:
             if notes_plugin:
                 notes_results = await self._search_notes(query, notes_plugin, auth_plugin, limit=limit)
 
+            topic_results = await self._search_topics(query, auth_plugin, limit=limit)
+            nav_results = await self._search_nav(query, auth_plugin, limit=limit)
+            rss_results = await self._search_rss(query, limit=limit)
+
             return {
                 "query": query,
                 "results": {
                     "blog": blog_results,
                     "microblog": microblog_results,
-                    "notes": notes_results
+                    "notes": notes_results,
+                    "topic": topic_results,
+                    "nav": nav_results,
+                    "rss": rss_results
                 },
-                "total": len(blog_results) + len(microblog_results) + len(notes_results)
+                "total": len(blog_results) + len(microblog_results) + len(notes_results) +
+                         len(topic_results) + len(nav_results) + len(rss_results)
             }
 
         # Skill 版本信息 API
@@ -893,6 +940,102 @@ class WorkbenchApp:
                 "excerpt": excerpt,
                 "author_name": author_name,
                 "created_at": row["created_at"]
+            })
+
+        return items
+
+    async def _search_topics(self, query: str, auth_plugin, limit: int = 20) -> list:
+        """搜索讨论主题"""
+        results = await self.engine.fetchall(
+            """SELECT id, author_id, title, description, created_at
+               FROM topic_discussions
+               WHERE title LIKE ? OR description LIKE ?
+               ORDER BY created_at DESC
+               LIMIT ?""",
+            (f"%{query}%", f"%{query}%", limit)
+        )
+
+        items = []
+        for row in results:
+            author_name = "匿名"
+            if auth_plugin and row["author_id"]:
+                user = await auth_plugin.get_user(row["author_id"])
+                if user:
+                    author_name = user.get("nickname") or user.get("display_name") or user.get("username", "匿名")
+
+            title = self._highlight_excerpt(row["title"], query, max_len=100)
+            excerpt = self._highlight_excerpt(row["description"], query, max_len=200)
+
+            items.append({
+                "id": row["id"],
+                "title": title,
+                "excerpt": excerpt,
+                "author_name": author_name,
+                "created_at": row["created_at"]
+            })
+
+        return items
+
+    async def _search_nav(self, query: str, auth_plugin, limit: int = 20) -> list:
+        """搜索导航链接"""
+        results = await self.engine.fetchall(
+            """SELECT id, author_id, title, url, description, created_at
+               FROM nav_links
+               WHERE visibility = 'public'
+                 AND (title LIKE ? OR description LIKE ? OR url LIKE ?)
+               ORDER BY created_at DESC
+               LIMIT ?""",
+            (f"%{query}%", f"%{query}%", f"%{query}%", limit)
+        )
+
+        items = []
+        for row in results:
+            author_name = "匿名"
+            if auth_plugin and row["author_id"]:
+                user = await auth_plugin.get_user(row["author_id"])
+                if user:
+                    author_name = user.get("nickname") or user.get("display_name") or user.get("username", "匿名")
+
+            title = self._highlight_excerpt(row["title"], query, max_len=100)
+            excerpt = self._highlight_excerpt(row["description"], query, max_len=200)
+
+            items.append({
+                "id": row["id"],
+                "title": title,
+                "url": row["url"],
+                "excerpt": excerpt,
+                "author_name": author_name,
+                "created_at": row["created_at"]
+            })
+
+        return items
+
+    async def _search_rss(self, query: str, limit: int = 20) -> list:
+        """搜索 RSS 文章"""
+        results = await self.engine.fetchall(
+            """SELECT i.id, i.title, i.link, i.description, i.author, i.published_at,
+                      f.title as feed_title
+               FROM rss_items i
+               LEFT JOIN rss_feeds f ON i.feed_id = f.id
+               WHERE i.title LIKE ? OR i.description LIKE ?
+               ORDER BY i.published_at DESC
+               LIMIT ?""",
+            (f"%{query}%", f"%{query}%", limit)
+        )
+
+        items = []
+        for row in results:
+            title = self._highlight_excerpt(row["title"], query, max_len=100)
+            excerpt = self._highlight_excerpt(row["description"], query, max_len=200)
+
+            items.append({
+                "id": row["id"],
+                "title": title,
+                "url": row["link"],
+                "excerpt": excerpt,
+                "feed_title": row["feed_title"] or "",
+                "author_name": row["author"] or "",
+                "created_at": row["published_at"]
             })
 
         return items

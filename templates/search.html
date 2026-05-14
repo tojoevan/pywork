@@ -202,7 +202,7 @@
 
     <!-- 搜索框 -->
     <form class="search-form-large" action="/search" method="GET">
-        <input type="search" name="q" value="{{ query }}" placeholder="输入关键词搜索博客、微博、笔记...">
+        <input type="search" name="q" value="{{ query }}" placeholder="输入关键词搜索博客、微博、笔记、讨论、导航、RSS...">
         <button type="submit">搜索</button>
     </form>
 
@@ -263,6 +263,66 @@
                 <div class="result-meta">
                     <span class="type">笔记</span>
                     <span>{{ item.author_name | default('匿名') }}</span>
+                    <span>{{ item.created_at | datefmt }}</span>
+                </div>
+            </a>
+        </div>
+        {% endfor %}
+    </div>
+    {% endif %}
+
+    <!-- 讨论结果 -->
+    {% if topic_results %}
+    <div class="result-group">
+        <h2>🗣 讨论 <span class="count">({{ topic_results | length }})</span></h2>
+        {% for item in topic_results %}
+        <div class="result-item">
+            <a href="/topic/{{ item.id }}">
+                <div class="result-title">{{ item.title | safe }}</div>
+                <div class="result-excerpt">{{ item.excerpt | safe }}</div>
+                <div class="result-meta">
+                    <span class="type">讨论</span>
+                    <span>{{ item.author_name | default('匿名') }}</span>
+                    <span>{{ item.created_at | datefmt }}</span>
+                </div>
+            </a>
+        </div>
+        {% endfor %}
+    </div>
+    {% endif %}
+
+    <!-- 导航结果 -->
+    {% if nav_results %}
+    <div class="result-group">
+        <h2>🔗 导航 <span class="count">({{ nav_results | length }})</span></h2>
+        {% for item in nav_results %}
+        <div class="result-item">
+            <a href="{{ item.url }}" target="_blank" rel="noopener noreferrer">
+                <div class="result-title">{{ item.title | safe }}</div>
+                <div class="result-excerpt">{{ item.excerpt | safe }}</div>
+                <div class="result-meta">
+                    <span class="type">导航</span>
+                    <span>{{ item.url }}</span>
+                    <span>{{ item.created_at | datefmt }}</span>
+                </div>
+            </a>
+        </div>
+        {% endfor %}
+    </div>
+    {% endif %}
+
+    <!-- RSS 结果 -->
+    {% if rss_results %}
+    <div class="result-group">
+        <h2>📡 RSS <span class="count">({{ rss_results | length }})</span></h2>
+        {% for item in rss_results %}
+        <div class="result-item">
+            <a href="{{ item.url }}" target="_blank" rel="noopener noreferrer">
+                <div class="result-title">{{ item.title | safe }}</div>
+                <div class="result-excerpt">{{ item.excerpt | safe }}</div>
+                <div class="result-meta">
+                    <span class="type">RSS</span>
+                    <span>{{ item.feed_title }}</span>
                     <span>{{ item.created_at | datefmt }}</span>
                 </div>
             </a>
