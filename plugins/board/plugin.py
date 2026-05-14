@@ -226,6 +226,8 @@ class BoardPlugin(Plugin):
                 await self.engine.execute(f"ALTER TABLE active_authors ADD COLUMN {col} INTEGER DEFAULT 0")
             except Exception:
                 pass
+        # 清理匿名/无效作者缓存（author_id <= 0），下次刷新时重新计算
+        await self.engine.execute("DELETE FROM active_authors WHERE author_id <= 0")
 
     async def _init_hot_tags_table(self):
         """初始化热门标签表"""
@@ -488,17 +490,17 @@ class BoardPlugin(Plugin):
         # 分别查询各类型内容（避免 UNION ALL 子查询 + LEFT JOIN 在 SQLite 下丢行）
         blog_rows = await self.engine.fetchall(
             "SELECT author_id, COUNT(*) AS cnt FROM blog_posts "
-            "WHERE status = 'published' AND author_id IS NOT NULL AND created_at >= ? "
+            "WHERE status = 'published' AND author_id > 0 AND created_at >= ? "
             "GROUP BY author_id", (period_ago,)
         )
         microblog_rows = await self.engine.fetchall(
             "SELECT author_id, COUNT(*) AS cnt FROM microblog_posts "
-            "WHERE status IN ('public', 'pending') AND author_id IS NOT NULL AND created_at >= ? "
+            "WHERE status IN ('public', 'pending') AND author_id > 0 AND created_at >= ? "
             "GROUP BY author_id", (period_ago,)
         )
         note_rows = await self.engine.fetchall(
             "SELECT author_id, COUNT(*) AS cnt FROM notes "
-            "WHERE status = 'published' AND author_id IS NOT NULL AND created_at >= ? "
+            "WHERE status = 'published' AND author_id > 0 AND created_at >= ? "
             "GROUP BY author_id", (period_ago,)
         )
 
