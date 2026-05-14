@@ -41,6 +41,7 @@
 | `llm_config` | LLM 配置管理，支持多模型切换和 MCP 调用 |
 | `topic` | 主题讨论，支持投票和多轮对话 |
 | `nav` | 导航链接管理，支持用户自定义隐藏 |
+| `rss` | RSS 阅读器，订阅 Feed、OPML 导入导出、时间线展示 |
 
 ## 页面布局
 
@@ -112,7 +113,8 @@ pyWork/
 │   ├── comments/             # 评论插件（统一评论系统）
 │   ├── llm_config/           # LLM 配置插件（多模型管理）
 │   ├── topic/                # 主题讨论插件（投票、对话）
-│   └── nav/                  # 导航链接插件
+│   ├── nav/                  # 导航链接插件
+│   └── rss/                  # RSS 阅读器插件
 ├── templates/                # 公共模板（base.html、home.html）
 ├── static/                   # 静态资源（CSS）
 ├── tests/                    # 测试用例

@@ -21,6 +21,7 @@ class SQLiteEngine(Engine):
         'comments', 'notifications',
         'topic_discussions', 'topic_replies', 'topic_votes', 'llm_configs',
         'nav_links', 'nav_link_hides',
+        'rss_feeds', 'rss_items',
         '_meta', '_raft_log', 'app_logs', 'rate_limits', 'captchas',
     })
     
@@ -106,6 +107,39 @@ class SQLiteEngine(Engine):
         node_id TEXT DEFAULT 'local'
     );
     
+    -- RSS Feeds
+    CREATE TABLE IF NOT EXISTS rss_feeds (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        url TEXT NOT NULL UNIQUE,
+        title TEXT DEFAULT '',
+        description TEXT DEFAULT '',
+        site_url TEXT DEFAULT '',
+        last_fetched INTEGER DEFAULT 0,
+        last_error TEXT DEFAULT '',
+        fetch_interval INTEGER DEFAULT 1800,
+        added_by INTEGER NOT NULL,
+        created_at INTEGER NOT NULL,
+        updated_at INTEGER NOT NULL
+    );
+    CREATE INDEX IF NOT EXISTS idx_rss_feeds_added_by ON rss_feeds(added_by);
+
+    -- RSS Items
+    CREATE TABLE IF NOT EXISTS rss_items (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        feed_id INTEGER NOT NULL,
+        guid TEXT NOT NULL,
+        title TEXT DEFAULT '',
+        link TEXT DEFAULT '',
+        description TEXT DEFAULT '',
+        author TEXT DEFAULT '',
+        published_at INTEGER NOT NULL,
+        created_at INTEGER NOT NULL,
+        updated_at INTEGER NOT NULL,
+        UNIQUE(feed_id, guid)
+    );
+    CREATE INDEX IF NOT EXISTS idx_rss_items_feed_id ON rss_items(feed_id);
+    CREATE INDEX IF NOT EXISTS idx_rss_items_published ON rss_items(published_at DESC);
+
     -- Files
     CREATE TABLE IF NOT EXISTS objects (
         id INTEGER PRIMARY KEY AUTOINCREMENT,

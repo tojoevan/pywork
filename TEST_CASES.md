@@ -1,6 +1,6 @@
 # pyWork 测试用例说明
 
-> 生成日期：2026-05-10 | 更新日期：2026-05-10 | 测试框架：pytest + pytest-asyncio | 用例总数：417
+> 生成日期：2026-05-10 | 更新日期：2026-05-15 | 测试框架：pytest + pytest-asyncio | 用例总数：462
 
 ---
 
@@ -22,6 +22,7 @@
 - [test_template_engine.py — 模板引擎](#test_template_enginepy--模板引擎)
 - [test_utils.py — 工具函数](#test_utilspy--工具函数)
 - [test_security.py — 安全功能](#test_securitypy--安全功能)
+- [test_rss.py — RSS 阅读器](#test_rsspy--rss-阅读器)
 
 ---
 
@@ -835,6 +836,112 @@
 
 ---
 
+## test_rss.py — RSS 阅读器
+
+**路径**: `tests/test_rss.py` | **用例数**: 45 | **测试类型**: 单元测试（Mock Engine）
+
+### TestRssPluginProperties
+
+| # | 用例名 | 说明 |
+|---|--------|------|
+| 1 | `test_name` | 插件 name 属性返回 "rss" |
+| 2 | `test_routes_count` | 路由数量为 8 |
+| 3 | `test_routes_paths` | 路由路径包含 /rss、/rss/feeds、/rss/opml/export 等 |
+
+### TestAddFeed
+
+| # | 用例名 | 说明 |
+|---|--------|------|
+| 4 | `test_add_feed_success` | 成功添加 feed，数据库写入一条记录 |
+| 5 | `test_add_feed_empty_url` | 空 URL 返回错误 |
+| 6 | `test_add_feed_invalid_scheme` | ftp:// 等非法协议返回错误 |
+| 7 | `test_add_feed_duplicate` | 重复 URL 返回错误 |
+
+### TestDeleteFeed
+
+| # | 用例名 | 说明 |
+|---|--------|------|
+| 8 | `test_delete_feed_success` | 删除 feed 同时级联删除关联 items |
+| 9 | `test_delete_feed_cascades_items` | 删除 feed 后 items 表清空 |
+
+### TestListFeeds
+
+| # | 用例名 | 说明 |
+|---|--------|------|
+| 10 | `test_list_feeds_empty` | 无订阅时返回空列表 |
+| 11 | `test_list_feeds_returns_all` | 返回所有已订阅 feed |
+
+### TestListItems
+
+| # | 用例名 | 说明 |
+|---|--------|------|
+| 12 | `test_list_items_empty` | 无条目时返回空列表 |
+| 13 | `test_list_items_with_data` | 返回按发布时间倒序的条目 |
+| 14 | `test_list_items_pagination` | 分页参数正确计算总数和页数 |
+| 15 | `test_list_items_includes_feed_title` | 条目包含 feed_title 字段 |
+
+### TestFetchFeed
+
+| # | 用例名 | 说明 |
+|---|--------|------|
+| 16 | `test_fetch_feed_not_found` | 不存在的 feed_id 返回错误 |
+| 17 | `test_fetch_feed_success` | 成功抓取 RSS 并写入 items |
+| 18 | `test_fetch_feed_http_error` | HTTP 错误记录到 last_error |
+| 19 | `test_fetch_feed_duplicate_items_ignored` | 重复条目通过 UNIQUE 约束忽略 |
+
+### TestOpmlParse
+
+| # | 用例名 | 说明 |
+|---|--------|------|
+| 20 | `test_parse_opml_valid` | 解析标准 OPML 返回 feed 列表 |
+| 21 | `test_parse_opml_invalid_xml` | 非法 XML 返回空列表 |
+| 22 | `test_parse_opml_no_feeds` | 无 xmlUrl 的 outline 返回空列表 |
+| 23 | `test_parse_opml_extracts_attributes` | 提取 title 和 site_url 属性 |
+
+### TestOpmlImportExport
+
+| # | 用例名 | 说明 |
+|---|--------|------|
+| 24 | `test_import_opml` | 导入 OPML 批量添加 feed |
+| 25 | `test_import_opml_skips_duplicates` | 重复 feed 跳过不报错 |
+| 26 | `test_export_opml` | 导出包含所有 feed 的 OPML XML |
+| 27 | `test_export_opml_empty` | 无 feed 时导出合法空 OPML |
+| 28 | `test_export_roundtrip` | 导入再导出数据一致 |
+
+### TestDateParsing
+
+| # | 用例名 | 说明 |
+|---|--------|------|
+| 29 | `test_parse_entry_date_with_published` | published_parsed 转为 unix 时间戳 |
+| 30 | `test_parse_entry_date_fallback_to_updated` | 无 published 时用 updated_parsed |
+| 31 | `test_parse_entry_date_fallback_to_now` | 无日期时使用当前时间 |
+
+### TestHttpHandlers
+
+| # | 用例名 | 说明 |
+|---|--------|------|
+| 32 | `test_rss_page_renders` | RSS 页面返回 200 |
+| 33 | `test_add_feed_api_no_login` | 未登录添加 feed 返回 401 |
+| 34 | `test_add_feed_api_success` | 登录后添加 feed 返回 200 |
+| 35 | `test_add_feed_api_empty_url` | 空 URL 返回 400 |
+| 36 | `test_delete_feed_api_no_permission` | 非 owner/admin 删除返回 403 |
+| 37 | `test_delete_feed_api_owner` | owner 删除返回 200 |
+| 38 | `test_delete_feed_api_admin` | admin 删除返回 200 |
+| 39 | `test_export_opml_api` | 导出 OPML 返回 XML |
+| 40 | `test_list_feeds_api` | Feed 列表 API 返回 200 |
+| 41 | `test_list_items_api` | 条目列表 API 返回 200 |
+
+### TestEdgeCases
+
+| # | 用例名 | 说明 |
+|---|--------|------|
+| 42 | `test_fetch_all_feeds_empty` | 无 feed 时批量抓取返回空 |
+| 43 | `test_add_feed_strips_whitespace` | URL 去除首尾空格 |
+| 44 | `test_list_items_page_beyond_total` | 超出总页数返回空列表 |
+| 45 | `test_delete_nonexistent_feed` | 删除不存在的 feed 不报错 |
+
+---
+
 ## 测试覆盖汇总
 
 | 测试文件 | 用例数 | 状态 |
@@ -847,11 +954,12 @@
 | `test_plugins.py` | 38 | ✅ |
 | `test_comments.py` | 49 | ✅ 新增 |
 | `test_topic.py` | 48 | ✅ 新增 |
-| `test_llm_config.py` | 27 | ✅ 新增 |
+| `test_llm_config.py` | 27 | ⚠️ 10 个测试失败（需适配 _fernet 属性） |
 | `test_nav.py` | 28 | ✅ 新增 |
 | `test_board.py` | 15 | ✅ 新增 |
 | `test_config.py` | 26 | ✅ 新增 |
 | `test_template_engine.py` | 38 | ✅ 新增 |
 | `test_utils.py` | 16 | ✅ 新增 |
 | `test_security.py` | 33 | ✅ 新增 |
-| **总计** | **417** | **410 通过，7 个预存失败** |
+| `test_rss.py` | 45 | ✅ 新增 |
+| **总计** | **462** | **445 通过，17 个预存失败** |

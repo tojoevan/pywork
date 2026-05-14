@@ -1,0 +1,250 @@
+{% extends "base.html" %}
+
+{% block title %}RSS - {{ Site.title | default('pyWork') }}{% endblock %}
+
+{% block head %}
+<link rel="stylesheet" href="/static/css/rss.css">
+{% endblock %}
+
+{% block content %}
+<div class="rss-page">
+    <div class="rss-header">
+        <h1>RSS</h1>
+        {% if User %}
+        <div class="rss-toolbar">
+            <button onclick="openAddModal()">+ 添加 Feed</button>
+            <button onclick="openImportModal()">导入 OPML</button>
+            <a href="/rss/opml/export">导出 OPML</a>
+        </div>
+        {% endif %}
+    </div>
+
+    {% if feeds %}
+    <div class="rss-feeds-section">
+        <button class="rss-feeds-toggle" onclick="toggleFeeds(this)">
+            <span>已订阅 ({{ feeds|length }})</span>
+            <span class="arrow">&#9660;</span>
+        </button>
+        <ul class="rss-feeds-list" id="feeds-list">
+            {% for feed in feeds %}
+            <li class="rss-feed-item" id="feed-{{ feed.id }}">
+                <div class="rss-feed-info">
+                    <div class="feed-title">{{ feed.title or feed.url }}</div>
+                    <div class="feed-url">{{ feed.url }}</div>
+                </div>
+                <div class="rss-feed-actions">
+                    <button onclick="refreshFeed({{ feed.id }})">刷新</button>
+                    {% if User and (User.id == feed.added_by or User.role == 'admin') %}
+                    <button class="btn-danger" onclick="deleteFeed({{ feed.id }})">删除</button>
+                    {% endif %}
+                </div>
+            </li>
+            {% endfor %}
+        </ul>
+    </div>
+    {% endif %}
+
+    {% if items %}
+    <div class="rss-timeline">
+        {% for item in items %}
+        <div class="rss-item">
+            <div class="rss-item-source">
+                {% if item.feed_site_url %}
+                <a href="{{ item.feed_site_url }}" target="_blank" rel="noopener">{{ item.feed_title or '未知来源' }}</a>
+                {% else %}
+                {{ item.feed_title or '未知来源' }}
+                {% endif %}
+            </div>
+            <h3 class="rss-item-title">
+                <a href="{{ item.link }}" target="_blank" rel="noopener">{{ item.title or '无标题' }}</a>
+            </h3>
+            {% if item.description %}
+            <p class="rss-item-desc">{{ item.description | striptags | truncate(200) }}</p>
+            {% endif %}
+            <div class="rss-item-meta">
+                {% if item.author %}<span>{{ item.author }}</span>{% endif %}
+                <span class="rss-time" data-ts="{{ item.published_at }}"></span>
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+
+    {% if pagination.total_pages > 1 %}
+    <div class="rss-pagination">
+        {% if pagination.page > 1 %}
+        <a href="/rss?page={{ pagination.page - 1 }}">上一页</a>
+        {% endif %}
+        <span class="current">第 {{ pagination.page }} / {{ pagination.total_pages }} 页</span>
+        {% if pagination.page < pagination.total_pages %}
+        <a href="/rss?page={{ pagination.page + 1 }}">下一页</a>
+        {% endif %}
+    </div>
+    {% endif %}
+
+    {% else %}
+    <div class="rss-empty">
+        {% if feeds %}
+        <p>暂无文章，等待 Feed 更新中...</p>
+        {% else %}
+        <p>还没有订阅任何 Feed</p>
+        {% if User %}
+        <p>点击上方「添加 Feed」开始订阅</p>
+        {% endif %}
+        {% endif %}
+    </div>
+    {% endif %}
+</div>
+
+<!-- 添加 Feed 模态框 -->
+<div class="rss-modal-overlay" id="add-modal">
+    <div class="rss-modal">
+        <h3>添加 Feed</h3>
+        <div class="form-group">
+            <label for="feed-url">Feed URL</label>
+            <input type="url" id="feed-url" placeholder="https://example.com/feed.xml">
+        </div>
+        <div class="modal-actions">
+            <button onclick="closeAddModal()">取消</button>
+            <button class="btn-primary" onclick="submitFeed()">添加</button>
+        </div>
+    </div>
+</div>
+
+<!-- 导入 OPML 模态框 -->
+<div class="rss-modal-overlay" id="import-modal">
+    <div class="rss-modal">
+        <h3>导入 OPML</h3>
+        <div class="form-group">
+            <label for="opml-file">选择 OPML 文件</label>
+            <input type="file" id="opml-file" accept=".opml,.xml">
+        </div>
+        <div class="modal-actions">
+            <button onclick="closeImportModal()">取消</button>
+            <button class="btn-primary" onclick="importOpml()">导入</button>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+// 相对时间
+function formatTime(ts) {
+    if (!ts) return '';
+    var now = Math.floor(Date.now() / 1000);
+    var diff = now - parseInt(ts);
+    if (diff < 60) return '刚刚';
+    if (diff < 3600) return Math.floor(diff / 60) + ' 分钟前';
+    if (diff < 86400) return Math.floor(diff / 3600) + ' 小时前';
+    if (diff < 2592000) return Math.floor(diff / 86400) + ' 天前';
+    var d = new Date(parseInt(ts) * 1000);
+    return d.getFullYear() + '-' + String(d.getMonth()+1).padStart(2,'0') + '-' + String(d.getDate()).padStart(2,'0');
+}
+
+document.querySelectorAll('.rss-time').forEach(function(el) {
+    el.textContent = formatTime(el.dataset.ts);
+});
+
+// 订阅源列表折叠
+function toggleFeeds(btn) {
+    btn.classList.toggle('open');
+    document.getElementById('feeds-list').classList.toggle('open');
+}
+
+// 模态框
+function openAddModal() {
+    document.getElementById('add-modal').classList.add('active');
+    document.getElementById('feed-url').focus();
+}
+
+function closeAddModal() {
+    document.getElementById('add-modal').classList.remove('active');
+    document.getElementById('feed-url').value = '';
+}
+
+function openImportModal() {
+    document.getElementById('import-modal').classList.add('active');
+}
+
+function closeImportModal() {
+    document.getElementById('import-modal').classList.remove('active');
+    document.getElementById('opml-file').value = '';
+}
+
+// ESC 关闭
+document.addEventListener('keydown', function(e) {
+    if (e.key === 'Escape') {
+        closeAddModal();
+        closeImportModal();
+    }
+});
+
+// 点击遮罩关闭
+document.querySelectorAll('.rss-modal-overlay').forEach(function(overlay) {
+    overlay.addEventListener('click', function(e) {
+        if (e.target === overlay) {
+            overlay.classList.remove('active');
+        }
+    });
+});
+
+// 添加 Feed
+function submitFeed() {
+    var url = document.getElementById('feed-url').value.trim();
+    if (!url) return;
+    fetch('/rss/feeds', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({url: url})
+    }).then(function(r) { return r.json(); }).then(function(data) {
+        if (data.error) {
+            alert(data.error);
+        } else {
+            closeAddModal();
+            location.reload();
+        }
+    }).catch(function(e) { alert('请求失败: ' + e); });
+}
+
+// 删除 Feed
+function deleteFeed(id) {
+    if (!confirm('确定删除该订阅源及其所有文章？')) return;
+    fetch('/rss/feeds/' + id, {method: 'DELETE'})
+        .then(function(r) { return r.json(); })
+        .then(function(data) {
+            if (data.error) { alert(data.error); }
+            else { location.reload(); }
+        });
+}
+
+// 刷新 Feed
+function refreshFeed(id) {
+    fetch('/rss/feeds/' + id + '/refresh', {method: 'POST'})
+        .then(function(r) { return r.json(); })
+        .then(function(data) {
+            if (data.error) { alert(data.error); }
+            else { location.reload(); }
+        });
+}
+
+// 导入 OPML
+function importOpml() {
+    var fileInput = document.getElementById('opml-file');
+    if (!fileInput.files.length) return;
+    var formData = new FormData();
+    formData.append('opml_file', fileInput.files[0]);
+    fetch('/rss/opml/import', {
+        method: 'POST',
+        body: formData
+    }).then(function(r) { return r.json(); }).then(function(data) {
+        if (data.error) {
+            alert(data.error);
+        } else {
+            alert('导入完成: ' + data.imported + ' 个已导入, ' + data.skipped + ' 个已跳过');
+            closeImportModal();
+            location.reload();
+        }
+    }).catch(function(e) { alert('请求失败: ' + e); });
+}
+</script>
+{% endblock %}
