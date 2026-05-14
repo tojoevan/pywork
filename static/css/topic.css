@@ -2,11 +2,6 @@
    主题讨论 & LLM 配置 - 页面样式
    ======================================== */
 
-.topic-page {
-    max-width: 688px;
-    margin: 0 auto;
-}
-
 /* 页面头部 */
 .topic-page .page-header {
     display: flex;
