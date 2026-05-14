@@ -2,6 +2,10 @@
    主题讨论 & LLM 配置 - 页面样式
    ======================================== */
 
+.topic-page {
+    padding: 0 24px;
+}
+
 /* 页面头部 */
 .topic-page .page-header {
     display: flex;
