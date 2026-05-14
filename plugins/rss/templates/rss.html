@@ -31,6 +31,14 @@
                 <div class="rss-feed-info">
                     <div class="feed-title">{{ feed.title or feed.url }}</div>
                     <div class="feed-url">{{ feed.url }}</div>
+                    <div class="feed-meta">
+                        {% if feed.last_fetched %}
+                        <span class="feed-last-fetched">刷新于 <span class="rss-time" data-ts="{{ feed.last_fetched }}"></span></span>
+                        {% else %}
+                        <span class="feed-last-fetched">尚未刷新</span>
+                        {% endif %}
+                        {% if feed.last_error %}<span class="feed-error">{{ feed.last_error | truncate(60) }}</span>{% endif %}
+                    </div>
                 </div>
                 <div class="rss-feed-actions">
                     <button onclick="refreshFeed({{ feed.id }})">刷新</button>

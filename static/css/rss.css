@@ -116,6 +116,18 @@
     text-overflow: ellipsis;
 }
 
+.rss-feed-info .feed-meta {
+    font-size: 0.75em;
+    color: var(--text-secondary, #999);
+    margin-top: 2px;
+    display: flex;
+    gap: 12px;
+}
+
+.feed-error {
+    color: #e74c3c;
+}
+
 .rss-feed-actions {
     display: flex;
     gap: 6px;
