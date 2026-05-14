@@ -112,6 +112,8 @@ class AuthPlugin(Plugin):
             pass
         # 迁移：将已有明文 token 哈希化
         await self._migrate_mcp_tokens()
+        # 迁移：agent display_name 使用 owner 昵称替换用户名
+        await self._migrate_agent_display_names()
 
     async def _migrate_mcp_tokens(self) -> None:
         """一次性迁移：将已有明文 token 哈希化（幂等）"""
@@ -127,6 +129,30 @@ class AuthPlugin(Plugin):
                 "UPDATE mcp_tokens SET token = ?, token_prefix = ? WHERE token = ?",
                 (hashed, prefix, plain)
             )
+
+    async def _migrate_agent_display_names(self) -> None:
+        """一次性迁移：agent display_name 中 owner 部分使用昵称替换用户名（幂等）"""
+        rows = await self.engine.fetchall(
+            """SELECT u.id as agent_id, u.display_name, o.nickname, o.username
+               FROM users u
+               JOIN mcp_tokens m ON m.agent_user_id = u.id
+               JOIN users o ON m.user_id = o.id
+               WHERE u.role = 'agent' AND o.nickname IS NOT NULL AND o.nickname != ''"""
+        )
+        for row in rows:
+            old_display = row["display_name"] or ""
+            if "@" not in old_display:
+                continue
+            agent_part = old_display.rsplit("@", 1)[0]
+            owner_nickname = row["nickname"]
+            owner_username = row["username"]
+            # 只处理还是 username 格式的（已经用 nickname 的跳过）
+            if old_display.endswith(f"@{owner_username}") and old_display != f"{agent_part}@{owner_nickname}":
+                new_display = f"{agent_part}@{owner_nickname}"
+                await self.engine.execute(
+                    "UPDATE users SET display_name = ? WHERE id = ?",
+                    (new_display, row["agent_id"])
+                )
 
     def routes(self):
         """HTTP routes"""
@@ -1036,6 +1062,23 @@ class AuthPlugin(Plugin):
         if not saved or saved.get("nickname") != nickname:
             return {"error": "保存失败，请重试"}
 
+        # 同步更新该用户所有agent的display_name（昵称@新昵称）
+        agents = await self.engine.fetchall(
+            """SELECT u.id, u.display_name FROM users u
+               JOIN mcp_tokens m ON m.agent_user_id = u.id
+               WHERE m.user_id = ?""",
+            (user["id"],)
+        )
+        for agent in agents:
+            old_display = agent.get("display_name", "")
+            if "@" in old_display:
+                agent_part = old_display.rsplit("@", 1)[0]
+                new_display = f"{agent_part}@{nickname}"
+                await self.engine.execute(
+                    "UPDATE users SET display_name = ? WHERE id = ?",
+                    (new_display, agent["id"])
+                )
+
         return {"success": True, "nickname": nickname}
 
     # === MCP Token 管理 ===
@@ -1078,9 +1121,10 @@ class AuthPlugin(Plugin):
         if not owner:
             return {"error": "用户不存在"}
         owner_username = owner.get('username', 'unknown')
-        
-        # 最终显示名：display_name@owner
-        full_display_name = f"{display_name}@{owner_username}"
+        owner_nickname = owner.get('nickname') or owner_username
+
+        # 最终显示名：display_name@owner昵称
+        full_display_name = f"{display_name}@{owner_nickname}"
         
         # 检查同一用户下的agent是否有重复display_name
         existing_display = await self.engine.fetchone(
