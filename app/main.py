@@ -170,8 +170,10 @@ class WorkbenchApp:
             except Exception as e:
                 log.warning(f"Plugin {plugin_name} on_stop failed: {e}")
         await self.plugin_manager.shutdown_all()
-        await self.engine.stop()
         log.info("Shutdown complete")
+        from app.log import flush_pending_logs
+        flush_pending_logs()
+        await self.engine.stop()
 
     def _setup_routes(self):
         """Setup HTTP routes from plugins"""

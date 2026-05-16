@@ -18,9 +18,11 @@ import time
 import json
 import traceback
 import asyncio
+import threading
+import sqlite3
 from typing import Optional, Any
 
-__all__ = ["get_logger", "setup_logging", "LOG_LEVELS", "LOG_MODULES"]
+__all__ = ["get_logger", "setup_logging", "flush_pending_logs", "LOG_LEVELS", "LOG_MODULES"]
 
 LOG_LEVELS = ["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"]
 LOG_MODULES = ["core", "auth", "blog", "microblog", "notes", "board", "cron", "comments", "topic", "about", "llm_config", "services", "mcp", "storage", "route"]
@@ -59,21 +61,24 @@ class ColorFormatter(logging.Formatter):
 # ------------------------------------------------------------------
 
 class SQLiteHandler(logging.Handler):
-    """将日志写入 SQLite app_logs 表（通过 aiosqlite engine）"""
+    """将日志写入 SQLite app_logs 表（线程安全队列 + 后台刷盘）"""
 
-    def __init__(self, level=logging.INFO):
+    def __init__(self, level=logging.INFO, flush_interval: float = 2.0, batch_size: int = 50):
         super().__init__(level)
         self._queue: list = []
-        self._loop: Optional[asyncio.AbstractEventLoop] = None
+        self._lock = threading.Lock()
+        self._flush_interval = flush_interval
+        self._batch_size = batch_size
+        self._db_path: Optional[str] = None
+        self._timer: Optional[threading.Timer] = None
 
     def set_engine(self, engine):
-        """注入 SQLiteEngine 实例"""
+        """注入 SQLiteEngine 实例，同时记录数据库路径用于同步回退"""
         global _engine
         _engine = engine
+        self._db_path = getattr(engine, 'db_path', None)
 
     def emit(self, record: logging.LogRecord):
-        if _engine is None:
-            return
         try:
             module_tag = getattr(record, "module_tag", record.name.split(".")[-1])
             tb_text = ""
@@ -91,28 +96,74 @@ class SQLiteHandler(logging.Handler):
                 "traceback": tb_text,
                 "created_at": int(record.created),
             }
-            # 异步写入：尝试获取当前 event loop
-            try:
-                loop = asyncio.get_event_loop()
-                if loop.is_running():
-                    loop.create_task(self._write(entry))
-                else:
-                    loop.run_until_complete(self._write(entry))
-            except RuntimeError:
-                pass  # 无 event loop 时静默跳过
+            with self._lock:
+                self._queue.append(entry)
+                if len(self._queue) >= self._batch_size:
+                    self._flush_sync()
+                elif self._timer is None:
+                    self._timer = threading.Timer(self._flush_interval, self._flush_from_timer)
+                    self._timer.daemon = True
+                    self._timer.start()
         except Exception:
             self.handleError(record)
 
-    async def _write(self, entry: dict):
+    def _flush_from_timer(self):
+        """Timer 回调：线程安全地刷盘"""
+        with self._lock:
+            self._timer = None
+            self._flush_sync()
+
+    def _flush_sync(self):
+        """同步写入队列中的日志条目（需在 self._lock 内调用）"""
+        if not self._queue or self._db_path is None:
+            return
+        entries = self._queue[:]
+        self._queue.clear()
         try:
-            await _engine.execute(
+            conn = sqlite3.connect(self._db_path)
+            conn.executemany(
                 "INSERT INTO app_logs (level, module, message, context, traceback, created_at) "
-                "VALUES (?, ?, ?, ?, ?, ?)",
-                (entry["level"], entry["module"], entry["message"],
-                 entry["context"], entry["traceback"], entry["created_at"])
+                "VALUES (:level, :module, :message, :context, :traceback, :created_at)",
+                entries
             )
+            conn.commit()
+            conn.close()
         except Exception:
             pass  # 日志写入失败不应影响业务
+
+    async def flush_async(self):
+        """异步刷盘：优先使用 engine，回退到同步写入"""
+        with self._lock:
+            if not self._queue:
+                return
+            entries = self._queue[:]
+            self._queue.clear()
+
+        if _engine is not None:
+            try:
+                for entry in entries:
+                    await _engine.execute(
+                        "INSERT INTO app_logs (level, module, message, context, traceback, created_at) "
+                        "VALUES (?, ?, ?, ?, ?, ?)",
+                        (entry["level"], entry["module"], entry["message"],
+                         entry["context"], entry["traceback"], entry["created_at"])
+                    )
+                return
+            except Exception:
+                pass
+        # engine 失败或不可用，回退同步写入
+        if self._db_path is not None:
+            try:
+                conn = sqlite3.connect(self._db_path)
+                conn.executemany(
+                    "INSERT INTO app_logs (level, module, message, context, traceback, created_at) "
+                    "VALUES (:level, :module, :message, :context, :traceback, :created_at)",
+                    entries
+                )
+                conn.commit()
+                conn.close()
+            except Exception:
+                pass
 
 
 # ------------------------------------------------------------------
@@ -125,6 +176,11 @@ _console_handler.setFormatter(ColorFormatter())
 _console_handler.setLevel(logging.DEBUG)
 
 _file_handler: Optional[logging.handlers.RotatingFileHandler] = None
+
+
+def flush_pending_logs():
+    """同步刷盘：将队列中未写入的日志立即写入 SQLite（应用关闭时调用）"""
+    _sqlite_handler._flush_from_timer()
 
 
 def setup_logging(
