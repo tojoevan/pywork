@@ -117,6 +117,75 @@
     }
 }
 
+/* 项目时间线 */
+.timeline-section {
+    margin-bottom: 3rem;
+}
+
+.timeline {
+    position: relative;
+    padding-left: 2rem;
+}
+
+.timeline::before {
+    content: '';
+    position: absolute;
+    left: 7px;
+    top: 4px;
+    bottom: 4px;
+    width: 2px;
+    background: var(--border-color, #e5e7eb);
+}
+
+.timeline-item {
+    position: relative;
+    padding-bottom: 1.5rem;
+    padding-left: 1.5rem;
+}
+
+.timeline-item:last-child {
+    padding-bottom: 0;
+}
+
+.timeline-dot {
+    position: absolute;
+    left: -2rem;
+    top: 4px;
+    width: 16px;
+    height: 16px;
+    border-radius: 50%;
+    background: white;
+    border: 2px solid var(--primary-color, #10b981);
+    z-index: 1;
+}
+
+.timeline-item.milestone .timeline-dot {
+    background: var(--primary-color, #10b981);
+    box-shadow: 0 0 0 3px rgba(16, 185, 129, 0.15);
+}
+
+.timeline-date {
+    font-size: 0.75rem;
+    color: #9ca3af;
+    font-weight: 500;
+    margin-bottom: 0.25rem;
+    font-variant-numeric: tabular-nums;
+}
+
+.timeline-title {
+    font-size: 0.9375rem;
+    font-weight: 600;
+    color: var(--text-color);
+    margin: 0 0 0.125rem;
+}
+
+.timeline-desc {
+    font-size: 0.8125rem;
+    color: #6b7280;
+    margin: 0;
+    line-height: 1.5;
+}
+
 /* 留言板 */
 .guestbook {
     border-top: 1px solid var(--border-color);
