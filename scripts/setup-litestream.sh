@@ -8,8 +8,8 @@
 set -e
 
 ROLE="$1"
-LITESTREAM_VERSION="${LITESTREAM_VERSION:-0.5.0}"
-DB_PATH="${PYWORK_DB_PATH:-/data/pywork/pywork.db}"
+LITESTREAM_VERSION="${LITESTREAM_VERSION:-0.5.11}"
+DB_PATH="${PYWORK_DB_PATH:-/www/wwwroot/pywork/data/pywork.db}"
 DB_DIR=$(dirname "$DB_PATH")
 
 if [[ "$ROLE" != "primary" && "$ROLE" != "standby" ]]; then
@@ -30,11 +30,7 @@ install_litestream() {
     log "Installing Litestream v${LITESTREAM_VERSION}..."
     local arch
     arch=$(uname -m)
-    case "$arch" in
-        x86_64)  arch="amd64" ;;
-        aarch64) arch="arm64" ;;
-    esac
-    local deb="litestream-v${LITESTREAM_VERSION}-linux-${arch}.deb"
+    local deb="litestream-${LITESTREAM_VERSION}-linux-${arch}.deb"
     wget -q "https://github.com/benbjohnson/litestream/releases/download/v${LITESTREAM_VERSION}/${deb}" -O "/tmp/${deb}"
     dpkg -i "/tmp/${deb}"
     rm -f "/tmp/${deb}"
@@ -107,12 +103,35 @@ setup_standby() {
     chown -R litestream:litestream /home/litestream/.ssh
     log "SSH directory configured"
 
+    # 安装备机 litestream 配置（仅用于 restore，非常驻服务）
+    log "Installing litestream config for restore..."
+    cp "$(dirname "$0")/../deploy/litestream-standby.yml" /etc/litestream.yml
+    log "Litestream config installed to /etc/litestream.yml"
+
+    # 安装备机 watchdog 服务
+    log "Installing failover watchdog service..."
+    local script_dir
+    script_dir="$(cd "$(dirname "$0")" && pwd)"
+    local deploy_dir
+    deploy_dir="$(cd "$script_dir/../deploy" && pwd)"
+
+    cp "$deploy_dir/pywork-failover-watchdog.service" /etc/systemd/system/
+    systemctl daemon-reload
+    log "Watchdog service installed (not enabled yet)"
+    log "To enable: edit /etc/systemd/system/pywork-failover-watchdog.service to set PRIMARY_IP"
+    log "  systemctl enable --now pywork-failover-watchdog"
+
     log "=== Standby setup complete ==="
     log "Next steps:"
     log "  1. Add primary's public key to /home/litestream/.ssh/authorized_keys"
     log "  2. Install pyWork code (do not start)"
     log "  3. Configure Nginx reverse proxy to 127.0.0.1:8080"
     log "  4. Test: ssh litestream@<STANDBY_IP> from primary"
+    log "  5. Edit /etc/systemd/system/pywork-failover-watchdog.service: set PRIMARY_IP"
+    log "  6. systemctl enable --now pywork-failover-watchdog"
+    log ""
+    log "NOTE: Standby's pywork.db-replica is a LTX directory (not a file)."
+    log "      Failover watchdog will auto-restore and start pyWork when primary is down."
 }
 
 case "$ROLE" in

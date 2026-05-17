@@ -36,12 +36,17 @@ class AboutPlugin(Plugin):
         comments = await self._list_approved_comments()
         current_user = await self.get_current_user(request)
 
+        # 获取部署角色
+        config = self.ctx.config if hasattr(self.ctx, 'config') else None
+        role = getattr(config, 'role', '') if config else ''
+
         html = await self.template_engine.render(
             "about.html",
             {
                 "nav_page": "about",
                 "comments": comments,
                 "current_user": current_user,
+                "role": role,
             }
         )
         return HTMLResponse(content=html)

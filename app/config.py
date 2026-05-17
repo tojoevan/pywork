@@ -39,6 +39,9 @@ class AppConfig(BaseModel):
     # --- 外观 ---
     primary_color: str = "#3498db"
 
+    # --- 部署角色 ---
+    role: str = ""  # primary / standby
+
     # --- 运行时 ---
     debug: bool = False
     host: str = "0.0.0.0"
@@ -223,6 +226,7 @@ async def build_config(engine=None) -> AppConfig:
         "footer_text": os.getenv("PYWORK_FOOTER_TEXT"),
         "primary_color": os.getenv("PYWORK_PRIMARY_COLOR"),
         "announcement": os.getenv("PYWORK_ANNOUNCEMENT"),
+        "role": os.getenv("PYWORK_ROLE"),
         "debug": os.getenv("PYWORK_DEBUG"),
         "host": os.getenv("PYWORK_HOST"),
         "port": os.getenv("PYWORK_PORT"),

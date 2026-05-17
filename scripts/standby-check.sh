@@ -1,9 +1,11 @@
 #!/bin/bash
 # 备机数据库新鲜度检查 - 建议通过 crontab 每 5 分钟运行
-# 检查备机数据库最后修改时间，超过阈值则告警
+# 检查 LTX replica 目录中最新文件的时间戳，超过阈值则告警
+#
+# 注意: 备机的 pywork.db-replica 是 Litestream LTX 目录，不是单个 .db 文件
 set -e
 
-DB_PATH="${PYWORK_DB_PATH:-/data/pywork/pywork.db}"
+REPLICA_PATH="${REPLICA_PATH:-/www/wwwroot/pywork/data/pywork.db-replica}"
 MAX_AGE="${MAX_AGE:-300}"  # 默认 5 分钟
 ALERT_EMAIL="${ALERT_EMAIL:-}"
 LOG="/var/log/pywork-standby.log"
@@ -19,17 +21,29 @@ send_alert() {
     fi
 }
 
-if [[ ! -f "$DB_PATH" ]]; then
-    send_alert "[Standby DB MISSING]" "Database file not found: $DB_PATH"
+if [[ ! -d "$REPLICA_PATH" ]]; then
+    send_alert "[Replica MISSING]" "Replica directory not found: $REPLICA_PATH"
     exit 1
 fi
 
-LAST_MOD=$(stat -c %Y "$DB_PATH" 2>/dev/null || stat -f %m "$DB_PATH" 2>/dev/null || echo 0)
+# 获取 LTX 目录中最新文件的修改时间
+LTX_DIR="${REPLICA_PATH}/ltx"
+if [[ ! -d "$LTX_DIR" ]]; then
+    send_alert "[LTX MISSING]" "LTX directory not found: $LTX_DIR"
+    exit 1
+fi
+
+LAST_MOD=$(find "$LTX_DIR" -type f -printf '%T@\n' 2>/dev/null | sort -rn | head -1 | cut -d. -f1)
+if [[ -z "$LAST_MOD" ]]; then
+    send_alert "[No LTX files]" "No LTX files found in $LTX_DIR"
+    exit 1
+fi
+
 NOW=$(date +%s)
 AGE=$((NOW - LAST_MOD))
 
 if [[ "$AGE" -gt "$MAX_AGE" ]]; then
-    send_alert "[Replication STALE]" "Standby DB is ${AGE}s old (max ${MAX_AGE}s)"
+    send_alert "[Replication STALE]" "Standby LTX data is ${AGE}s old (max ${MAX_AGE}s)"
 else
-    log "DB freshness OK (${AGE}s old)"
+    log "Replication freshness OK (${AGE}s old)"
 fi

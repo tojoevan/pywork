@@ -1,0 +1,22 @@
+# Litestream 备机配置 - 仅用于 restore（非常驻服务）
+# 此配置在故障切换时配合 litestream restore 使用
+#
+# 用法:
+#   sudo litestream restore -config /etc/litestream.yml /www/wwwroot/pywork/data/pywork.db
+#
+# 备机的 pywork.db 是 Litestream 的 LTX 日志目录，不是单个 SQLite 文件。
+# restore 命令会将 LTX 日志合并为可用的 SQLite 数据库文件。
+
+dbs:
+  - path: /www/wwwroot/pywork/data/pywork.db
+    replica:
+      type: sftp
+      host: localhost
+      user: litestream
+      key-path: /home/litestream/.ssh/litestream_key
+      path: /www/wwwroot/pywork/data/pywork.db
+
+logging:
+  level: info
+  type: text
+  stderr: true

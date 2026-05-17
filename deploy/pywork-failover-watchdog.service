@@ -1,0 +1,29 @@
+[Unit]
+Description=pyWork Failover Watchdog (Standby)
+After=network.target
+Documentation=https://github.com/tojoevan/pywork
+
+[Service]
+Type=simple
+ExecStart=/www/wwwroot/pywork/scripts/failover-watchdog.sh
+Restart=always
+RestartSec=10
+User=root
+Group=root
+
+Environment=PRIMARY_IP=<PRIMARY_IP>
+Environment=PRIMARY_PORT=8080
+Environment=DB_PATH=/www/wwwroot/pywork/data/pywork.db
+Environment=REPLICA_PATH=/www/wwwroot/pywork/data/pywork.db-replica
+Environment=LITESTREAM_CONFIG=/etc/litestream.yml
+Environment=CHECK_INTERVAL=10
+Environment=MAX_FAILURES=3
+Environment=PYWORK_SERVICE=pywork
+
+# 安全加固
+NoNewPrivileges=yes
+ProtectSystem=strict
+ReadWritePaths=/www/wwwroot/pywork/data /var/log /tmp
+
+[Install]
+WantedBy=multi-user.target
