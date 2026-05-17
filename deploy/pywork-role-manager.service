@@ -1,0 +1,29 @@
+[Unit]
+Description=pyWork Role Manager (Gist Arbitrator)
+After=network.target
+Documentation=https://github.com/tojoevan/pywork
+
+[Service]
+Type=simple
+ExecStart=/www/wwwroot/pywork/scripts/role-manager.sh
+Restart=always
+RestartSec=10
+User=root
+Group=root
+
+Environment=NODE_ID=<NODE_ID>
+Environment=GIST_ID=<GIST_ID>
+Environment=GITHUB_TOKEN=<GITHUB_TOKEN>
+Environment=PYWORK_PORT=8080
+Environment=HEARTBEAT_INTERVAL=10
+Environment=HEARTBEAT_TIMEOUT=30
+Environment=ROLE_FILE=/etc/pywork-role
+Environment=PYWORK_SERVICE=pywork
+
+# 安全加固
+NoNewPrivileges=yes
+ProtectSystem=strict
+ReadWritePaths=/etc/pywork-role /www/wwwroot/pywork/data /var/log
+
+[Install]
+WantedBy=multi-user.target

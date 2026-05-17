@@ -36,9 +36,17 @@ class AboutPlugin(Plugin):
         comments = await self._list_approved_comments()
         current_user = await self.get_current_user(request)
 
-        # 获取部署角色
+        # 获取部署角色（优先读环境变量，其次读角色文件）
         config = self.ctx.config if hasattr(self.ctx, 'config') else None
         role = getattr(config, 'role', '') if config else ''
+        if not role:
+            try:
+                import os
+                role_file = os.environ.get("ROLE_FILE", "/etc/pywork-role")
+                if os.path.exists(role_file):
+                    role = open(role_file).read().strip()
+            except Exception:
+                pass
 
         html = await self.template_engine.render(
             "about.html",

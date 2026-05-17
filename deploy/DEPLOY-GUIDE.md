@@ -615,6 +615,75 @@ sudo journalctl -u pywork-failover-watchdog -f
 3. 排查主机故障原因
 4. 主机恢复后，重新配置为主机，备机重新部署 watchdog
 
+### 5.4 Gist 仲裁防脑裂（推荐）
+
+> 解决双主/双备问题：用 GitHub Gist 作为共享状态存储，两个节点通过读写 Gist 协调角色。
+
+**原理**：
+- 每个节点每 10 秒向 Gist 写入自己的心跳和角色
+- 读取对方状态后做角色决策
+- 双 primary 冲突时，`promoted_at` 早的赢
+- 网络不通时自动降级为 standby（安全优先）
+
+**一次性初始化**（在任意一台机器上执行）：
+
+```bash
+# 1. 创建 GitHub Personal Access Token
+#    GitHub → Settings → Developer settings → Personal access tokens → Fine-grained tokens
+#    权限：Gists → Read and write
+
+# 2. 安装 jq
+apt install jq
+
+# 3. 运行初始化脚本
+export GITHUB_TOKEN="ghp_xxxxxxxxxxxx"
+export NODE1_ID="vps1"  # 主机标识
+export NODE2_ID="vps2"  # 备机标识
+/www/wwwroot/pywork/scripts/setup-gist-arbitrator.sh
+
+# 记录输出的 GIST_ID
+```
+
+**部署到两台机器**：
+
+```bash
+# 复制服务文件
+cp /www/wwwroot/pywork/deploy/pywork-role-manager.service /etc/systemd/system/
+
+# 编辑，填入 GIST_ID 和 GITHUB_TOKEN
+vim /etc/systemd/system/pywork-role-manager.service
+
+# 启用（两台都执行）
+systemctl daemon-reload
+systemctl enable --now pywork-role-manager
+
+# 查看日志
+journalctl -u pywork-role-manager -f
+```
+
+**环境变量配置**：
+
+| 变量 | 默认值 | 说明 |
+|------|--------|------|
+| `NODE_ID` | hostname | 本节点标识（主机和备机不同） |
+| `GIST_ID` | (必填) | GitHub Gist ID |
+| `GITHUB_TOKEN` | (必填) | GitHub Token |
+| `HEARTBEAT_INTERVAL` | `10` | 心跳间隔（秒） |
+| `HEARTBEAT_TIMEOUT` | `30` | 心跳超时（秒） |
+| `ROLE_FILE` | `/etc/pywork-role` | 角色状态文件 |
+
+**工作流程**：
+```
+启动 → 写入 standby 状态 → 每 10 秒循环:
+  读对方状态 → 决策角色 → 写入自己的状态 → 启停 pyWork
+```
+
+**故障场景处理**：
+- 主机宕机：备机检测到对方心跳超时 → 升级为 primary → 启动 pyWork
+- 网络分区：两节点都连不上 Gist → 都降级为 standby（宁停不脑裂）
+- 双 primary：比较 `promoted_at`，早的赢，晚的降级
+- 主机恢复：检测到备机已是 primary → 自动降级为 standby
+
 ---
 
 ## 部署检查清单
@@ -722,7 +791,7 @@ Litestream 配置中 `host` 字段使用实际端口：`<STANDBY_IP>:2222`
 4. 重启 watchdog：`systemctl restart pywork-failover-watchdog`
 
 ### Q: 如何调整 watchdog 灵敏度？
-编辑 `/etc/systemd/system/pywork-failover-watchdog.service`：
+编辑 `/etc/systemd/system/jiao`：
 - `CHECK_INTERVAL=10` → 检测间隔（秒）
 - `MAX_FAILURES=3` → 连续失败次数（3 次 × 10 秒 = 30 秒触发）
 修改后执行 `systemctl daemon-reload && systemctl restart pywork-failover-watchdog`
