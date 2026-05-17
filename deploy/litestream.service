@@ -1,0 +1,20 @@
+[Unit]
+Description=Litestream SQLite Replication
+After=network.target
+Documentation=https://litestream.io
+
+[Service]
+Type=simple
+ExecStart=/usr/bin/litestream replicate -config /etc/litestream.yml
+Restart=always
+RestartSec=5
+User=root
+Group=root
+
+# 安全加固
+NoNewPrivileges=yes
+ProtectSystem=strict
+ReadWritePaths=<PRIMARY_DB_DIR> /home/pywork/.ssh
+
+[Install]
+WantedBy=multi-user.target

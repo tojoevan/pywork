@@ -1,0 +1,31 @@
+# Litestream 配置模板 - pyWork 主机推送到备机
+# 使用方法: 复制到 /etc/litestream.yml，修改 <PLACEHOLDER> 后启动
+#
+# 部署步骤:
+#   1. 修改下方 <PRIMARY_DB_PATH> 为实际数据库路径
+#   2. 修改 <STANDBY_IP> 和 <SSH_PORT> 为备机信息
+#   3. 确保 SSH 密钥已配置 (key-path)
+#   4. sudo litestream replicate -config /etc/litestream.yml 测试
+#   5. sudo systemctl enable --now litestream
+
+dbs:
+  - path: <PRIMARY_DB_PATH>
+    # WAL 检查间隔（默认 1s，可适当放宽减少 IO）
+    monitor-interval: 1s
+    # WAL 被动检查点间隔
+    checkpoint-interval: 1m
+    replica:
+      type: sftp
+      host: <STANDBY_IP>:<SSH_PORT>
+      user: litestream
+      key-path: /home/pywork/.ssh/litestream_key
+      path: <STANDBY_DB_PATH>
+      # 同步间隔（1s = 近实时复制）
+      sync-interval: 1s
+      # 并发写入（网络好时开启）
+      concurrent-writes: true
+
+logging:
+  level: info
+  type: text
+  stderr: true

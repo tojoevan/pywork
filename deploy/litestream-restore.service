@@ -1,0 +1,20 @@
+[Unit]
+Description=Litestream SQLite Restore (Standby)
+After=network.target
+Documentation=https://litestream.io
+
+[Service]
+Type=simple
+ExecStart=/usr/bin/litestream restore -config /etc/litestream.yml
+Restart=always
+RestartSec=5
+User=root
+Group=root
+
+# 安全加固
+NoNewPrivileges=yes
+ProtectSystem=strict
+ReadWritePaths=<STANDBY_DB_DIR>
+
+[Install]
+WantedBy=multi-user.target
