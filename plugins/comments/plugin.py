@@ -62,6 +62,8 @@ class CommentsPlugin(Plugin):
             # Pages
             Route("/comments/notifications", "GET", self.notifications_page, "notifications.page"),
             Route("/comments/notifications/read", "POST", self.mark_all_and_redirect, "notifications.read_all_page"),
+            Route("/api/comments/my-pending", "GET", self.list_my_pending_comments, "comments.my_pending_api"),
+            Route("/comments/my-pending", "GET", self.my_pending_comments_page, "comments.my_pending_page"),
         ]
 
     # ------------------------------------------------------------------
@@ -456,6 +458,67 @@ class CommentsPlugin(Plugin):
             c["can_review"] = True  # content author/admin can review
             c["can_delete"] = (c["author_id"] == user["id"]) or is_admin
         return JSONResponse({"comments": comments, "total": len(comments)})
+
+    async def list_my_pending_comments(self, request, **kwargs) -> Any:
+        """GET /api/comments/my-pending
+
+        List all pending/rejected comments across the current user's content.
+        """
+        from starlette.responses import JSONResponse
+
+        user = await self.get_current_user(request)
+        if not user:
+            return self.error_json("请先登录", 401)
+
+        is_admin = user.get("role") == "admin"
+        uid = user["id"]
+
+        # Single query: JOIN comments with all target tables to get author + title
+        sql = """SELECT c.*,
+                        COALESCE(u.nickname, u.display_name, u.username) as author_name,
+                        u.avatar as author_avatar,
+                        COALESCE(bp.title, n.title, SUBSTR(COALESCE(n.content, mp.content), 1, 50)) as target_title,
+                        COALESCE(bp.author_id, n.author_id, mp.author_id) as content_author_id
+                 FROM comments c
+                 LEFT JOIN users u ON c.author_id = u.id
+                 LEFT JOIN blog_posts bp ON c.target_type = 'blog' AND c.target_id = bp.id
+                 LEFT JOIN notes n ON c.target_type = 'note' AND c.target_id = n.id
+                 LEFT JOIN microblog_posts mp ON c.target_type = 'microblog' AND c.target_id = mp.id
+                 WHERE c.status IN ('pending', 'rejected')
+                   AND (c.target_type = 'blog' OR c.target_type = 'note' OR c.target_type = 'microblog')"""
+        params = []
+
+        if not is_admin:
+            sql += " AND COALESCE(bp.author_id, n.author_id, mp.author_id) = ?"
+            params.append(uid)
+
+        sql += " ORDER BY c.created_at ASC"
+
+        rows = await self.engine.fetchall(sql, tuple(params))
+
+        result = []
+        for row in rows:
+            c = dict(row)
+            c["target_title"] = c.get("target_title") or f"{c.get('target_type')}#{c.get('target_id')}"
+            c.pop("content_author_id", None)
+            c["can_review"] = True
+            c["can_delete"] = (c["author_id"] == uid) or is_admin
+            result.append(c)
+
+        return JSONResponse({"comments": result, "total": len(result)})
+
+    async def my_pending_comments_page(self, request, **kwargs) -> Any:
+        """GET /comments/my-pending - Pending comments management page"""
+        from starlette.responses import HTMLResponse, RedirectResponse
+
+        user = await self.get_current_user(request)
+        if not user:
+            return RedirectResponse(url="/login", status_code=302)
+
+        html = await self._ctx.template_engine.render("my-pending-comments.html", {
+            "nav_page": "notifications",
+        })
+        return HTMLResponse(content=html)
 
     # ------------------------------------------------------------------
     #  Notifications

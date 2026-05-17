@@ -939,4 +939,4 @@ class TestCommentsEdgeCases:
     async def test_routes_count(self):
         plugin, _ = await init_plugin()
         routes = plugin.routes()
-        assert len(routes) == 12
+        assert len(routes) == 14

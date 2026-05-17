@@ -1,0 +1,145 @@
+{% extends "base.html" %}
+
+{% block title %}待审评论 - {{ Site.title | default('pyWork') }}{% endblock %}
+
+{% block head %}
+<link rel="stylesheet" href="/static/css/comments.css">
+{% endblock %}
+
+{% block content %}
+<div class="notifications-page">
+    <div class="notifications-header">
+        <h2>待审评论 <span id="pending-count" class="badge" style="display:none">0</span></h2>
+        <a href="/comments/notifications" class="btn btn-secondary" style="font-size:0.8125rem;padding:0.375rem 0.75rem;">通知</a>
+    </div>
+
+    <div class="notifications-empty" id="empty-state" style="display:none">
+        <p>暂无待审评论</p>
+    </div>
+
+    <div class="notifications-list" id="pending-list"></div>
+</div>
+
+<script>
+const TARGET_LABELS = {blog: '博客', microblog: '微博', note: '笔记'};
+const STATUS_LABELS = {pending: '待审核', rejected: '已拒绝'};
+
+async function loadPending() {
+    try {
+        const res = await fetch('/api/comments/my-pending');
+        const data = await res.json();
+        if (data.error) {
+            alert(data.error);
+            return;
+        }
+        const list = document.getElementById('pending-list');
+        const empty = document.getElementById('empty-state');
+        const countEl = document.getElementById('pending-count');
+
+        if (data.total === 0) {
+            empty.style.display = '';
+            countEl.style.display = 'none';
+            return;
+        }
+
+        countEl.textContent = data.total;
+        countEl.style.display = '';
+
+        list.innerHTML = data.comments.map(c => {
+            const typeLabel = TARGET_LABELS[c.target_type] || c.target_type;
+            const statusLabel = STATUS_LABELS[c.status] || c.status;
+            const statusClass = c.status === 'rejected' ? 'rejected' : 'pending';
+            const time = new Date(c.created_at * 1000).toLocaleString('zh-CN');
+            return `
+                <div class="notification-item" data-id="${c.id}" id="comment-${c.id}">
+                    <div class="notification-content">
+                        <div style="display:flex;align-items:center;gap:0.5rem;margin-bottom:0.25rem;">
+                            <strong>${escapeHtml(c.author_name || '匿名')}</strong>
+                            <span class="badge badge-${statusClass}" style="font-size:0.75rem;">${statusLabel}</span>
+                            <span style="color:#888;font-size:0.8125rem;">评论了你的${typeLabel}</span>
+                        </div>
+                        <div style="margin-bottom:0.25rem;color:#555;">${escapeHtml(c.content)}</div>
+                        <div style="font-size:0.8125rem;color:#888;">
+                            ${escapeHtml(c.target_title)} · ${time}
+                        </div>
+                    </div>
+                    <div class="notification-actions" style="display:flex;gap:0.5rem;margin-top:0.5rem;">
+                        ${c.can_review && c.status === 'pending' ? `
+                            <button class="btn btn-primary btn-sm" onclick="reviewComment(${c.id},'approved')">通过</button>
+                            <button class="btn btn-secondary btn-sm" onclick="reviewComment(${c.id},'rejected')">拒绝</button>
+                        ` : ''}
+                        ${c.can_review && c.status === 'rejected' ? `
+                            <button class="btn btn-primary btn-sm" onclick="reviewComment(${c.id},'approved')">通过</button>
+                        ` : ''}
+                        ${c.can_delete ? `
+                            <button class="btn btn-danger btn-sm" onclick="deleteComment(${c.id})">删除</button>
+                        ` : ''}
+                    </div>
+                </div>
+            `;
+        }).join('');
+    } catch (e) {
+        console.error('Failed to load pending comments:', e);
+    }
+}
+
+async function reviewComment(id, status) {
+    try {
+        const res = await fetch(`/api/comments/${id}/review`, {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({status})
+        });
+        const data = await res.json();
+        if (data.error) {
+            alert(data.error);
+            return;
+        }
+        removeComment(id);
+    } catch (e) {
+        alert('操作失败');
+    }
+}
+
+async function deleteComment(id) {
+    if (!confirm('确定删除这条评论？')) return;
+    try {
+        const res = await fetch(`/api/comments/${id}`, {method: 'DELETE'});
+        const data = await res.json();
+        if (data.error) {
+            alert(data.error);
+            return;
+        }
+        removeComment(id);
+    } catch (e) {
+        alert('删除失败');
+    }
+}
+
+function removeComment(id) {
+    const el = document.getElementById(`comment-${id}`);
+    if (el) {
+        el.style.transition = 'opacity 0.3s';
+        el.style.opacity = '0';
+        setTimeout(() => {
+            el.remove();
+            const remaining = document.querySelectorAll('#pending-list .notification-item');
+            if (remaining.length === 0) {
+                document.getElementById('empty-state').style.display = '';
+                document.getElementById('pending-count').style.display = 'none';
+            } else {
+                document.getElementById('pending-count').textContent = remaining.length;
+            }
+        }, 300);
+    }
+}
+
+function escapeHtml(text) {
+    const div = document.createElement('div');
+    div.textContent = text;
+    return div.innerHTML;
+}
+
+loadPending();
+</script>
+{% endblock %}
