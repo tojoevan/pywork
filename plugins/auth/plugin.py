@@ -599,20 +599,21 @@ class AuthPlugin(Plugin):
             user["token"] = token
         return user
     
+    # 允许通过 update_user 修改的字段（白名单）
+    _UPDATABLE_USER_FIELDS = {"display_name", "avatar"}
+
     async def update_user(self, user_id: int, **kwargs) -> Dict:
         """更新用户信息"""
-        # 不允许直接修改密码和 id
-        if "password_hash" in kwargs:
-            del kwargs["password_hash"]
-        if "id" in kwargs:
-            del kwargs["id"]
-        
-        # 读取现有记录，合并更新
+        # 白名单模式：仅允许修改安全字段
+        safe_updates = {k: v for k, v in kwargs.items() if k in self._UPDATABLE_USER_FIELDS}
+        if not safe_updates:
+            return {"error": "无有效更新字段"}
+
         existing = await self.engine.get("users", user_id)
         if not existing:
             return {"error": "用户不存在"}
-        
-        existing.update(kwargs)
+
+        existing.update(safe_updates)
         await self.engine.put("users", user_id, existing)
         return {"success": True}
     
@@ -819,7 +820,8 @@ class AuthPlugin(Plugin):
                     </body></html>
                 """)
             else:
-                error_msg = result.get("error", "注册失败")
+                from markupsafe import escape
+                error_msg = escape(result.get("error", "注册失败"))
                 return HTMLResponse(content=f"""
                     <!DOCTYPE html>
                     <html><head><meta charset="utf-8"><title>注册失败</title></head>
@@ -875,7 +877,8 @@ class AuthPlugin(Plugin):
                 )
                 return response
             else:
-                error_msg = result.get("error", "登录失败")
+                from markupsafe import escape
+                error_msg = escape(result.get("error", "登录失败"))
                 return HTMLResponse(content=f"""
                     <!DOCTYPE html>
                     <html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><title>登录失败</title>
@@ -974,10 +977,12 @@ class AuthPlugin(Plugin):
                 "image": f"data:image/png;base64,{img_base64}"
             }
         except ImportError:
-            # PIL 未安装，返回纯文本验证码（仅用于开发测试）
+            if not self.config.debug:
+                return {"error": "验证码服务不可用，请安装 Pillow"}
+            # 仅 debug 模式返回纯文本验证码
             return {
                 "id": code_id,
-                "code": code,  # 仅用于测试，生产环境应使用图片
+                "code": code,
                 "image": ""
             }
 

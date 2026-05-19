@@ -589,6 +589,11 @@ class WorkbenchApp:
                 )
 
             body = await request.json()
+            if not isinstance(body, dict):
+                return JSONResponse(
+                    {"jsonrpc": "2.0", "id": None, "error": {"code": -32600, "message": "Invalid Request"}},
+                    status_code=400
+                )
             method = body.get("method", "")
             params = body.get("params", {})
             request_id = body.get("id")
@@ -598,6 +603,16 @@ class WorkbenchApp:
             token = ""
             if auth_header.startswith("Bearer "):
                 token = auth_header[7:]
+
+            # tools/call 需要认证，仅允许注册和登录免 token
+            _NO_AUTH_TOOLS = {"auth.auth_register", "auth.auth_login"}
+            if method == "tools/call" and not token:
+                tool_name = params.get("name", "")
+                if tool_name not in _NO_AUTH_TOOLS:
+                    return JSONResponse(
+                        {"jsonrpc": "2.0", "id": request_id, "error": {"code": -32001, "message": "Authentication required"}},
+                        status_code=401
+                    )
 
             # Inject token into params for MCP server
             if token:

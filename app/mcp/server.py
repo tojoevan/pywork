@@ -167,24 +167,24 @@ class WorkbenchMCPServer:
     async def _get_prompt(self, params: Dict[str, Any]) -> Dict[str, Any]:
         """Get a prompt"""
         name = params.get("name", "")
-        
+
         parts = name.split(".", 1)
         if len(parts) != 2:
             return {"description": "Invalid prompt name", "messages": []}
-        
+
         plugin_name, prompt_name = parts
-        
+
         for plugin in self.plugin_manager.get_enabled_plugins():
             if plugin.name == plugin_name:
                 for prompt in plugin.mcp_prompts():
                     if prompt.name == prompt_name:
-                        # Simple template substitution
                         template = prompt.template
                         args = params.get("arguments", {})
-                        
+
                         for key, value in args.items():
-                            template = template.replace("{{" + key + "}}", str(value))
-                        
+                            safe_value = self._sanitize_template_value(str(value))
+                            template = template.replace("{{" + key + "}}", safe_value)
+
                         return {
                             "description": prompt.description,
                             "messages": [
@@ -194,8 +194,20 @@ class WorkbenchMCPServer:
                                 }
                             ]
                         }
-        
+
         return {"description": "Prompt not found", "messages": []}
+
+    @staticmethod
+    def _sanitize_template_value(value: str, max_len: int = 500) -> str:
+        """消毒模板替换值，防止 prompt injection"""
+        # 截断过长输入
+        if len(value) > max_len:
+            value = value[:max_len]
+        # HTML 实体编码
+        value = value.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
+        # 移除控制字符（保留换行和制表符）
+        value = "".join(c for c in value if c in ("\n", "\t") or (ord(c) >= 32))
+        return value
     
     async def run_stdio(self):
         """Run MCP server in stdio mode"""
