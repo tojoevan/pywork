@@ -143,9 +143,33 @@ MCP 端点异常处理中 `str(e)` 可能泄露堆栈和内部路径。已在上
 
 日志 Handler 改为线程安全队列 + 定时刷盘机制，应用关闭时调用 `flush_pending_logs()` 确保零丢失。
 
+### 2.4.1 app_logs 自动归档清理 ✅ 已修复
+
+**文件**: `plugins/board/plugin.py`
+
+新增定时任务 `log_archive`：每天凌晨 3 点自动归档 30 天前的日志（按月压缩为 `.jsonl.gz`），清理 12 个月前的归档文件。归档目录：`data/log_archives/`。
+
 ### 2.5 模块级导入规范 ✅ 已修复
 
 清理了函数体内重复的 `import` 语句，所有依赖已在模块顶层声明。
+
+### 2.5.1 模板引擎缓存过期 ✅ 已修复
+
+**文件**: `app/template/engine.py`
+
+`_site_cache` 回退路径永不过期，配置变更后需重启才能生效。已添加 60 秒 TTL 缓存，超时后自动重新加载。
+
+### 2.5.2 decrypt_value 明文穿透修复 ✅ 已修复
+
+**文件**: `app/crypto.py`
+
+无 `fernet:` 前缀的值直接返回原文，下游可能误认为已解密。已增加 `allow_plaintext` 参数，设为 `False` 时抛出 `ValueError`。
+
+### 2.5.3 verify_token_hash 时序安全 ✅ 已修复
+
+**文件**: `app/crypto.py`
+
+`hash_token(token) == stored` 使用 Python `==` 比较，非恒定时间。已替换为 `secrets.compare_digest` 防止时序攻击。
 
 ---
 

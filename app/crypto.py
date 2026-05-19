@@ -3,6 +3,7 @@
 import base64
 import hashlib
 import os
+import secrets
 from cryptography.fernet import Fernet, InvalidToken
 
 # 固定 salt 用于从 SECRET_KEY 派生 Fernet 密钥
@@ -43,9 +44,15 @@ def encrypt_value(fernet: Fernet, plaintext: str) -> str:
     return _ENCRYPT_PREFIX + token.decode()
 
 
-def decrypt_value(fernet: Fernet, ciphertext: str) -> str:
-    """解密；兼容无前缀的明文（平滑升级用）"""
+def decrypt_value(fernet: Fernet, ciphertext: str, allow_plaintext: bool = True) -> str:
+    """解密；兼容无前缀的明文（平滑升级用）
+
+    Args:
+        allow_plaintext: True 时无前缀值直接返回（兼容），False 时抛出 ValueError
+    """
     if not ciphertext.startswith(_ENCRYPT_PREFIX):
+        if not allow_plaintext:
+            raise ValueError("Value is not encrypted (missing fernet: prefix)")
         return ciphertext
     raw = ciphertext[len(_ENCRYPT_PREFIX):]
     return fernet.decrypt(raw.encode()).decode()
@@ -70,11 +77,11 @@ def hash_token(token: str) -> str:
 
 
 def verify_token_hash(token: str, stored: str) -> bool:
-    """验证 token 是否匹配存储的哈希"""
+    """验证 token 是否匹配存储的哈希（恒定时间比较）"""
     if stored.startswith(_TOKEN_HASH_PREFIX):
-        return hash_token(token) == stored
+        return secrets.compare_digest(hash_token(token), stored)
     # 兼容明文（平滑升级）
-    return token == stored
+    return secrets.compare_digest(token, stored)
 
 
 def is_hashed(value: str) -> bool:

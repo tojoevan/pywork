@@ -44,6 +44,13 @@ PRESET_JOBS = {
         "cron_expr": "*/10 * * * *",
         "handler_key": "run_recent_comments",
     },
+    "log_archive": {
+        "name": "日志归档清理",
+        "description": "每天凌晨3点归档30天前的日志，清理12个月前的归档",
+        "interval": 86400,
+        "cron_expr": "0 3 * * *",
+        "handler_key": "run_log_archive",
+    },
 }
 
 # 间隔选项
@@ -81,6 +88,7 @@ class BoardPlugin(Plugin):
             "run_active_authors":    self._handle_active_authors,
             "run_hot_tags":          self._handle_hot_tags,
             "run_recent_comments":   self._handle_recent_comments,
+            "run_log_archive":       self._handle_log_archive,
         }
         # 统一初始化所有表（一次性）
         self._tables_initialized = False
@@ -680,6 +688,63 @@ class BoardPlugin(Plugin):
                 lines.append(f"{author_name}: {display_content}")
 
         return f"最新评论 ({len(rows)}条): " + "; ".join(lines[:5])
+
+    async def _handle_log_archive(self) -> str:
+        """归档 30 天前的日志，清理 12 个月前的归档"""
+        import gzip
+        import json
+        import os
+        from datetime import datetime, timedelta
+
+        now = int(time.time())
+        archive_dir = os.path.join(os.path.dirname(os.path.abspath(self.ctx.config.db_path)), "log_archives")
+        os.makedirs(archive_dir, exist_ok=True)
+
+        # 1. 归档 30 天前的日志
+        cutoff_ts = now - 30 * 86400
+        rows = await self.engine.fetchall(
+            "SELECT id, level, module, message, context, traceback, created_at FROM app_logs WHERE created_at < ? ORDER BY created_at",
+            (cutoff_ts,)
+        )
+
+        archived_count = 0
+        if rows:
+            # 按月分组归档
+            monthly_groups: Dict[str, list] = {}
+            for row in rows:
+                dt = datetime.fromtimestamp(row["created_at"])
+                month_key = dt.strftime("%Y-%m")
+                if month_key not in monthly_groups:
+                    monthly_groups[month_key] = []
+                monthly_groups[month_key].append(row)
+
+            for month_key, entries in monthly_groups.items():
+                archive_file = os.path.join(archive_dir, f"app_logs_{month_key}.jsonl.gz")
+                # 追加写入（如果文件已存在）
+                with gzip.open(archive_file, "at", encoding="utf-8") as f:
+                    for entry in entries:
+                        f.write(json.dumps(dict(entry), ensure_ascii=False) + "\n")
+                archived_count += len(entries)
+
+            # 删除已归档的日志
+            ids = [row["id"] for row in rows]
+            placeholders = ",".join(["?"] * len(ids))
+            await self.engine.execute(f"DELETE FROM app_logs WHERE id IN ({placeholders})", tuple(ids))
+
+        # 2. 清理 12 个月前的归档文件
+        cutoff_date = datetime.now() - timedelta(days=365)
+        cutoff_month = cutoff_date.strftime("%Y-%m")
+        deleted_files = 0
+        if os.path.exists(archive_dir):
+            for filename in os.listdir(archive_dir):
+                if filename.startswith("app_logs_") and filename.endswith(".jsonl.gz"):
+                    # 提取月份: app_logs_2025-06.jsonl.gz -> 2025-06
+                    month_part = filename[10:17]
+                    if month_part < cutoff_month:
+                        os.remove(os.path.join(archive_dir, filename))
+                        deleted_files += 1
+
+        return f"归档 {archived_count} 条日志，清理 {deleted_files} 个过期归档"
 
     # ========================================================
     #  公开统计接口（供首页等调用）

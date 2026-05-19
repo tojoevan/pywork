@@ -2,6 +2,7 @@
 from jinja2 import Environment, FileSystemLoader, select_autoescape
 from typing import Dict, Any, Optional, List
 import os
+import time
 from datetime import datetime
 import re
 import markdown as md
@@ -190,6 +191,8 @@ class TemplateEngine:
         self._engine = engine  # SQLiteEngine reference for lazy site config loading
         self._site_config_manager = site_config_manager  # SiteConfigManager for unified cache
         self._site_cache = None
+        self._site_cache_ts = 0  # 缓存时间戳
+        self._site_cache_ttl = 60  # 缓存 TTL（秒）
         
         # 支持多目录加载（主模板 + 插件模板）
         loaders = []
@@ -262,11 +265,13 @@ class TemplateEngine:
             return default
 
         # 回退：直接查询数据库（兼容无 SiteConfigManager 的场景）
-        if self._site_cache is not None:
+        now = time.time()
+        if self._site_cache is not None and (now - self._site_cache_ts) < self._site_cache_ttl:
             return self._site_cache
 
         if self._engine is None:
             self._site_cache = default
+            self._site_cache_ts = time.time()
             return default
 
         try:
@@ -282,6 +287,7 @@ class TemplateEngine:
             log.warning(f"Failed to load site config from database: {e}")
             self._site_cache = default
 
+        self._site_cache_ts = time.time()
         return self._site_cache
     
     async def render(
