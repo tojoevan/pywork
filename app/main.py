@@ -218,8 +218,8 @@ class WorkbenchApp:
                                 "author": p.get("author_name", ""),
                                 "guid": f"{base_url}/blog/view/{p['id']}",
                             })
-                except Exception:
-                    pass
+                except Exception as e:
+                    log.warning(f"Failed to generate blog RSS items: {e}")
 
             microblog_plugin = self.plugin_manager.plugins.get("microblog")
             if microblog_plugin:
@@ -236,8 +236,8 @@ class WorkbenchApp:
                                 "author": p.get("author_name", ""),
                                 "guid": f"{base_url}/microblog#{p['id']}",
                             })
-                except Exception:
-                    pass
+                except Exception as e:
+                    log.warning(f"Failed to generate microblog RSS items: {e}")
 
             notes_plugin = self.plugin_manager.plugins.get("notes")
             if notes_plugin:
@@ -253,8 +253,8 @@ class WorkbenchApp:
                                 "author": n.get("author_name", ""),
                                 "guid": f"{base_url}/notes/{n['id']}",
                             })
-                except Exception:
-                    pass
+                except Exception as e:
+                    log.warning(f"Failed to generate notes RSS items: {e}")
 
             items.sort(key=lambda x: x["pub_date"], reverse=True)
 
@@ -550,7 +550,8 @@ class WorkbenchApp:
                 s.connect(("8.8.8.8", 80))
                 local_ip = s.getsockname()[0]
                 s.close()
-            except Exception:
+            except Exception as e:
+                log.debug(f"Failed to detect local IP: {e}")
                 local_ip = "127.0.0.1"
 
             # 检测是否生产环境
@@ -885,7 +886,8 @@ class WorkbenchApp:
                         try:
                             body = await request.form()
                             body = dict(body)
-                        except Exception:
+                        except Exception as e:
+                            log.debug(f"Failed to parse form body: {e}")
                             body = {}
                     # Merge path params into body
                     params = dict(request.path_params)

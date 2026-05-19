@@ -5,6 +5,9 @@ import os
 from datetime import datetime
 import re
 import markdown as md
+from app.log import get_logger
+
+log = get_logger("template")
 
 
 # 自定义过滤器
@@ -254,8 +257,8 @@ class TemplateEngine:
                     config = dict(default)
                     config.update(settings)
                     return config
-            except Exception:
-                pass
+            except Exception as e:
+                log.warning(f"Failed to load site config from manager: {e}")
             return default
 
         # 回退：直接查询数据库（兼容无 SiteConfigManager 的场景）
@@ -275,7 +278,8 @@ class TemplateEngine:
                 self._site_cache = config
             else:
                 self._site_cache = default
-        except Exception:
+        except Exception as e:
+            log.warning(f"Failed to load site config from database: {e}")
             self._site_cache = default
 
         return self._site_cache
@@ -295,7 +299,8 @@ class TemplateEngine:
         if actual_site is None:
             try:
                 actual_site = await self._load_site_config_async()
-            except Exception:
+            except Exception as e:
+                log.warning(f"Failed to load site config for render: {e}")
                 # 出错时用默认
                 actual_site = {
                     'title': 'pyWork',

@@ -5,6 +5,9 @@ import sqlite3
 from typing import List, Dict, Any, Optional
 
 from app.plugin import Plugin, PluginContext, Route
+from app.log import get_logger
+
+log = get_logger("board")
 
 
 # ============================================================
@@ -224,8 +227,8 @@ class BoardPlugin(Plugin):
         for col in ("blog_count", "microblog_count", "note_count"):
             try:
                 await self.engine.execute(f"ALTER TABLE active_authors ADD COLUMN {col} INTEGER DEFAULT 0")
-            except Exception:
-                pass
+            except Exception as e:
+                log.debug(f"Column {col} already exists: {e}")
         # 清理匿名/无效作者缓存（author_id <= 0），下次刷新时重新计算
         await self.engine.execute("DELETE FROM active_authors WHERE author_id <= 0")
 
@@ -638,8 +641,8 @@ class BoardPlugin(Plugin):
             for row in rows:
                 try:
                     row = dict(row)
-                except Exception:
-                    pass
+                except Exception as e:
+                    log.debug(f"Failed to convert row to dict: {e}")
                 comment_id = int(row.get("id", 0))
                 author_name = str(row.get("author_name", "") or "匿名")
                 content = str(row.get("content", "") or "")
@@ -658,8 +661,8 @@ class BoardPlugin(Plugin):
                         )
                         if target_row:
                             target_title = str(target_row.get("title", "") or "")
-                    except Exception:
-                        pass
+                    except Exception as e:
+                        log.debug(f"Failed to fetch target title: {e}")
 
                 # 写入 recent_comments 表
                 try:
@@ -705,8 +708,8 @@ class BoardPlugin(Plugin):
                     "FROM active_authors WHERE period = 'monthly' "
                     "ORDER BY \"rank\" ASC LIMIT 8"
                 )
-            except Exception:
-                pass
+            except Exception as e:
+                log.warning(f"Failed to refresh active authors: {e}")
         return [dict(r) for r in rows]
 
     async def get_hot_tags(self, limit: int = 10) -> List[Dict[str, Any]]:
@@ -726,7 +729,8 @@ class BoardPlugin(Plugin):
                     "ORDER BY \"rank\" ASC LIMIT ?",
                     (limit,)
                 )
-            except Exception:
+            except Exception as e:
+                log.warning(f"Failed to refresh hot tags: {e}")
                 return []
         else:
             # 检查是否过期（超过 2 小时）
@@ -740,8 +744,8 @@ class BoardPlugin(Plugin):
                         "ORDER BY \"rank\" ASC LIMIT ?",
                         (limit,)
                     )
-                except Exception:
-                    pass
+                except Exception as e:
+                    log.warning(f"Failed to refresh expired hot tags: {e}")
         return [{"tag_name": r["tag_name"], "post_count": r["post_count"]} for r in rows]
 
     async def get_recent_comments(self, limit: int = 5) -> List[Dict[str, Any]]:
@@ -761,7 +765,8 @@ class BoardPlugin(Plugin):
                     "FROM recent_comments ORDER BY created_at DESC LIMIT ?",
                     (limit,)
                 )
-            except Exception:
+            except Exception as e:
+                log.warning(f"Failed to refresh recent comments: {e}")
                 return []
         else:
             # 检查是否过期（超过 20 分钟）
@@ -775,8 +780,8 @@ class BoardPlugin(Plugin):
                         "FROM recent_comments ORDER BY created_at DESC LIMIT ?",
                         (limit,)
                     )
-                except Exception:
-                    pass
+                except Exception as e:
+                    log.warning(f"Failed to refresh expired recent comments: {e}")
         return [{
             "comment_id": r["comment_id"],
             "author_name": r["author_name"],
@@ -1112,7 +1117,8 @@ class BoardPlugin(Plugin):
             for row in rows:
                 settings[row["key"]] = row["value"]
             return settings
-        except Exception:
+        except Exception as e:
+            log.warning(f"Failed to load site settings: {e}")
             return defaults
 
     async def _update_site_settings(self, data: Dict[str, str]):

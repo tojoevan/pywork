@@ -5,6 +5,9 @@ import json
 
 from app.plugin import Plugin, PluginContext, MCPTool, MCPResource, MCPPrompt, Route
 from app.rate_limiter import RateLimiter
+from app.log import get_logger
+
+log = get_logger("microblog")
 
 
 class MicroblogPlugin(Plugin):
@@ -40,8 +43,8 @@ class MicroblogPlugin(Plugin):
                 "UPDATE microblog_posts SET status = 'public' "
                 "WHERE status NOT IN ('public', 'pending')"
             )
-        except Exception:
-            pass
+        except Exception as e:
+            log.debug(f"Failed to fix microblog status data: {e}")
 
     def routes(self) -> List[Route]:
         return [
@@ -285,12 +288,13 @@ class MicroblogPlugin(Plugin):
             try:
                 body = await request.json()
                 content = body.get("content", "")
-            except Exception:
+            except Exception as e:
+                log.debug(f"Failed to parse JSON body: {e}")
                 try:
                     form = await request.form()
                     content = form.get("content", "")
-                except Exception:
-                    pass
+                except Exception as e2:
+                    log.debug(f"Failed to parse form body: {e2}")
         
         # 获取客户端 IP
         client_ip = request.client.host if request.client else "unknown"
@@ -340,8 +344,8 @@ class MicroblogPlugin(Plugin):
             try:
                 body = await request.json()
                 content = body.get("content")
-            except Exception:
-                pass
+            except Exception as e:
+                log.debug(f"Failed to parse JSON body: {e}")
         
         if not content or not content.strip():
             return self.error_json("内容不能为空")

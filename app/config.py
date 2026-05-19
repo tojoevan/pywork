@@ -17,6 +17,9 @@ import time
 from typing import Optional, Dict, Any, List
 
 from pydantic import BaseModel, Field, field_validator
+from app.log import get_logger
+
+log = get_logger("config")
 
 
 # ============================================================
@@ -143,7 +146,8 @@ class SiteConfigManager:
         try:
             rows = await self._engine.fetchall("SELECT key, value FROM site_config")
             self._cache = {row["key"]: row["value"] for row in rows} if rows else {}
-        except Exception:
+        except Exception as e:
+            log.warning(f"Failed to load site config: {e}")
             self._cache = {}
         self._cache_time = time.time()
         return self._cache
@@ -215,8 +219,8 @@ async def build_config(engine=None) -> AppConfig:
             rows = await engine.fetchall("SELECT key, value FROM site_config")
             for row in rows:
                 db_values[row["key"]] = row["value"]
-        except Exception:
-            pass  # 表可能不存在（首次启动）
+        except Exception as e:
+            log.debug(f"Failed to load site_config (may not exist yet): {e}")
 
     # 第二步：环境变量覆盖（PYWORK_ 前缀）
     env_overrides = {
@@ -287,8 +291,8 @@ async def build_config(engine=None) -> AppConfig:
                             "INSERT OR IGNORE INTO site_config (key, value) VALUES (?, ?)",
                             (db_key, default_val),
                         )
-        except Exception:
-            pass  # 迁移失败不应阻止启动
+        except Exception as e:
+            log.debug(f"Failed to migrate site_config defaults: {e}")
 
     return config
 

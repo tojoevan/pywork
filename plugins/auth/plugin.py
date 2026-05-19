@@ -10,6 +10,9 @@ import urllib.parse
 from typing import Optional, Dict, Any, List
 from app.plugin import Plugin, PluginContext, MCPTool
 from app.storage import Engine
+from app.log import get_logger
+
+log = get_logger("auth")
 
 
 class AuthPlugin(Plugin):
@@ -69,18 +72,18 @@ class AuthPlugin(Plugin):
         # 确保 users 表有 display_name 字段
         try:
             await self.engine.execute("ALTER TABLE users ADD COLUMN display_name TEXT")
-        except Exception:
-            pass  # 字段已存在
+        except Exception as e:
+            log.debug(f"Column display_name already exists: {e}")
 
         # 确保 users 表有 nickname 字段
         try:
             await self.engine.execute("ALTER TABLE users ADD COLUMN nickname TEXT")
-        except Exception:
-            pass
+        except Exception as e:
+            log.debug(f"Column nickname already exists: {e}")
         try:
             await self.engine.execute("ALTER TABLE users ADD COLUMN nickname_last_changed INTEGER DEFAULT 0")
-        except Exception:
-            pass
+        except Exception as e:
+            log.debug(f"Column nickname_last_changed already exists: {e}")
     
     async def _init_mcp_tokens_table(self):
         """创建 mcp_tokens 表"""
@@ -100,16 +103,16 @@ class AuthPlugin(Plugin):
         # 尝试添加新字段（兼容旧数据库）
         try:
             await self.engine.execute("ALTER TABLE mcp_tokens ADD COLUMN agent_name TEXT UNIQUE")
-        except Exception:
-            pass
+        except Exception as e:
+            log.debug(f"Column agent_name already exists: {e}")
         try:
             await self.engine.execute("ALTER TABLE mcp_tokens ADD COLUMN agent_user_id INTEGER")
-        except Exception:
-            pass
+        except Exception as e:
+            log.debug(f"Column agent_user_id already exists: {e}")
         try:
             await self.engine.execute("ALTER TABLE mcp_tokens ADD COLUMN token_prefix TEXT DEFAULT ''")
-        except Exception:
-            pass
+        except Exception as e:
+            log.debug(f"Column token_prefix already exists: {e}")
         # 迁移：将已有明文 token 哈希化
         await self._migrate_mcp_tokens()
         # 迁移：agent display_name 使用 owner 昵称替换用户名
@@ -340,8 +343,8 @@ class AuthPlugin(Plugin):
                     client_secret = row["value"]
                 elif row["key"] == "github_redirect_uri" and row["value"]:
                     redirect_uri = row["value"]
-        except Exception:
-            pass
+        except Exception as e:
+            log.warning(f"Failed to load GitHub config: {e}")
         if not redirect_uri:
             redirect_uri = "/auth/github/callback"
         return client_id, client_secret, redirect_uri
@@ -510,8 +513,8 @@ class AuthPlugin(Plugin):
                 if "password_hash" in user:
                     del user["password_hash"]
                 return user
-        except Exception:
-            pass  # 字段可能不存在，继续创建
+        except Exception as e:
+            log.debug(f"GitHub user lookup failed (column may not exist): {e}")
         
         # 尝试通过邮箱查找
         if github_email:
@@ -524,8 +527,8 @@ class AuthPlugin(Plugin):
                         "UPDATE users SET github_id = ? WHERE id = ?",
                         (github_id, user["id"])
                     )
-                except Exception:
-                    pass
+                except Exception as e:
+                    log.debug(f"Failed to update github_id (column may not exist): {e}")
                 if "password_hash" in user:
                     del user["password_hash"]
                 return user
@@ -550,7 +553,8 @@ class AuthPlugin(Plugin):
                 "INSERT INTO users (username, email, created_at, role, avatar, github_id) VALUES (?, ?, ?, ?, ?, ?)",
                 (username, github_email, created_at, role, github_avatar, github_id)
             )
-        except Exception:
+        except Exception as e:
+            log.debug(f"Insert with github_id failed, using basic fields: {e}")
             # 如果 github_id 字段不存在，使用基本字段
             await self.engine.execute(
                 "INSERT INTO users (username, email, created_at, role, avatar) VALUES (?, ?, ?, ?, ?)",

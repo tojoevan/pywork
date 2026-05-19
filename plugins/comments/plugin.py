@@ -188,7 +188,8 @@ class CommentsPlugin(Plugin):
 
         try:
             data = await request.json()
-        except Exception:
+        except Exception as e:
+            log.debug(f"Failed to parse request JSON: {e}")
             return self.error_json("无效的请求体")
 
         target_type = data.get("target_type", "")
@@ -305,7 +306,8 @@ class CommentsPlugin(Plugin):
 
         try:
             data = await request.json()
-        except Exception:
+        except Exception as e:
+            log.debug(f"Failed to parse request JSON: {e}")
             return self.error_json("无效的请求体")
 
         action = data.get("action", "")

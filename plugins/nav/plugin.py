@@ -5,6 +5,9 @@ import json
 
 from app.plugin import Plugin, PluginContext, MCPTool, Route
 from starlette.responses import HTMLResponse
+from app.log import get_logger
+
+log = get_logger("nav")
 
 
 class NavPlugin(Plugin):
@@ -272,8 +275,8 @@ class NavPlugin(Plugin):
                 "INSERT OR IGNORE INTO nav_link_hides (user_id, link_id, created_at) VALUES (?, ?, ?)",
                 (user_id, link_id, now)
             )
-        except Exception:
-            pass
+        except Exception as e:
+            log.debug(f"Failed to hide link: {e}")
         return {"ok": True}
 
     async def unhide_link(self, user_id: int, link_id: int) -> Dict[str, Any]:

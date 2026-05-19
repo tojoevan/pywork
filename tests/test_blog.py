@@ -54,6 +54,23 @@ async def test_create_post(setup_blog):
 
 
 @pytest.mark.asyncio
+async def test_create_post_default_status(setup_blog):
+    """Test creating a blog post without status defaults to published"""
+    plugin, engine = setup_blog
+    
+    result = await plugin.create_post(
+        title="Test Default Status Post",
+        content="This is a test post content",
+        tags=["test", "blog"],
+        author_id=1
+    )
+    
+    assert result["id"] > 0
+    assert result["title"] == "Test Default Status Post"
+    assert result["status"] == "published"
+
+
+@pytest.mark.asyncio
 async def test_search_posts(setup_blog):
     """Test searching posts"""
     plugin, engine = setup_blog

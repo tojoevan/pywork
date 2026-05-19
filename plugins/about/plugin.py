@@ -3,6 +3,9 @@ import time
 from typing import List, Dict, Any, Optional
 
 from app.plugin import Plugin, PluginContext, MCPTool, Route
+from app.log import get_logger
+
+log = get_logger("about")
 
 
 class AboutPlugin(Plugin):
@@ -45,8 +48,8 @@ class AboutPlugin(Plugin):
                 role_file = os.environ.get("ROLE_FILE", "/etc/pywork-role")
                 if os.path.exists(role_file):
                     role = open(role_file).read().strip()
-            except Exception:
-                pass
+            except Exception as e:
+                log.debug(f"Failed to read role file: {e}")
 
         html = await self.template_engine.render(
             "about.html",

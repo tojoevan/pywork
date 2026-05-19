@@ -79,7 +79,7 @@ class MockBlogPlugin:
         self,
         title: str,
         content: str,
-        status: str = "draft",
+        status: str = "published",
         tags: Optional[List[str]] = None,
         author_id: Optional[int] = None
     ) -> Dict[str, Any]:
@@ -330,14 +330,14 @@ class TestBlogCreate:
     
     @pytest.mark.asyncio
     async def test_create_post_default_status(self, blog_plugin):
-        """Create post without status should default to draft"""
+        """Create post without status should default to published"""
         result = await blog_plugin.create_post(
             title="Default Status",
             content="Content"
         )
         
         post = await blog_plugin.get_post(result["id"])
-        assert post["status"] == "draft"
+        assert post["status"] == "published"
     
     @pytest.mark.asyncio
     async def test_create_post_published(self, blog_plugin):

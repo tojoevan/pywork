@@ -50,7 +50,7 @@ class SQLiteEngine(Engine):
         body TEXT NOT NULL DEFAULT '',
         tags TEXT DEFAULT '[]',
         visibility TEXT DEFAULT 'private',
-        status TEXT DEFAULT 'draft',
+        status TEXT DEFAULT 'published',
         created_at INTEGER NOT NULL,
         updated_at INTEGER NOT NULL,
         raft_term INTEGER DEFAULT 0,
@@ -369,6 +369,7 @@ class SQLiteEngine(Engine):
         self._mode = "sqlite"
         self._term = 0
         self._index = 0
+        self._in_transaction = False
     
     async def start(self) -> None:
         """Start the engine"""
@@ -738,8 +739,9 @@ class SQLiteEngine(Engine):
             "INSERT OR REPLACE INTO _meta (key, value) VALUES ('raft_index', ?)",
             (str(self._index),)
         )
-        
-        await self._db.commit()
+
+        if not self._in_transaction:
+            await self._db.commit()
         return record_id
     
     async def delete(self, table: str, record_id: int) -> None:
@@ -756,8 +758,9 @@ class SQLiteEngine(Engine):
                VALUES (?, ?, ?, ?, ?, ?, ?, ?)""",
             (self._term, self._index, now, 'DELETE', table, record_id, b'', '')
         )
-        
-        await self._db.commit()
+
+        if not self._in_transaction:
+            await self._db.commit()
     
     async def query(self, table: str, **filters) -> List[Dict[str, Any]]:
         """Query records"""
@@ -777,7 +780,8 @@ class SQLiteEngine(Engine):
     async def execute(self, sql: str, params: tuple = ()) -> None:
         """Execute raw SQL"""
         await self._db.execute(sql, params)
-        await self._db.commit()
+        if not self._in_transaction:
+            await self._db.commit()
     
     async def fetchone(self, sql: str, params: tuple = ()) -> Optional[Dict[str, Any]]:
         """Fetch one row"""
@@ -794,6 +798,7 @@ class SQLiteEngine(Engine):
     @asynccontextmanager
     async def transaction(self):
         """Transaction context"""
+        self._in_transaction = True
         await self._db.execute("BEGIN")
         try:
             yield
@@ -801,6 +806,8 @@ class SQLiteEngine(Engine):
         except Exception:
             await self._db.rollback()
             raise
+        finally:
+            self._in_transaction = False
     
     async def export(self, since: RaftIndex) -> List[LogEntry]:
         """Export incremental logs for migration"""

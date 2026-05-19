@@ -12,6 +12,9 @@ import aiohttp
 import feedparser
 
 from app.plugin import Plugin, PluginContext, Route
+from app.log import get_logger
+
+log = get_logger("rss")
 
 
 class RssPlugin(Plugin):
@@ -120,7 +123,8 @@ class RssPlugin(Plugin):
                 "INSERT INTO rss_feeds (url, added_by, created_at, updated_at) VALUES (?, ?, ?, ?)",
                 (url, added_by, now, now)
             )
-        except Exception:
+        except Exception as e:
+            log.debug(f"Feed URL already exists: {e}")
             return {"error": "该 Feed URL 已存在"}
 
         row = await self.engine.fetchone(
@@ -223,8 +227,8 @@ class RssPlugin(Plugin):
                         (feed_id, guid, entry_title, link, desc, author, published_at, now, now)
                     )
                     inserted += 1
-                except Exception:
-                    pass
+                except Exception as e:
+                    log.debug(f"Failed to insert RSS item: {e}")
 
             await self.engine.execute(
                 "UPDATE rss_feeds SET title = ?, description = ?, site_url = ?, "

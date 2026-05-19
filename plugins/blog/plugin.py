@@ -5,6 +5,9 @@ import json
 
 from app.plugin import Plugin, PluginContext, MCPTool, MCPResource, MCPPrompt, Route
 from starlette.responses import HTMLResponse
+from app.log import get_logger
+
+log = get_logger("blog")
 
 
 class BlogPlugin(Plugin):
@@ -53,7 +56,7 @@ class BlogPlugin(Plugin):
                     "properties": {
                         "title": {"type": "string", "description": "Post title"},
                         "content": {"type": "string", "description": "Post content (Markdown)"},
-                        "status": {"type": "string", "enum": ["draft", "published"], "default": "draft"},
+                        "status": {"type": "string", "enum": ["draft", "published"], "default": "published"},
                         "tags": {"type": "array", "items": {"type": "string"}}
                     },
                     "required": ["title", "content"]
@@ -150,7 +153,7 @@ Requirements:
         self,
         title: str,
         content: str,
-        status: str = "draft",
+        status: str = "published",
         tags: Optional[List[str]] = None,
         author_id: Optional[int] = None,
         mcp_token: str = None
@@ -542,7 +545,7 @@ Requirements:
         
         title = body.get("title", "").strip() if isinstance(body.get("title"), str) else body.get("title", "")
         content = body.get("body", body.get("content", "")).strip() if isinstance(body.get("body") or body.get("content"), str) else body.get("body", body.get("content", ""))
-        status = body.get("status", "draft")
+        status = body.get("status", "published")
         tags = body.get("tags", [])
         
         if not title or not content:
@@ -598,8 +601,8 @@ Requirements:
                 try:
                     body = await request.json()
                     data = body
-                except Exception:
-                    pass
+                except Exception as e:
+                    log.debug(f"Failed to parse request JSON: {e}")
 
         title = data.get("title")
         content = data.get("body", data.get("content"))

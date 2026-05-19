@@ -125,6 +125,18 @@ MCP 端点异常处理中 `str(e)` 可能泄露堆栈和内部路径。已在上
 
 批量操作（如标签更新、最新评论刷新）已包裹在 `async with self.engine.transaction()` 中。
 
+### 2.3.1 事务嵌套 double-commit 修复 ✅ 已修复
+
+**文件**: `app/storage/sqlite_engine.py`
+
+`put()`、`delete()`、`execute()` 方法无条件调用 `commit()`，在 `transaction()` 块内会提前提交外层事务。已添加 `_in_transaction` 标志位，事务内跳过自动 commit，确保事务原子性。
+
+### 2.3.2 静默异常处理规范化 ✅ 已修复
+
+**文件**: 全项目 46 处
+
+`except Exception: pass` 模式导致错误不可追踪。已为所有插件和核心模块添加 logger，迁移类异常改为 `log.debug`，业务逻辑异常改为 `log.warning`，仅保留日志模块和事务回滚处的静默处理。
+
 ### 2.4 异步日志可靠性 ✅ 已修复
 
 **文件**: `app/log.py`
