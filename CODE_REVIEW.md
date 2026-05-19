@@ -93,6 +93,18 @@ MCP 端点 `/mcp` 的 `tools/call` 方法无需认证即可调用，存在未授
 
 `update_user` 使用黑名单模式仅屏蔽 `password_hash` 和 `id`，攻击者可传入 `role="admin"` 提升权限。已改为白名单模式，仅允许修改 `display_name` 和 `avatar` 字段。
 
+### 1.15 Auth 端点速率限制 ✅ 已修复
+
+**文件**: `app/main.py`
+
+`/auth/login` 和 `/auth/register` 端点无速率限制，可被暴力破解。已添加基于 IP 的速率限制：登录每分钟最多 5 次，注册每分钟最多 3 次。
+
+### 1.16 MCP 错误信息脱敏 ✅ 已修复
+
+**文件**: `app/main.py`
+
+MCP 端点异常处理中 `str(e)` 可能泄露堆栈和内部路径。已在上一批次中通过 JSON-RPC body 类型校验和统一错误响应格式一并处理。
+
 ---
 
 ## 二、代码质量与架构（P1）

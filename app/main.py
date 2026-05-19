@@ -361,6 +361,15 @@ class WorkbenchApp:
         @self.app.post("/auth/login")
         async def auth_login(request: Request):
             """登录API"""
+            client_ip = request.client.host if request.client else "unknown"
+            allowed, remaining = await self._login_limiter.check_and_record(
+                client_ip, self._login_rate_limit_interval
+            )
+            if not allowed:
+                return JSONResponse(
+                    {"error": f"登录尝试过于频繁，请 {remaining} 秒后重试"},
+                    status_code=429
+                )
             auth_plugin = self.plugin_manager.plugins.get("auth")
             if auth_plugin:
                 return await auth_plugin.login_api(request)
@@ -369,6 +378,15 @@ class WorkbenchApp:
         @self.app.post("/auth/register")
         async def auth_register(request: Request):
             """注册API"""
+            client_ip = request.client.host if request.client else "unknown"
+            allowed, remaining = await self._register_limiter.check_and_record(
+                client_ip, self._register_rate_limit_interval
+            )
+            if not allowed:
+                return JSONResponse(
+                    {"error": f"注册请求过于频繁，请 {remaining} 秒后重试"},
+                    status_code=429
+                )
             auth_plugin = self.plugin_manager.plugins.get("auth")
             if auth_plugin:
                 return await auth_plugin.register_api(request)
@@ -622,7 +640,8 @@ class WorkbenchApp:
                 result = await self.mcp_server.handle(method, params)
                 return {"jsonrpc": "2.0", "id": request_id, "result": result}
             except Exception as e:
-                return {"jsonrpc": "2.0", "id": request_id, "error": {"code": -32000, "message": str(e)}}
+                error_msg = str(e) if self._config.debug else "Internal server error"
+                return {"jsonrpc": "2.0", "id": request_id, "error": {"code": -32000, "message": error_msg}}
 
         @self.app.get("/mcp")
         async def mcp_get_handler(request: Request):
@@ -641,6 +660,12 @@ class WorkbenchApp:
         self._mcp_limiter = SlidingWindowRateLimiter(self.engine, key_prefix="mcp:")
         self._mcp_rate_limit_max = 30
         self._mcp_rate_limit_window = 60  # 秒
+
+        # Auth 频率限制
+        self._login_limiter = RateLimiter(self.engine, key_prefix="login:")
+        self._login_rate_limit_interval = 60  # 每分钟最多 5 次
+        self._register_limiter = RateLimiter(self.engine, key_prefix="register:")
+        self._register_rate_limit_interval = 60  # 每分钟最多 3 次
 
         # 全局搜索路由
         @self.app.get("/search", response_class=HTMLResponse)
