@@ -87,7 +87,7 @@
 }
 
 .note-title a:hover {
-    color: var(--primary-color, #10b981);
+    color: #10b981;
 }
 
 .note-excerpt {
@@ -172,7 +172,7 @@
 }
 
 .title-input:focus {
-    border-color: var(--primary-color, #10b981);
+    border-color: #10b981;
 }
 
 .meta-row {
@@ -192,7 +192,7 @@
 }
 
 .meta-input:focus {
-    border-color: var(--primary-color, #10b981);
+    border-color: #10b981;
 }
 
 .visibility-toggle {
@@ -210,7 +210,7 @@
 .visibility-toggle input[type="checkbox"] {
     width: 16px;
     height: 16px;
-    accent-color: var(--primary-color, #10b981);
+    accent-color: #10b981;
 }
 
 .status-bar {

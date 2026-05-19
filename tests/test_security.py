@@ -135,37 +135,29 @@ class TestMarkdownXSS:
 class TestOAuthState:
     """Tests for OAuth CSRF state parameter validation"""
 
-    def test_oauth_states_dict_exists(self):
-        """Auth plugin should have _oauth_states dict"""
+    def test_oauth_state_uses_database(self):
+        """Auth plugin should persist OAuth state to database, not memory"""
+        import inspect
         from plugins.auth.plugin import AuthPlugin
+        # Verify no in-memory _oauth_states dict
         plugin = AuthPlugin()
-        assert hasattr(plugin, '_oauth_states')
-        assert isinstance(plugin._oauth_states, dict)
+        assert not hasattr(plugin, '_oauth_states'), "OAuth state should use database, not memory dict"
 
-    def test_state_stored_with_expiry(self):
+    def test_state_stored_in_site_config(self):
+        """Verify OAuth state storage uses site_config table"""
+        import inspect
         from plugins.auth.plugin import AuthPlugin
-        plugin = AuthPlugin()
-        state = "test_state_123"
-        plugin._oauth_states[state] = time.time() + 600
-        assert state in plugin._oauth_states
-        assert plugin._oauth_states[state] > time.time()
+        source = inspect.getsource(AuthPlugin.get_github_auth_url)
+        assert 'site_config' in source, "OAuth state should be stored in site_config table"
+        assert 'oauth_state:' in source, "OAuth state keys should use oauth_state: prefix"
 
-    def test_expired_state_cleanup(self):
+    def test_state_validated_from_database(self):
+        """Verify OAuth state validation reads from database"""
+        import inspect
         from plugins.auth.plugin import AuthPlugin
-        plugin = AuthPlugin()
-        # Add expired state
-        plugin._oauth_states["expired"] = time.time() - 10
-        # Add valid state
-        plugin._oauth_states["valid"] = time.time() + 600
-
-        # Cleanup expired
-        now = time.time()
-        expired = [s for s, t in plugin._oauth_states.items() if t < now]
-        for s in expired:
-            del plugin._oauth_states[s]
-
-        assert "expired" not in plugin._oauth_states
-        assert "valid" in plugin._oauth_states
+        source = inspect.getsource(AuthPlugin.github_callback)
+        assert 'site_config' in source, "OAuth state validation should read from site_config"
+        assert 'DELETE FROM site_config' in source, "OAuth state should be deleted after use"
 
 
 # ============================================================
@@ -219,6 +211,81 @@ class TestRateLimiting:
         source = inspect.getsource(main_mod)
         # Should have time-based window logic
         assert 'time.time()' in source or 'time' in source
+
+
+class TestMCPAuth:
+    """Tests for MCP endpoint authentication"""
+
+    def test_mcp_auth_gate_exists(self):
+        """MCP tools/call should require authentication"""
+        import inspect
+        import app.main as main_mod
+        source = inspect.getsource(main_mod)
+        # Should check for Bearer token
+        assert 'Bearer' in source
+        # Should have exempt tools for auth
+        assert 'auth_register' in source or 'auth_login' in source
+
+    def test_mcp_auth_exempt_tools(self):
+        """Auth tools should be exempt from token requirement"""
+        import inspect
+        import app.main as main_mod
+        source = inspect.getsource(main_mod)
+        # Should allow auth_register and auth_login without token
+        assert '_NO_AUTH_TOOLS' in source
+
+    def test_mcp_body_validation(self):
+        """MCP endpoint should validate JSON-RPC body type"""
+        import inspect
+        import app.main as main_mod
+        source = inspect.getsource(main_mod)
+        # Should check body is dict
+        assert 'isinstance(body, dict)' in source or 'isinstance(body, Dict)' in source
+
+    def test_mcp_error_sanitization(self):
+        """MCP errors should be sanitized in production"""
+        import inspect
+        import app.main as main_mod
+        source = inspect.getsource(main_mod)
+        # Should not expose internal errors in production
+        assert 'Internal server error' in source
+        # Should check debug mode
+        assert 'debug' in source
+
+
+class TestPromptInjection:
+    """Tests for MCP prompt injection prevention"""
+
+    def test_sanitize_method_exists(self):
+        """MCPServer should have sanitize method"""
+        import inspect
+        from app.mcp.server import WorkbenchMCPServer as MCPServer
+        source = inspect.getsource(MCPServer)
+        assert '_sanitize_template_value' in source
+
+    def test_sanitize_html_entities(self):
+        """Sanitize should encode HTML entities"""
+        from app.mcp.server import WorkbenchMCPServer as MCPServer
+        result = MCPServer._sanitize_template_value('<script>alert("xss")</script>')
+        assert '<' not in result or '&lt;' in result
+        assert '>' not in result or '&gt;' in result
+
+    def test_sanitize_length_truncation(self):
+        """Sanitize should truncate long values"""
+        from app.mcp.server import WorkbenchMCPServer as MCPServer
+        long_value = "a" * 1000
+        result = MCPServer._sanitize_template_value(long_value, max_len=500)
+        assert len(result) <= 500
+
+    def test_sanitize_control_chars(self):
+        """Sanitize should remove control characters"""
+        from app.mcp.server import WorkbenchMCPServer as MCPServer
+        value_with_ctrl = "hello\x00\x01\x02world"
+        result = MCPServer._sanitize_template_value(value_with_ctrl)
+        assert '\x00' not in result
+        assert '\x01' not in result
+        assert 'hello' in result
+        assert 'world' in result
 
 
 # ============================================================

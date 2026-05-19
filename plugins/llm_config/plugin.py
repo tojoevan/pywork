@@ -49,9 +49,10 @@ class LlmConfigPlugin(Plugin):
 
     async def _init_encryption(self) -> None:
         """初始化加密器并迁移已有明文密钥"""
-        from app.crypto import get_or_create_secret_key, make_encryptor
+        from app.crypto import get_or_create_secret_key, make_encryptor, _make_encryptor_old
         secret_key = await get_or_create_secret_key(self.engine)
         self._fernet = make_encryptor(secret_key)
+        self._fernet_old = _make_encryptor_old(secret_key)  # 向后兼容旧迭代次数
         await self._migrate_plaintext_keys()
 
     async def _migrate_plaintext_keys(self) -> None:
@@ -188,7 +189,7 @@ class LlmConfigPlugin(Plugin):
         )
         configs = []
         for row in rows:
-            raw_key = decrypt_value(self._fernet, row.get("api_key", ""))
+            raw_key = decrypt_value(self._fernet, row.get("api_key", ""), old_fernet=self._fernet_old)
             row["api_key_masked"] = self._mask_api_key(raw_key)
             row.pop("api_key", None)
             configs.append(row)
@@ -201,7 +202,7 @@ class LlmConfigPlugin(Plugin):
             "SELECT * FROM llm_configs WHERE id = ?", (config_id,)
         )
         if row:
-            row["api_key"] = decrypt_value(self._fernet, row.get("api_key", ""))
+            row["api_key"] = decrypt_value(self._fernet, row.get("api_key", ""), old_fernet=self._fernet_old)
         return row
 
     async def get_default_config(self) -> Optional[Dict[str, Any]]:
@@ -211,7 +212,7 @@ class LlmConfigPlugin(Plugin):
             "SELECT * FROM llm_configs WHERE is_default = 1 LIMIT 1"
         )
         if row:
-            row["api_key"] = decrypt_value(self._fernet, row.get("api_key", ""))
+            row["api_key"] = decrypt_value(self._fernet, row.get("api_key", ""), old_fernet=self._fernet_old)
         return row
 
     async def create_config(

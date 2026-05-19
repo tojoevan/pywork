@@ -21,7 +21,6 @@ class AuthPlugin(Plugin):
     
     def __init__(self):
         self.sessions: Dict[str, Dict] = {}  # deprecated: session 已迁移到 SQLite，保留空 dict 以防外部引用
-        self._oauth_states: Dict[str, float] = {}  # OAuth state 缓存: {state: expires_at}
         self.engine = None
         self.config = None
 
@@ -368,11 +367,18 @@ class AuthPlugin(Plugin):
         if not state:
             state = secrets.token_urlsafe(16)
 
-        # 存储 state 用于回调验证（10 分钟过期）
-        self._oauth_states[state] = time.time() + 600
+        # 存储 state 用于回调验证（10 分钟过期），持久化到 site_config 支持多 worker
+        now = int(time.time())
+        expires_at = now + 600
+        await self.engine.execute(
+            "INSERT OR REPLACE INTO site_config (key, value) VALUES (?, ?)",
+            (f"oauth_state:{state}", str(expires_at))
+        )
         # 清理过期 state
-        now = time.time()
-        self._oauth_states = {k: v for k, v in self._oauth_states.items() if v > now}
+        await self.engine.execute(
+            "DELETE FROM site_config WHERE key LIKE 'oauth_state:%' AND CAST(value AS INTEGER) < ?",
+            (now,)
+        )
 
         params = {
             "client_id": client_id,
@@ -385,13 +391,22 @@ class AuthPlugin(Plugin):
 
     async def github_callback(self, code: str, state: str = None, base_url: str = None) -> Dict:
         """处理 GitHub OAuth 回调"""
-        # 验证 state 参数防止 CSRF
-        if not state or state not in self._oauth_states:
+        # 验证 state 参数防止 CSRF（从数据库读取）
+        if not state:
             return {"error": "无效的 OAuth state，请重新授权"}
-        if self._oauth_states[state] < time.time():
-            del self._oauth_states[state]
+        row = await self.engine.fetchone(
+            "SELECT value FROM site_config WHERE key = ?", (f"oauth_state:{state}",)
+        )
+        if not row:
+            return {"error": "无效的 OAuth state，请重新授权"}
+        expires_at = int(row["value"])
+        now = int(time.time())
+        # 使用后立即删除，防止重放
+        await self.engine.execute(
+            "DELETE FROM site_config WHERE key = ?", (f"oauth_state:{state}",)
+        )
+        if expires_at < now:
             return {"error": "OAuth state 已过期，请重新授权"}
-        del self._oauth_states[state]
 
         client_id, client_secret, redirect_uri = await self._get_github_config()
         if not client_id or not client_secret:

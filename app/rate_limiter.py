@@ -69,11 +69,18 @@ class RateLimiter:
     async def cleanup(self, max_age: int = 3600) -> int:
         """清理过期记录，返回删除数量"""
         now = int(time.time())
-        cursor = await self._engine.execute(
-            "DELETE FROM rate_limits WHERE expires_at < ?",
+        # 先计数再删除（execute 不返回 cursor）
+        row = await self._engine.fetchone(
+            "SELECT COUNT(*) as cnt FROM rate_limits WHERE expires_at < ?",
             (now,)
         )
-        return cursor.rowcount if cursor else 0
+        count = row["cnt"] if row else 0
+        if count > 0:
+            await self._engine.execute(
+                "DELETE FROM rate_limits WHERE expires_at < ?",
+                (now,)
+            )
+        return count
 
 
 class SlidingWindowRateLimiter:
@@ -144,8 +151,14 @@ class SlidingWindowRateLimiter:
     async def cleanup(self, max_age: int = 3600) -> int:
         """清理过期记录，返回删除数量"""
         now = int(time.time())
-        cursor = await self._engine.execute(
-            "DELETE FROM rate_limits WHERE expires_at < ?",
+        row = await self._engine.fetchone(
+            "SELECT COUNT(*) as cnt FROM rate_limits WHERE expires_at < ?",
             (now,)
         )
-        return cursor.rowcount if cursor else 0
+        count = row["cnt"] if row else 0
+        if count > 0:
+            await self._engine.execute(
+                "DELETE FROM rate_limits WHERE expires_at < ?",
+                (now,)
+            )
+        return count

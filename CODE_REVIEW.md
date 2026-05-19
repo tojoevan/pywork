@@ -171,6 +171,18 @@ MCP 端点异常处理中 `str(e)` 可能泄露堆栈和内部路径。已在上
 
 `hash_token(token) == stored` 使用 Python `==` 比较，非恒定时间。已替换为 `secrets.compare_digest` 防止时序攻击。
 
+### 2.5.4 OAuth State 持久化 ✅ 已修复
+
+**文件**: `plugins/auth/plugin.py`
+
+GitHub OAuth 的 `state` 参数原存储在内存 `_oauth_states` dict 中，多 worker 部署时 state 丢失导致回调失败。已迁移至 `site_config` 表（key 格式 `oauth_state:{state}`，TTL 10 分钟），使用后立即删除防止重放攻击。
+
+### 2.5.5 PBKDF2 迭代次数提升 ✅ 已修复
+
+**文件**: `app/crypto.py`, `plugins/llm_config/plugin.py`
+
+PBKDF2 迭代次数从 100,000 提升至 OWASP 2023 推荐的 600,000。为保持向后兼容，`decrypt_value` 新增 `old_fernet` 参数，解密失败时自动尝试旧密钥（100k 迭代），确保升级后现有加密数据仍可正常读取。
+
 ---
 
 ## 三、性能与可扩展性（P2）
@@ -203,16 +215,22 @@ MCP 端点异常处理中 `str(e)` 可能泄露堆栈和内部路径。已在上
 
 `starlette.responses` 等重复导入从函数体内移到文件顶部，减少每次请求的导入开销。保留 PIL/aiohttp 等重型库的懒加载。
 
+### 3.6 依赖锁定文件 ✅ 已修复
+
+**文件**: `requirements.lock`
+
+`requirements.txt` 仅有 `>=` 约束，无版本锁定，不同时间部署可能安装不同版本导致行为不一致。已生成 `requirements.lock` 精确锁定所有直接依赖和传递依赖的版本，部署时使用 `pip install -r requirements.lock` 确保环境可复现。
+
 ---
 
 ## 四、测试覆盖与文档（P3）
 
-### 4.1 测试现状（2026-05-19）
+### 4.1 测试现状（2026-05-20）
 
 | 模块 | 用例数 | 状态 | 备注 |
 |------|--------|------|------|
 | `plugins/auth/` | 27 | ✅ 全部通过 | |
-| `plugins/blog/` | 44 | ✅ 全部通过 | |
+| `plugins/blog/` | 25 | ✅ 全部通过 | 新增 18 个用例（搜索/过滤/分页/CRUD） |
 | `plugins/comments/` | 54 | ✅ 全部通过 | |
 | `plugins/topic/` | 48 | ✅ 全部通过 | |
 | `plugins/llm_config/` | 27 | ✅ 全部通过 | `_fernet` 属性缺失问题已修复 |
@@ -225,8 +243,9 @@ MCP 端点异常处理中 `str(e)` 可能泄露堆栈和内部路径。已在上
 | `app/template/engine.py` | 40 | ✅ 全部通过 | |
 | `app/utils.py` | 16 | ✅ 全部通过 | |
 | `app/main.py` (RSS) | 47 | ✅ 全部通过 | |
-| 安全功能 | 33 | ✅ 全部通过 | |
-| **合计** | **521** | **✅ 100% 通过** | **所有已知缺陷已清零** |
+| 安全功能 | 41 | ✅ 全部通过 | 新增：MCP 认证门控 + Prompt 注入防护 + 错误脱敏 |
+| `app/rate_limiter.py` | 12 | ✅ 全部通过 | 新增：固定间隔 + 滑动窗口 + 并发测试 |
+| **合计** | **483** | **✅ 100% 通过** | |
 
 ### 4.2 文档同步 ✅ 已完成
 
