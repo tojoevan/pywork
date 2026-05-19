@@ -3,6 +3,7 @@ from typing import List, Dict, Any, Optional
 import time
 import json
 
+from starlette.responses import JSONResponse, HTMLResponse, RedirectResponse
 from app.plugin import Plugin, PluginContext, MCPTool, MCPResource, MCPPrompt, Route
 from app.rate_limiter import RateLimiter
 from app.log import get_logger
@@ -259,7 +260,6 @@ class MicroblogPlugin(Plugin):
     # HTTP handlers
     async def home(self, request, **kwargs):
         """微博首页 - 渲染 HTML 页面"""
-        from starlette.responses import HTMLResponse
 
         posts = await self.list_posts(limit=50)
         

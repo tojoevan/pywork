@@ -282,7 +282,6 @@ class NotesPlugin(Plugin):
     
     async def edit_note_page(self, request, **kwargs):
         """编辑笔记页面"""
-        from starlette.responses import HTMLResponse, RedirectResponse
         
         user = await self.get_current_user(request)
         if not user:

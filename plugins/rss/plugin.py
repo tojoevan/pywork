@@ -11,6 +11,7 @@ from urllib.parse import urlparse
 import aiohttp
 import feedparser
 
+from starlette.responses import JSONResponse, HTMLResponse, RedirectResponse, Response
 from app.plugin import Plugin, PluginContext, Route
 from app.log import get_logger
 
@@ -316,7 +317,6 @@ class RssPlugin(Plugin):
             "pagination": data["pagination"],
             "feeds": feeds,
         })
-        from starlette.responses import HTMLResponse
         return HTMLResponse(html)
 
     async def add_feed_api(self, request, **kwargs):
@@ -329,7 +329,6 @@ class RssPlugin(Plugin):
         result = await self.add_feed(url, user["id"])
         if result.get("error"):
             return self.error_json(result["error"], 400)
-        from starlette.responses import JSONResponse
         return JSONResponse(result)
 
     async def delete_feed_api(self, request, **kwargs):
@@ -343,7 +342,6 @@ class RssPlugin(Plugin):
         if feed["added_by"] != user["id"] and user.get("role") != "admin":
             return self.error_json("无权限删除", 403)
         result = await self.delete_feed(feed_id)
-        from starlette.responses import JSONResponse
         return JSONResponse(result)
 
     async def refresh_feed_api(self, request, **kwargs):
@@ -352,7 +350,6 @@ class RssPlugin(Plugin):
             return self.error_json("未登录", 401)
         feed_id = int(kwargs.get("feed_id", 0))
         result = await self.fetch_feed(feed_id)
-        from starlette.responses import JSONResponse
         return JSONResponse(result)
 
     async def import_opml_api(self, request, **kwargs):
@@ -369,12 +366,10 @@ class RssPlugin(Plugin):
         except Exception as e:
             return self.error_json(f"读取文件失败: {e}", 400)
         result = await self.import_opml(opml_text, user["id"])
-        from starlette.responses import JSONResponse
         return JSONResponse(result)
 
     async def export_opml_api(self, request, **kwargs):
         opml_text = await self.export_opml()
-        from starlette.responses import Response
         return Response(
             content=opml_text,
             media_type="application/xml; charset=utf-8",
@@ -383,11 +378,9 @@ class RssPlugin(Plugin):
 
     async def list_feeds_api(self, request, **kwargs):
         feeds = await self.list_feeds()
-        from starlette.responses import JSONResponse
         return JSONResponse({"feeds": feeds})
 
     async def list_items_api(self, request, **kwargs):
         page = int(kwargs.get("page", 1))
         data = await self.list_items(page=page, per_page=30)
-        from starlette.responses import JSONResponse
         return JSONResponse(data)

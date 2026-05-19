@@ -2,6 +2,7 @@
 import time
 from typing import List, Dict, Any, Optional
 
+from starlette.responses import JSONResponse, HTMLResponse, RedirectResponse
 from app.plugin import Plugin, PluginContext, MCPTool, Route
 from app.log import get_logger
 
@@ -33,7 +34,6 @@ class AboutPlugin(Plugin):
 
     async def about_page(self, request, **kwargs):
         """关于页面"""
-        from starlette.responses import HTMLResponse
 
         # 获取已审核通过的留言
         comments = await self._list_approved_comments()
@@ -64,7 +64,6 @@ class AboutPlugin(Plugin):
 
     async def admin_comments(self, request, **kwargs):
         """管理员留言审核页面"""
-        from starlette.responses import HTMLResponse
 
         if not await self.is_admin(request):
             return self.error_html("403 Forbidden", 403)

@@ -944,7 +944,6 @@ class TopicPlugin(Plugin):
 
         result = await self._do_summarize(topic_id, publish_blog=True)
 
-        from starlette.responses import JSONResponse
         return JSONResponse(result)
 
     async def check_expired_api(self, request, **kwargs):

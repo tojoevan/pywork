@@ -4,6 +4,7 @@ import asyncio
 import sqlite3
 from typing import List, Dict, Any, Optional
 
+from starlette.responses import JSONResponse, HTMLResponse, RedirectResponse
 from app.plugin import Plugin, PluginContext, Route
 from app.log import get_logger
 
@@ -434,7 +435,6 @@ class BoardPlugin(Plugin):
 
     async def run_cron_job_api(self, request, **kwargs) -> "HTMLResponse":
         """手动触发执行一个定时任务"""
-        from starlette.responses import JSONResponse
 
         redirect = await self.require_admin_or_redirect(request)
         if redirect:
@@ -897,7 +897,6 @@ class BoardPlugin(Plugin):
 
     async def cron_page(self, request, **kwargs):
         """定时任务管理页面"""
-        from starlette.responses import HTMLResponse
 
         redirect = await self.require_admin_or_redirect(request)
         if redirect:
@@ -950,7 +949,6 @@ class BoardPlugin(Plugin):
 
     async def list_cron_jobs_api(self, request, **kwargs):
         """GET /board/cron/jobs"""
-        from starlette.responses import JSONResponse
         redirect = await self.require_admin_or_redirect(request)
         if redirect:
             return redirect
@@ -959,7 +957,6 @@ class BoardPlugin(Plugin):
 
     async def create_cron_job(self, request, **kwargs):
         """POST /board/cron/jobs"""
-        from starlette.responses import JSONResponse, RedirectResponse
 
         redirect = await self.require_admin_or_redirect(request)
         if redirect:
@@ -992,7 +989,6 @@ class BoardPlugin(Plugin):
 
     async def update_cron_job(self, request, **kwargs):
         """PUT /board/cron/jobs/{job_id}"""
-        from starlette.responses import JSONResponse
 
         redirect = await self.require_admin_or_redirect(request)
         if redirect:
@@ -1019,7 +1015,6 @@ class BoardPlugin(Plugin):
 
     async def delete_cron_job(self, request, **kwargs):
         """DELETE /board/cron/jobs/{job_id}"""
-        from starlette.responses import JSONResponse
 
         redirect = await self.require_admin_or_redirect(request)
         if redirect:
@@ -1035,7 +1030,6 @@ class BoardPlugin(Plugin):
 
     async def settings_page(self, request, **kwargs):
         """网站设置页面"""
-        from starlette.responses import HTMLResponse
 
         redirect = await self.require_admin_or_redirect(request)
         if redirect:
@@ -1049,7 +1043,6 @@ class BoardPlugin(Plugin):
 
     async def moderation_page(self, request, **kwargs):
         """微博审核页面"""
-        from starlette.responses import HTMLResponse
 
         redirect = await self.require_admin_or_redirect(request)
         if redirect:
@@ -1073,7 +1066,6 @@ class BoardPlugin(Plugin):
 
     async def comments_page(self, request, **kwargs):
         """留言审核页面"""
-        from starlette.responses import HTMLResponse
 
         redirect = await self.require_admin_or_redirect(request)
         if redirect:
@@ -1130,7 +1122,6 @@ class BoardPlugin(Plugin):
 
     async def get_settings_api(self, request, **kwargs):
         """GET /board/settings/api - 获取当前设置"""
-        from starlette.responses import JSONResponse
 
         redirect = await self.require_admin_or_redirect(request)
         if redirect:
@@ -1141,7 +1132,6 @@ class BoardPlugin(Plugin):
 
     async def update_settings_api(self, request, **kwargs):
         """PUT /board/settings/api - 更新设置"""
-        from starlette.responses import JSONResponse
 
         redirect = await self.require_admin_or_redirect(request)
         if redirect:
@@ -1213,7 +1203,6 @@ class BoardPlugin(Plugin):
 
     async def board_page(self, request, **kwargs):
         """看板页面 + 定时任务入口"""
-        from starlette.responses import HTMLResponse
 
         redirect = await self.require_admin_or_redirect(request)
         if redirect:
@@ -1269,7 +1258,6 @@ class BoardPlugin(Plugin):
     # ========================================================
 
     async def create_task(self, request, **kwargs):
-        from starlette.responses import RedirectResponse
         redirect = await self.require_admin_or_redirect(request)
         if redirect:
             return redirect
@@ -1289,7 +1277,6 @@ class BoardPlugin(Plugin):
         return RedirectResponse(url="/board", status_code=302)
 
     async def update_task(self, request, **kwargs):
-        from starlette.responses import JSONResponse
         redirect = await self.require_admin_or_redirect(request)
         if redirect:
             return redirect
@@ -1309,7 +1296,6 @@ class BoardPlugin(Plugin):
         return JSONResponse({"success": True, "task": task})
 
     async def delete_task(self, request, **kwargs):
-        from starlette.responses import JSONResponse
         redirect = await self.require_admin_or_redirect(request)
         if redirect:
             return redirect
@@ -1323,7 +1309,6 @@ class BoardPlugin(Plugin):
 
     async def logs_page(self, request, **kwargs):
         """GET /board/logs — 日志浏览页面（仅管理员）"""
-        from starlette.responses import HTMLResponse
 
         redirect = await self.require_admin_or_redirect(request)
         if redirect:
@@ -1346,7 +1331,6 @@ class BoardPlugin(Plugin):
           offset  — 起始偏移，默认 0
           order   — asc|desc，默认 desc（按时间倒序）
         """
-        from starlette.responses import JSONResponse
 
         redirect = await self.require_admin_or_redirect(request)
         if redirect:
@@ -1405,7 +1389,6 @@ class BoardPlugin(Plugin):
 
         Query params 同 list_logs_api
         """
-        from starlette.responses import JSONResponse
 
         redirect = await self.require_admin_or_redirect(request)
         if redirect:
@@ -1456,12 +1439,10 @@ class BoardPlugin(Plugin):
                 "job_id": request.query_params.get("job_id", ""),
             },
         )
-        from starlette.responses import HTMLResponse
         return HTMLResponse(html)
 
     async def cron_job_logs_api(self, request, **kwargs):
         """GET /board/cron/jobs/{job_id}/logs — 获取指定任务的执行日志"""
-        from starlette.responses import JSONResponse
 
         redirect = await self.require_admin_or_redirect(request)
         if redirect:

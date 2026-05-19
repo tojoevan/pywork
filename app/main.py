@@ -2,6 +2,7 @@
 import asyncio
 import argparse
 import os
+import socket
 import time
 from contextlib import asynccontextmanager
 from datetime import datetime, timezone
@@ -17,10 +18,11 @@ from app.storage import SQLiteEngine
 from app.plugin import PluginManager
 from app.mcp import WorkbenchMCPServer
 from app.template import TemplateEngine
-from app.log import setup_logging, get_logger
+from app.log import setup_logging, get_logger, flush_pending_logs
 from app.config import build_config, AppConfig, SiteConfigManager, config_to_dict
 from app.services.home_service import HomeService
 from app.rate_limiter import RateLimiter, SlidingWindowRateLimiter
+from app.utils import highlight_excerpt
 
 # 模块级 logger
 log = get_logger(__name__, "core")
@@ -171,7 +173,6 @@ class WorkbenchApp:
                 log.warning(f"Plugin {plugin_name} on_stop failed: {e}")
         await self.plugin_manager.shutdown_all()
         log.info("Shutdown complete")
-        from app.log import flush_pending_logs
         flush_pending_logs()
         await self.engine.stop()
 
@@ -539,7 +540,6 @@ class WorkbenchApp:
         @self.app.get("/api/mcp-config")
         async def mcp_config(request: Request):
             """获取 MCP 配置(仅 API 模式,不暴露本地路径)"""
-            import socket
 
             # 获取当前主机信息
             hostname = socket.gethostname()
@@ -1086,7 +1086,6 @@ class WorkbenchApp:
 
     def _highlight_excerpt(self, text: str, query: str, max_len: int = 200) -> str:
         """生成带高亮的摘要"""
-        from app.utils import highlight_excerpt
         return highlight_excerpt(text, query, max_len)
 
     def run_http(self, host: str = "0.0.0.0", port: int = 8080):

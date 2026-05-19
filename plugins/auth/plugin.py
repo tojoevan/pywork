@@ -8,6 +8,7 @@ import secrets
 import hashlib
 import urllib.parse
 from typing import Optional, Dict, Any, List
+from starlette.responses import JSONResponse, HTMLResponse, RedirectResponse
 from app.plugin import Plugin, PluginContext, MCPTool
 from app.storage import Engine
 from app.log import get_logger
@@ -909,7 +910,6 @@ class AuthPlugin(Plugin):
             token = request.headers.get("Authorization", "").replace("Bearer ", "")
         result = await self.logout(token)
         # 返回响应并清除 Cookie
-        from starlette.responses import JSONResponse
         response = JSONResponse(content=result)
         response.delete_cookie("auth_token")
         return response

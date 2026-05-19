@@ -488,7 +488,6 @@ class LlmConfigPlugin(Plugin):
         if redirect:
             return redirect
         configs = await self.list_configs()
-        from starlette.responses import JSONResponse
         return JSONResponse({"configs": configs})
 
     async def create_config_api(self, request, **kwargs):
@@ -568,7 +567,6 @@ class LlmConfigPlugin(Plugin):
 
         config_id = int(kwargs.get("config_id", 0))
         result = await self.test_config(config_id)
-        from starlette.responses import JSONResponse
         return JSONResponse(result)
 
     async def set_default_api(self, request, **kwargs):
@@ -579,5 +577,4 @@ class LlmConfigPlugin(Plugin):
 
         config_id = int(kwargs.get("config_id", 0))
         result = await self.update_config(id=config_id, is_default=True)
-        from starlette.responses import JSONResponse
         return JSONResponse(result)

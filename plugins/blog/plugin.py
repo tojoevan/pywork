@@ -495,12 +495,10 @@ Requirements:
             "post": post,
             "current_user": current_user
         })
-        from starlette.responses import HTMLResponse
         return HTMLResponse(content=html)
     
     async def edit_post_page(self, request, **kwargs):
         """编辑博客页面"""
-        from starlette.responses import HTMLResponse, RedirectResponse
         
         # 检查登录
         current_user = await self.get_current_user(request)

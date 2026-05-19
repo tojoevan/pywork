@@ -9,6 +9,7 @@ Supports:
 import time
 from typing import List, Dict, Any, Optional
 
+from starlette.responses import JSONResponse, HTMLResponse, RedirectResponse
 from app.plugin import Plugin, PluginContext, Route
 from app.log import get_logger
 
@@ -76,7 +77,6 @@ class CommentsPlugin(Plugin):
         Returns approved comments with nested replies.
         If user is logged in, also includes their own pending comments.
         """
-        from starlette.responses import JSONResponse
 
         target_type = request.query_params.get("target_type", request.query_params.get("target", ""))
         target_id = request.query_params.get("target_id", "")
@@ -179,7 +179,6 @@ class CommentsPlugin(Plugin):
         Create a new comment or reply. Requires login.
         New comments default to status='pending'.
         """
-        from starlette.responses import JSONResponse
 
         # Must be logged in
         user = await self.get_current_user(request)
@@ -293,7 +292,6 @@ class CommentsPlugin(Plugin):
 
         Approve or reject a comment. Only the content author can review.
         """
-        from starlette.responses import JSONResponse
 
         user = await self.get_current_user(request)
         if not user:
@@ -366,7 +364,6 @@ class CommentsPlugin(Plugin):
         Delete a comment. Only the comment author or the content author can delete.
         Deleting a top-level comment also deletes all replies.
         """
-        from starlette.responses import JSONResponse
 
         user = await self.get_current_user(request)
         if not user:
@@ -411,7 +408,6 @@ class CommentsPlugin(Plugin):
 
         List pending and rejected comments for the content author.
         """
-        from starlette.responses import JSONResponse
 
         user = await self.get_current_user(request)
         if not user:
@@ -466,7 +462,6 @@ class CommentsPlugin(Plugin):
 
         List all pending/rejected comments across the current user's content.
         """
-        from starlette.responses import JSONResponse
 
         user = await self.get_current_user(request)
         if not user:
@@ -511,7 +506,6 @@ class CommentsPlugin(Plugin):
 
     async def my_pending_comments_page(self, request, **kwargs) -> Any:
         """GET /comments/my-pending - Pending comments management page"""
-        from starlette.responses import HTMLResponse, RedirectResponse
 
         user = await self.get_current_user(request)
         if not user:
@@ -528,7 +522,6 @@ class CommentsPlugin(Plugin):
 
     async def list_notifications(self, request, **kwargs) -> Any:
         """GET /api/notifications?page=1&limit=20"""
-        from starlette.responses import JSONResponse
 
         user = await self.get_current_user(request)
         if not user:
@@ -562,7 +555,6 @@ class CommentsPlugin(Plugin):
 
     async def mark_notification_read(self, request, **kwargs) -> Any:
         """POST /api/notifications/{notification_id}/read"""
-        from starlette.responses import JSONResponse
 
         user = await self.get_current_user(request)
         if not user:
@@ -585,7 +577,6 @@ class CommentsPlugin(Plugin):
 
     async def mark_all_notifications_read(self, request, **kwargs) -> Any:
         """POST /api/notifications/read-all"""
-        from starlette.responses import JSONResponse
 
         user = await self.get_current_user(request)
         if not user:
@@ -600,7 +591,6 @@ class CommentsPlugin(Plugin):
 
     async def unread_count(self, request, **kwargs) -> Any:
         """GET /api/notifications/unread-count"""
-        from starlette.responses import JSONResponse
 
         user = await self.get_current_user(request)
         if not user:
@@ -619,7 +609,6 @@ class CommentsPlugin(Plugin):
 
     async def notifications_page(self, request, **kwargs) -> Any:
         """GET /comments/notifications - Notifications page"""
-        from starlette.responses import HTMLResponse
 
         user = await self.get_current_user(request)
         if not user:
@@ -682,7 +671,6 @@ class CommentsPlugin(Plugin):
         - 目标存在：返回 {"exists": true, "target_url": "..."}
         - 目标不存在：删除通知，返回 {"exists": false, "notif_id": ...}
         """
-        from starlette.responses import JSONResponse
 
         user = await self.get_current_user(request)
         if not user:
@@ -732,7 +720,6 @@ class CommentsPlugin(Plugin):
                 "UPDATE notifications SET is_read = 1 WHERE user_id = ? AND is_read = 0",
                 (user["id"],)
             )
-        from starlette.responses import RedirectResponse
         return RedirectResponse(url="/comments/notifications", status_code=302)
 
     # ------------------------------------------------------------------
