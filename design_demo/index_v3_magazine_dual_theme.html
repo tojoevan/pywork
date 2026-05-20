@@ -1,0 +1,224 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>pyWork - 智能工作台</title>
+    <style>
+        :root {
+            /* 浅色模式变量 */
+            --bg-color: #f4f6f8;
+            --card-bg: #ffffff;
+            --text-primary: #1a202c;
+            --text-secondary: #718096;
+            --accent-color: #00bcd4;
+            --accent-hover: #00acc1;
+            --border-color: #e2e8f0;
+            --shadow-sm: 0 1px 3px rgba(0,0,0,0.1);
+            --shadow-md: 0 4px 6px -1px rgba(0,0,0,0.1);
+            --glass-bg: rgba(255, 255, 255, 0.7);
+        }
+
+        [data-theme="dark"] {
+            /* 深色模式变量 */
+            --bg-color: #0f1011;
+            --card-bg: #191a1b;
+            --text-primary: #f7f8f8;
+            --text-secondary: #8a8f98;
+            --accent-color: #00e5ff;
+            --accent-hover: #00b8d4;
+            --border-color: rgba(255, 255, 255, 0.08);
+            --shadow-sm: 0 1px 3px rgba(0,0,0,0.3);
+            --shadow-md: 0 4px 6px -1px rgba(0,0,0,0.5);
+            --glass-bg: rgba(25, 26, 27, 0.7);
+        }
+
+        * { margin: 0; padding: 0; box-sizing: border-box; transition: background-color 0.3s ease, color 0.3s ease, border-color 0.3s ease; }
+        
+        body {
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+            background-color: var(--bg-color);
+            color: var(--text-primary);
+            height: 100vh;
+            display: flex;
+            overflow: hidden;
+        }
+
+        /* 侧边栏 - 极简导航 */
+        .sidebar {
+            width: 80px;
+            background: var(--card-bg);
+            border-right: 1px solid var(--border-color);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            padding: 24px 0;
+            z-index: 10;
+        }
+
+        .logo { font-weight: 800; font-size: 24px; color: var(--accent-color); margin-bottom: 40px; }
+        
+        .nav-item {
+            width: 48px;
+            height: 48px;
+            border-radius: 12px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin-bottom: 16px;
+            cursor: pointer;
+            color: var(--text-secondary);
+            transition: all 0.2s;
+        }
+
+        .nav-item:hover, .nav-item.active { background: var(--bg-color); color: var(--accent-color); }
+        
+        .theme-toggle {
+            margin-top: auto;
+            cursor: pointer;
+            padding: 10px;
+            border-radius: 50%;
+            background: var(--bg-color);
+        }
+
+        /* 主内容区 - 杂志化网格 */
+        .main-content {
+            flex: 1;
+            padding: 32px;
+            overflow-y: auto;
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            grid-template-rows: repeat(4, 1fr);
+            gap: 24px;
+            max-width: 1600px;
+            margin: 0 auto;
+        }
+
+        .grid-item {
+            background: var(--card-bg);
+            border-radius: 24px;
+            padding: 24px;
+            border: 1px solid var(--border-color);
+            position: relative;
+            overflow: hidden;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .grid-item:hover { transform: translateY(-2px); box-shadow: var(--shadow-md); border-color: var(--accent-color); }
+
+        /* 布局定义 */
+        .hero-section { grid-column: span 2; grid-row: span 2; background: linear-gradient(135deg, var(--card-bg) 0%, var(--bg-color) 100%); }
+        .quick-actions { grid-column: span 1; grid-row: span 2; }
+        .stats-card { grid-column: span 1; grid-row: span 1; }
+        .feed-large { grid-column: span 2; grid-row: span 2; }
+        .mini-widget { grid-column: span 1; grid-row: span 1; }
+
+        /* 排版与细节 */
+        h1 { font-size: 48px; font-weight: 700; letter-spacing: -1px; margin-bottom: 16px; line-height: 1.1; }
+        h2 { font-size: 20px; font-weight: 600; margin-bottom: 12px; color: var(--text-primary); }
+        p { color: var(--text-secondary); font-size: 15px; line-height: 1.6; }
+
+        .action-btn {
+            display: flex;
+            align-items: center;
+            padding: 16px;
+            background: var(--bg-color);
+            border-radius: 16px;
+            margin-bottom: 12px;
+            cursor: pointer;
+            font-weight: 500;
+        }
+        .action-btn:hover { background: var(--accent-color); color: white; }
+
+        .stat-number { font-size: 36px; font-weight: 700; color: var(--accent-color); }
+        .stat-label { font-size: 13px; text-transform: uppercase; letter-spacing: 1px; color: var(--text-secondary); }
+
+        .feed-item { padding: 12px 0; border-bottom: 1px solid var(--border-color); }
+        .feed-tag { display: inline-block; padding: 4px 8px; border-radius: 6px; font-size: 11px; font-weight: 600; background: rgba(0, 188, 212, 0.1); color: var(--accent-color); margin-bottom: 4px; }
+
+        @media (max-width: 1024px) {
+            .main-content { grid-template-columns: 1fr 1fr; }
+            .hero-section, .feed-large { grid-column: span 2; }
+        }
+    </style>
+</head>
+<body data-theme="light">
+
+    <aside class="sidebar">
+        <div class="logo">pw</div>
+        <div class="nav-item active">🏠</div>
+        <div class="nav-item">📝</div>
+        <div class="nav-item">📊</div>
+        <div class="nav-item">⚙️</div>
+        <div class="theme-toggle" onclick="toggleTheme()">🌓</div>
+    </aside>
+
+    <main class="main-content">
+        <!-- 英雄区域：高信息密度与视觉焦点 -->
+        <div class="grid-item hero-section">
+            <span class="feed-tag">DASHBOARD v2.0</span>
+            <h1>高效创作，<br>从此刻开始。</h1>
+            <p>集成微博、博客与笔记的智能中枢。通过数据驱动你的内容生态，让每一次发布都更具影响力。</p>
+        </div>
+
+        <!-- 快速操作：高密度入口 -->
+        <div class="grid-item quick-actions">
+            <h2>快速创作</h2>
+            <div class="action-btn">✍️ 撰写新博客</div>
+            <div class="action-btn">💬 发布一条微博</div>
+            <div class="action-btn">📒 记录灵感笔记</div>
+        </div>
+
+        <!-- 统计数据 -->
+        <div class="grid-item stats-card">
+            <div class="stat-label">本周阅读</div>
+            <div class="stat-number">12.8K</div>
+        </div>
+        <div class="grid-item stats-card">
+            <div class="stat-label">内容总数</div>
+            <div class="stat-number">84</div>
+        </div>
+
+        <!-- 动态流：紧凑列表 -->
+        <div class="grid-item feed-large">
+            <h2>最新动态</h2>
+            <div class="feed-item">
+                <span class="feed-tag">BLOG</span>
+                <p style="font-weight: 500;">每日热榜：2026年5月20日 AI 行业速递</p>
+                <p style="font-size: 12px; margin-top: 4px;">2小时前 · 阅读量 3.2K</p>
+            </div>
+            <div class="feed-item">
+                <span class="feed-tag">MICROBLOG</span>
+                <p style="font-weight: 500;">我悟空，又回来了。测试新的设计风格。</p>
+                <p style="font-size: 12px; margin-top: 4px;">5小时前 · 互动 128</p>
+            </div>
+            <div class="feed-item">
+                <span class="feed-tag">NOTE</span>
+                <p style="font-weight: 500;">关于 Bento Grids 布局的设计思考...</p>
+                <p style="font-size: 12px; margin-top: 4px;">昨天 · 已归档</p>
+            </div>
+        </div>
+
+        <!-- 小组件 -->
+        <div class="grid-item mini-widget">
+            <h2>系统状态</h2>
+            <p style="color: #10b981; font-weight: 600;">● 运行正常</p>
+            <p style="font-size: 12px; margin-top: 8px;">MCP 服务已连接</p>
+        </div>
+        <div class="grid-item mini-widget">
+            <h2>待办事项</h2>
+            <p style="font-size: 13px;">• 优化首页 SEO</p>
+            <p style="font-size: 13px;">• 整理 Q2 资讯</p>
+        </div>
+    </main>
+
+    <script>
+        function toggleTheme() {
+            const body = document.body;
+            const currentTheme = body.getAttribute('data-theme');
+            body.setAttribute('data-theme', currentTheme === 'light' ? 'dark' : 'light');
+        }
+    </script>
+</body>
+</html>

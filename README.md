@@ -761,4 +761,4 @@ inkspcl-pywork.zip (static 目录)
 
 ## 详细文档
 
-- [部署文档](DEPLOY.md) — 完整部署指南、API 参考、MCP 配置、生产升级、回滚方案
+- [部署文档](deploy/DEPLOY.md) — 完整部署指南、API 参考、MCP 配置、生产升级、回滚方案

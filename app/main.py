@@ -42,7 +42,7 @@ class WorkbenchApp:
     ):
         self.db_path = db_path
         self.plugin_dir = plugin_dir
-        self.enabled_plugins = enabled_plugins or ["blog", "auth", "microblog", "about", "notes", "board", "comments", "llm_config", "topic", "nav", "rss"]
+        self.enabled_plugins = enabled_plugins or ["blog", "auth", "microblog", "about", "notes", "board", "comments", "llm_config", "topic", "nav", "rss", "theme_switcher"]
         self.template_dir = template_dir
         self.static_dir = static_dir
 
@@ -180,8 +180,25 @@ class WorkbenchApp:
         """Setup HTTP routes from plugins"""
 
         @self.app.get("/", response_class=HTMLResponse)
-        async def root():
-            """首页"""
+        async def root(request: Request):
+            """首页 - 根据用户偏好返回传统界面或 V7.1 极简界面"""
+            # 获取当前用户
+            auth_plugin = self.plugin_manager.plugins.get("auth")
+            theme_plugin = self.plugin_manager.plugins.get("theme_switcher")
+            
+            if auth_plugin and theme_plugin:
+                token = request.cookies.get("auth_token", "")
+                if token:
+                    user = await auth_plugin.get_user_by_token(token)
+                    if user:
+                        # 获取用户的主题偏好
+                        theme = await theme_plugin.get_user_theme(user["id"])
+                        if theme == "v7":
+                            # 重定向到 V7.1 仪表盘
+                            from starlette.responses import RedirectResponse
+                            return RedirectResponse(url="/v7", status_code=302)
+            
+            # 默认返回传统界面
             data = await self.home_service.get_home_data()
             html = await self.template_engine.render("home.html", {
                 **data,
@@ -867,6 +884,16 @@ class WorkbenchApp:
             })
             return HTMLResponse(content=html)
 
+        # 自动注册所有插件定义的路由
+        for plugin_name, plugin in self.plugin_manager.plugins.items():
+            try:
+                routes = plugin.routes()
+                for route in routes:
+                    self._register_route(route)
+                    log.info(f"Registered route: {route.method} {route.path} (from plugin: {plugin_name})")
+            except Exception as e:
+                log.error(f"Failed to register routes for plugin {plugin_name}: {e}")
+
     def _register_route(self, route):
         """Register a single route
 
@@ -1113,7 +1140,7 @@ def cli():
     parser = argparse.ArgumentParser(description="pyWork - Digital Workbench")
     parser.add_argument("--db", default="./data/pywork.db", help="Database path")
     parser.add_argument("--plugins", default="./plugins", help="Plugin directory")
-    parser.add_argument("--enabled", default="blog,auth,microblog,about,notes,board,comments,llm_config,topic,nav,rss", help="Enabled plugins (comma-separated)")
+    parser.add_argument("--enabled", default="blog,auth,microblog,about,notes,board,comments,llm_config,topic,nav,rss,theme_switcher", help="Enabled plugins (comma-separated)")
     parser.add_argument("--templates", default="./templates", help="Template directory")
     parser.add_argument("--static", default="./static", help="Static files directory")
     parser.add_argument("--http", action="store_true", help="Run HTTP server")

@@ -1,0 +1,317 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>pyWork - 极简高效工作台</title>
+    <style>
+        :root {
+            /* Light Theme Variables */
+            --bg-color: #F5F7FA;
+            --card-bg: #FFFFFF;
+            --text-primary: #1A1D21;
+            --text-secondary: #6B7280;
+            --accent-cyan: #00BCD4;
+            --accent-hover: #00ACC1;
+            --border-color: #E5E7EB;
+            --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.05);
+            --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+            --radius: 16px;
+            --font-sans: 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+        }
+
+        [data-theme="dark"] {
+            /* Dark Theme Variables */
+            --bg-color: #0F1011;
+            --card-bg: #18191A;
+            --text-primary: #F3F4F6;
+            --text-secondary: #9CA3AF;
+            --accent-cyan: #22D3EE;
+            --accent-hover: #06B6D4;
+            --border-color: #27272A;
+            --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.3);
+            --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.4);
+        }
+
+        * { margin: 0; padding: 0; box-sizing: border-box; transition: background-color 0.3s ease, color 0.3s ease, border-color 0.3s ease; }
+        
+        body {
+            font-family: var(--font-sans);
+            background-color: var(--bg-color);
+            color: var(--text-primary);
+            height: 100vh;
+            display: flex;
+            overflow: hidden;
+        }
+
+        /* Sidebar Navigation */
+        .sidebar {
+            width: 80px;
+            background-color: var(--card-bg);
+            border-right: 1px solid var(--border-color);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            padding: 24px 0;
+            z-index: 10;
+        }
+
+        .logo {
+            width: 40px;
+            height: 40px;
+            background: linear-gradient(135deg, var(--accent-cyan), #0097A7);
+            border-radius: 12px;
+            margin-bottom: 40px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            font-weight: bold;
+            font-size: 18px;
+        }
+
+        .nav-item {
+            width: 48px;
+            height: 48px;
+            border-radius: 12px;
+            margin-bottom: 16px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            color: var(--text-secondary);
+            transition: all 0.2s;
+        }
+
+        .nav-item:hover, .nav-item.active {
+            background-color: rgba(0, 188, 212, 0.1);
+            color: var(--accent-cyan);
+        }
+
+        .theme-toggle {
+            margin-top: auto;
+            width: 48px;
+            height: 48px;
+            border-radius: 50%;
+            border: 1px solid var(--border-color);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            color: var(--text-secondary);
+        }
+
+        /* Main Content Grid */
+        .main-content {
+            flex: 1;
+            padding: 32px;
+            overflow-y: auto;
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            grid-template-rows: repeat(3, 1fr);
+            gap: 24px;
+            max-width: 1600px;
+        }
+
+        .card {
+            background-color: var(--card-bg);
+            border-radius: var(--radius);
+            padding: 24px;
+            border: 1px solid var(--border-color);
+            box-shadow: var(--shadow-sm);
+            display: flex;
+            flex-direction: column;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .card:hover {
+            transform: translateY(-2px);
+            box-shadow: var(--shadow-md);
+            border-color: var(--accent-cyan);
+        }
+
+        /* Specific Card Layouts */
+        .hero-card {
+            grid-column: span 2;
+            grid-row: span 2;
+            justify-content: space-between;
+            background: radial-gradient(circle at top right, rgba(0, 188, 212, 0.05), transparent);
+        }
+
+        .quick-actions {
+            grid-column: span 2;
+            grid-row: span 1;
+            display: flex;
+            flex-direction: row;
+            gap: 16px;
+        }
+
+        .action-btn {
+            flex: 1;
+            background-color: var(--bg-color);
+            border: 1px dashed var(--border-color);
+            border-radius: 12px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            transition: all 0.2s;
+            color: var(--text-secondary);
+        }
+
+        .action-btn:hover {
+            border-color: var(--accent-cyan);
+            color: var(--accent-cyan);
+            background-color: rgba(0, 188, 212, 0.05);
+        }
+
+        .stats-card {
+            grid-column: span 1;
+            grid-row: span 1;
+        }
+
+        .feed-card {
+            grid-column: span 2;
+            grid-row: span 2;
+        }
+
+        .status-card {
+            grid-column: span 1;
+            grid-row: span 1;
+        }
+
+        /* Typography & Details */
+        h1 { font-size: 32px; font-weight: 700; letter-spacing: -0.5px; margin-bottom: 8px; }
+        h2 { font-size: 18px; font-weight: 600; margin-bottom: 16px; display: flex; align-items: center; gap: 8px; }
+        p { color: var(--text-secondary); line-height: 1.6; font-size: 15px; }
+        
+        .stat-value { font-size: 36px; font-weight: 800; color: var(--accent-cyan); margin-top: auto; }
+        .stat-label { font-size: 13px; color: var(--text-secondary); text-transform: uppercase; letter-spacing: 1px; }
+
+        .feed-item {
+            padding: 16px 0;
+            border-bottom: 1px solid var(--border-color);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        .feed-item:last-child { border-bottom: none; }
+        .feed-meta { font-size: 12px; color: var(--text-secondary); margin-top: 4px; }
+        .tag { 
+            padding: 4px 8px; 
+            border-radius: 6px; 
+            font-size: 11px; 
+            font-weight: 600; 
+            background-color: rgba(0, 188, 212, 0.1); 
+            color: var(--accent-cyan);
+        }
+
+        /* Icons (SVG placeholders) */
+        .icon { width: 24px; height: 24px; fill: currentColor; }
+    </style>
+</head>
+<body>
+
+    <!-- Sidebar -->
+    <div class="sidebar">
+        <div class="logo">P</div>
+        <div class="nav-item active"><svg class="icon" viewBox="0 0 24 24"><path d="M10 20v-6h4v6h5v-8h3L12 3 2 12h3v8z"/></svg></div>
+        <div class="nav-item"><svg class="icon" viewBox="0 0 24 24"><path d="M19 3H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm-5 14H7v-2h7v2zm3-4H7v-2h10v2zm0-4H7V7h10v2z"/></svg></div>
+        <div class="nav-item"><svg class="icon" viewBox="0 0 24 24"><path d="M20 2H4c-1.1 0-1.99.9-1.99 2L2 22l4-4h14c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2zm-2 12H6v-2h12v2zm0-3H6V9h12v2zm0-3H6V6h12v2z"/></svg></div>
+        <div class="theme-toggle" onclick="toggleTheme()">🌓</div>
+    </div>
+
+    <!-- Main Content -->
+    <div class="main-content">
+        <!-- Hero Section -->
+        <div class="card hero-card">
+            <div>
+                <p style="color: var(--accent-cyan); font-weight: 600; margin-bottom: 8px;">WELCOME BACK, ZHAOZHENG</p>
+                <h1>Focus on what matters.</h1>
+                <p>Your creative workspace is ready. You have 3 pending drafts and 12 new interactions today.</p>
+            </div>
+            <div style="display: flex; gap: 12px; margin-top: 24px;">
+                <button style="padding: 12px 24px; background: var(--accent-cyan); color: white; border: none; border-radius: 8px; font-weight: 600; cursor: pointer;">Resume Work</button>
+                <button style="padding: 12px 24px; background: transparent; border: 1px solid var(--border-color); color: var(--text-primary); border-radius: 8px; font-weight: 600; cursor: pointer;">View Analytics</button>
+            </div>
+        </div>
+
+        <!-- Quick Actions -->
+        <div class="card quick-actions">
+            <div class="action-btn">
+                <svg class="icon" style="margin-bottom: 8px;" viewBox="0 0 24 24"><path d="M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25zM20.71 7.04c.39-.39.39-1.02 0-1.41l-2.34-2.34c-.39-.39-1.02-.39-1.41 0l-1.83 1.83 3.75 3.75 1.83-1.83z"/></svg>
+                <span style="font-size: 13px; font-weight: 600;">New Weibo</span>
+            </div>
+            <div class="action-btn">
+                <svg class="icon" style="margin-bottom: 8px;" viewBox="0 0 24 24"><path d="M14 2H6c-1.1 0-1.99.9-1.99 2L4 20c0 1.1.89 2 1.99 2H18c1.1 0 2-.9 2-2V8l-6-6zm2 16H8v-2h8v2zm0-4H8v-2h8v2zm-3-5V3.5L18.5 9H13z"/></svg>
+                <span style="font-size: 13px; font-weight: 600;">Write Blog</span>
+            </div>
+            <div class="action-btn">
+                <svg class="icon" style="margin-bottom: 8px;" viewBox="0 0 24 24"><path d="M19 3h-4.18C14.4 1.84 13.3 1 12 1c-1.3 0-2.4.84-2.82 2H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm-7 0c.55 0 1 .45 1 1s-.45 1-1 1-1-.45-1-1 .45-1 1-1zm0 4c1.66 0 3 1.34 3 3s-1.34 3-3 3-3-1.34-3-3 1.34-3 3-3zm6 12H6v-1.4c0-2 4-3.1 6-3.1s6 1.1 6 3.1V19z"/></svg>
+                <span style="font-size: 13px; font-weight: 600;">Add Note</span>
+            </div>
+        </div>
+
+        <!-- Stats Cards -->
+        <div class="card stats-card">
+            <span class="stat-label">Total Views</span>
+            <div class="stat-value">128.5K</div>
+            <div style="height: 4px; width: 100%; background: var(--border-color); margin-top: 12px; border-radius: 2px;">
+                <div style="height: 100%; width: 75%; background: var(--accent-cyan); border-radius: 2px;"></div>
+            </div>
+        </div>
+
+        <div class="card stats-card">
+            <span class="stat-label">Active Fans</span>
+            <div class="stat-value">4,291</div>
+            <div style="font-size: 12px; color: #10B981; margin-top: 8px;">↑ 12% this week</div>
+        </div>
+
+        <!-- Feed Section -->
+        <div class="card feed-card">
+            <h2>Latest Activity</h2>
+            <div class="feed-item">
+                <div>
+                    <div style="font-weight: 600;">The future of AI in productivity tools</div>
+                    <div class="feed-meta">Blog • Published 2 hours ago</div>
+                </div>
+                <span class="tag">1.2k views</span>
+            </div>
+            <div class="feed-item">
+                <div>
+                    <div style="font-weight: 600;">Just finished the new design system update!</div>
+                    <div class="feed-meta">Weibo • Posted 5 hours ago</div>
+                </div>
+                <span class="tag">48 likes</span>
+            </div>
+            <div class="feed-item">
+                <div>
+                    <div style="font-weight: 600;">Meeting notes: Q3 Product Roadmap</div>
+                    <div class="feed-meta">Note • Updated yesterday</div>
+                </div>
+                <span class="tag">Internal</span>
+            </div>
+        </div>
+
+        <!-- System Status -->
+        <div class="card status-card">
+            <h2>System</h2>
+            <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 12px;">
+                <div style="width: 8px; height: 8px; background: #10B981; border-radius: 50%;"></div>
+                <span style="font-size: 14px;">All services online</span>
+            </div>
+            <div style="font-size: 13px; color: var(--text-secondary);">Last sync: Just now</div>
+        </div>
+    </div>
+
+    <script>
+        function toggleTheme() {
+            const html = document.documentElement;
+            const current = html.getAttribute('data-theme');
+            html.setAttribute('data-theme', current === 'dark' ? 'light' : 'dark');
+        }
+    </script>
+</body>
+</html>
