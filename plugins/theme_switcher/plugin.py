@@ -143,36 +143,214 @@ class ThemeSwitcherPlugin(Plugin):
         auth_plugin = self._ctx.get_plugin("auth")
         if not auth_plugin:
             return HTMLResponse(content="<h1>Auth plugin not available</h1>", status_code=503)
-        
+
         user = await self.get_current_user(request)
         if not user:
-            # 未登录用户重定向到登录页
             return RedirectResponse(url="/login", status_code=302)
-        
-        # 读取 V7.1 模板文件
+
         import os
         template_path = os.path.join(os.path.dirname(__file__), "templates", "v7_dashboard.html")
-        
-        if os.path.exists(template_path):
-            with open(template_path, "r", encoding="utf-8") as f:
-                html_content = f.read()
 
-            # 获取用户语言偏好
-            user_lang = "cn"  # 默认中文
-            lang_pref = await self.get_user_language(user["id"])
-            if lang_pref == "en-US":
-                user_lang = "en"
-
-            # 替换占位符
-            site_title = getattr(self.config, 'title', 'pyWork') or 'pyWork'
-            html_content = html_content.replace("{{ username }}", user.get("username", "User"))
-            html_content = html_content.replace("{{ display_name }}", user.get("display_name") or user.get("nickname") or user.get("username", "User"))
-            html_content = html_content.replace('{{ user_lang | default("cn") }}', user_lang)
-            html_content = html_content.replace('{{ site_title }}', site_title)
-
-            return HTMLResponse(content=html_content)
-        else:
+        if not os.path.exists(template_path):
             return HTMLResponse(content="<h1>V7 Dashboard template not found</h1>", status_code=500)
+
+        with open(template_path, "r", encoding="utf-8") as f:
+            html_content = f.read()
+
+        # 获取用户语言偏好
+        user_lang = "cn"
+        lang_pref = await self.get_user_language(user["id"])
+        if lang_pref == "en-US":
+            user_lang = "en"
+
+        # 获取统计数据
+        stats = await self._get_dashboard_stats()
+
+        # 获取最近动态
+        recent_items = await self._get_recent_activity(limit=15)
+
+        # 替换占位符
+        site_title = getattr(self.config, 'title', 'pyWork') or 'pyWork'
+        html_content = html_content.replace("{{ username }}", user.get("username", "User"))
+        html_content = html_content.replace("{{ display_name }}", user.get("display_name") or user.get("nickname") or user.get("username", "User"))
+        html_content = html_content.replace('{{ user_lang | default("cn") }}', user_lang)
+        html_content = html_content.replace('{{ site_title }}', site_title)
+
+        # 替换统计数据
+        html_content = html_content.replace('{{ total_posts }}', str(stats["total_posts"]))
+        html_content = html_content.replace('{{ total_notes }}', str(stats["total_notes"]))
+        html_content = html_content.replace('{{ total_microblogs }}', str(stats["total_microblogs"]))
+        html_content = html_content.replace('{{ total_users }}', str(stats["total_users"]))
+        html_content = html_content.replace('{{ draft_count }}', str(stats["draft_count"]))
+        html_content = html_content.replace('{{ comment_count }}', str(stats["comment_count"]))
+
+        # 替换动态列表
+        activity_html = self._render_activity_items(recent_items)
+        html_content = html_content.replace('{{ activity_items }}', activity_html)
+
+        return HTMLResponse(content=html_content)
+
+    async def _get_dashboard_stats(self) -> dict:
+        """获取仪表盘统计数据"""
+        stats = {
+            "total_posts": 0,
+            "total_notes": 0,
+            "total_microblogs": 0,
+            "total_users": 0,
+            "draft_count": 0,
+            "comment_count": 0,
+        }
+
+        try:
+            row = await self.engine.fetchone("SELECT COUNT(*) as cnt FROM blog_posts")
+            stats["total_posts"] = row["cnt"] if row else 0
+        except Exception:
+            pass
+
+        try:
+            row = await self.engine.fetchone("SELECT COUNT(*) as cnt FROM notes")
+            stats["total_notes"] = row["cnt"] if row else 0
+        except Exception:
+            pass
+
+        try:
+            row = await self.engine.fetchone("SELECT COUNT(*) as cnt FROM microblog_posts")
+            stats["total_microblogs"] = row["cnt"] if row else 0
+        except Exception:
+            pass
+
+        try:
+            row = await self.engine.fetchone("SELECT COUNT(*) as cnt FROM users")
+            stats["total_users"] = row["cnt"] if row else 0
+        except Exception:
+            pass
+
+        try:
+            row = await self.engine.fetchone("SELECT COUNT(*) as cnt FROM blog_posts WHERE status = 'draft'")
+            stats["draft_count"] = row["cnt"] if row else 0
+        except Exception:
+            pass
+
+        try:
+            row = await self.engine.fetchone("SELECT COUNT(*) as cnt FROM comments")
+            stats["comment_count"] = row["cnt"] if row else 0
+        except Exception:
+            pass
+
+        return stats
+
+    async def _get_recent_activity(self, limit: int = 15) -> list:
+        """获取最近动态（博客、微博、笔记混合）"""
+        items = []
+
+        # 博客
+        try:
+            rows = await self.engine.fetchall(
+                "SELECT id, title, status, created_at FROM blog_posts ORDER BY created_at DESC LIMIT ?",
+                (limit,)
+            )
+            for row in rows:
+                items.append({
+                    "type": "BLOG",
+                    "id": row["id"],
+                    "title": row["title"],
+                    "status": row["status"],
+                    "created_at": row["created_at"],
+                    "link": f"/blog/view/{row['id']}",
+                })
+        except Exception:
+            pass
+
+        # 微博
+        try:
+            rows = await self.engine.fetchall(
+                "SELECT id, content, created_at FROM microblog_posts ORDER BY created_at DESC LIMIT ?",
+                (limit,)
+            )
+            for row in rows:
+                items.append({
+                    "type": "WEIBO",
+                    "id": row["id"],
+                    "title": row["content"][:60],
+                    "status": "published",
+                    "created_at": row["created_at"],
+                    "link": "/microblog",
+                })
+        except Exception:
+            pass
+
+        # 笔记
+        try:
+            rows = await self.engine.fetchall(
+                "SELECT id, title, visibility, created_at FROM notes ORDER BY created_at DESC LIMIT ?",
+                (limit,)
+            )
+            for row in rows:
+                items.append({
+                    "type": "NOTE",
+                    "id": row["id"],
+                    "title": row["title"] or "无标题",
+                    "status": row["visibility"],
+                    "created_at": row["created_at"],
+                    "link": f"/notes/{row['id']}",
+                })
+        except Exception:
+            pass
+
+        # 按时间排序
+        items.sort(key=lambda x: x["created_at"], reverse=True)
+        return items[:limit]
+
+    def _render_activity_items(self, items: list) -> str:
+        """渲染动态列表 HTML"""
+        if not items:
+            return '<div class="stream-item"><div class="item-time">-</div><div class="item-type">-</div><div class="item-title">暂无数据</div><div class="item-status">-</div></div>'
+
+        html_parts = []
+        for item in items:
+            time_str = self._format_time(item["created_at"])
+            status_html = self._format_status(item["status"])
+            title_escaped = item["title"].replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;").replace('"', "&quot;")
+
+            html_parts.append(
+                f'<a href="{item["link"]}" class="stream-item">'
+                f'<div class="item-time">{time_str}</div>'
+                f'<div class="item-type">{item["type"]}</div>'
+                f'<div class="item-title">{title_escaped}</div>'
+                f'<div class="item-status">{status_html}</div>'
+                f'</a>'
+            )
+
+        return "\n            ".join(html_parts)
+
+    def _format_time(self, timestamp: int) -> str:
+        """格式化时间戳"""
+        if not timestamp:
+            return "-"
+        from datetime import datetime, timezone, timedelta
+        dt = datetime.fromtimestamp(timestamp, tz=timezone(timedelta(hours=8)))
+        now = datetime.now(tz=timezone(timedelta(hours=8)))
+        delta = now - dt
+
+        if delta.days == 0:
+            return dt.strftime("%H:%M")
+        elif delta.days == 1:
+            return "昨天"
+        elif delta.days < 7:
+            return f"{delta.days}天前"
+        else:
+            return dt.strftime("%m/%d")
+
+    def _format_status(self, status: str) -> str:
+        """格式化状态显示"""
+        if status == "public" or status == "published":
+            return '<span class="status-dot"></span>已发布'
+        elif status == "draft":
+            return "草稿"
+        elif status == "private":
+            return "私密"
+        else:
+            return status
     
     async def get_user_theme(self, user_id: int) -> str:
         """获取用户的主题偏好（供其他插件调用）"""

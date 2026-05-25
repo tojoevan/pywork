@@ -14,6 +14,7 @@
             --hover-bg: #f5f5f5;
             --font-main: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
             --font-mono: "SF Mono", "Fira Code", "Roboto Mono", monospace;
+            --font-size: 14px;
         }
 
         [data-theme="dark"] {
@@ -26,9 +27,10 @@
         }
 
         * { margin: 0; padding: 0; box-sizing: border-box; }
-        
+
         body {
             font-family: var(--font-main);
+            font-size: var(--font-size);
             background-color: var(--bg-color);
             color: var(--text-primary);
             height: 100vh;
@@ -38,13 +40,14 @@
             transition: background-color 0.3s ease, color 0.3s ease;
         }
 
-        /* Sidebar - System Monitor */
+        /* Sidebar */
         .sidebar {
             border-right: 1px solid var(--border-color);
             padding: 24px;
             display: flex;
             flex-direction: column;
             gap: 32px;
+            overflow-y: auto;
         }
 
         .logo {
@@ -61,7 +64,7 @@
         }
 
         .monitor-label {
-            font-size: 10px;
+            font-size: var(--font-size);
             text-transform: uppercase;
             letter-spacing: 1px;
             color: var(--text-secondary);
@@ -72,22 +75,8 @@
             display: flex;
             justify-content: space-between;
             align-items: center;
-            font-size: 12px;
+            font-size: var(--font-size);
             font-family: var(--font-mono);
-        }
-
-        .progress-bar {
-            width: 100%;
-            height: 2px;
-            background: var(--border-color);
-            margin-top: 4px;
-            position: relative;
-        }
-
-        .progress-fill {
-            height: 100%;
-            background: var(--accent-color);
-            width: 65%;
         }
 
         /* Language Switcher */
@@ -96,7 +85,7 @@
             padding-top: 24px;
             border-top: 1px solid var(--border-color);
             cursor: pointer;
-            font-size: 11px;
+            font-size: var(--font-size);
             font-family: var(--font-mono);
             color: var(--text-secondary);
             display: flex;
@@ -108,11 +97,12 @@
             color: var(--accent-color);
         }
 
-        /* Main Content - Data Stream */
+        /* Main Content */
         .main-content {
             display: flex;
             flex-direction: column;
             height: 100vh;
+            overflow: hidden;
         }
 
         .header {
@@ -122,17 +112,18 @@
             align-items: center;
             justify-content: space-between;
             padding: 0 32px;
+            flex-shrink: 0;
         }
 
         .header-title {
-            font-size: 14px;
+            font-size: var(--font-size);
             font-weight: 500;
             letter-spacing: 0.5px;
         }
 
         .theme-toggle {
             cursor: pointer;
-            font-size: 12px;
+            font-size: var(--font-size);
             font-family: var(--font-mono);
             color: var(--text-secondary);
         }
@@ -145,10 +136,10 @@
 
         .stream-header {
             display: grid;
-            grid-template-columns: 80px 100px 1fr 120px;
+            grid-template-columns: 80px 80px 1fr 100px;
             padding: 12px 32px;
             border-bottom: 1px solid var(--border-color);
-            font-size: 10px;
+            font-size: var(--font-size);
             text-transform: uppercase;
             letter-spacing: 1px;
             color: var(--text-secondary);
@@ -158,15 +149,22 @@
             z-index: 10;
         }
 
+        .stream-header > div:last-child {
+            text-align: right;
+        }
+
         .stream-item {
             display: grid;
-            grid-template-columns: 80px 100px 1fr 120px;
+            grid-template-columns: 80px 80px 1fr 100px;
             padding: 14px 32px;
             border-bottom: 1px solid var(--border-color);
-            font-size: 13px;
+            font-size: var(--font-size);
             align-items: center;
             cursor: pointer;
             transition: all 0.2s ease;
+            text-decoration: none;
+            color: inherit;
+            line-height: 1.5;
         }
 
         .stream-item:hover {
@@ -180,12 +178,12 @@
         .item-time {
             font-family: var(--font-mono);
             color: var(--text-secondary);
-            font-size: 11px;
+            font-size: var(--font-size);
         }
 
         .item-type {
             font-family: var(--font-mono);
-            font-size: 10px;
+            font-size: var(--font-size);
             padding: 2px 6px;
             border: 1px solid var(--border-color);
             border-radius: 2px;
@@ -195,6 +193,7 @@
 
         .item-title {
             font-weight: 500;
+            font-size: var(--font-size);
             white-space: nowrap;
             overflow: hidden;
             text-overflow: ellipsis;
@@ -203,7 +202,7 @@
         .item-status {
             text-align: right;
             font-family: var(--font-mono);
-            font-size: 11px;
+            font-size: var(--font-size);
             color: var(--text-secondary);
         }
 
@@ -216,7 +215,7 @@
             margin-right: 6px;
         }
 
-        /* Quick Actions Overlay */
+        /* Quick Actions */
         .quick-actions {
             position: fixed;
             bottom: 32px;
@@ -230,7 +229,7 @@
             border: 1px solid var(--border-color);
             color: var(--text-primary);
             padding: 10px 20px;
-            font-size: 12px;
+            font-size: var(--font-size);
             font-family: var(--font-mono);
             cursor: pointer;
             transition: all 0.2s;
@@ -241,42 +240,89 @@
             border-color: var(--accent-color);
             color: var(--accent-color);
         }
+
+        /* Responsive */
+        @media (max-width: 768px) {
+            body {
+                grid-template-columns: 1fr;
+            }
+
+            .sidebar {
+                display: none;
+            }
+
+            .header {
+                padding: 0 16px;
+            }
+
+            .stream-header,
+            .stream-item {
+                grid-template-columns: 60px 60px 1fr 80px;
+                padding: 12px 16px;
+                font-size: 13px;
+            }
+
+            .quick-actions {
+                bottom: 16px;
+                right: 16px;
+                flex-direction: column;
+            }
+
+            .action-btn {
+                padding: 8px 16px;
+                font-size: 13px;
+            }
+        }
+
+        @media (max-width: 480px) {
+            .stream-header,
+            .stream-item {
+                grid-template-columns: 50px 1fr 70px;
+            }
+
+            .item-type {
+                display: none;
+            }
+        }
     </style>
 </head>
 <body>
     <div class="sidebar">
         <div class="logo">{{ site_title }}</div>
-        
-        <div class="monitor-group">
-            <div class="monitor-label" data-i18n="sys_status">System Status</div>
-            <div class="monitor-item">
-                <span data-i18n="storage">Storage</span>
-                <span>65%</span>
-            </div>
-            <div class="progress-bar"><div class="progress-fill"></div></div>
-        </div>
 
         <div class="monitor-group">
-            <div class="monitor-label" data-i18n="today_focus">Today's Focus</div>
+            <div class="monitor-label" data-i18n="sys_status">系统状态</div>
             <div class="monitor-item">
-                <span data-i18n="drafts">Drafts</span>
-                <span style="color: var(--accent-color)">3</span>
+                <span data-i18n="total_posts">博客</span>
+                <span>{{ total_posts }}</span>
             </div>
             <div class="monitor-item">
-                <span data-i18n="pending">Pending</span>
-                <span>12</span>
+                <span data-i18n="total_microblogs">微博</span>
+                <span>{{ total_microblogs }}</span>
+            </div>
+            <div class="monitor-item">
+                <span data-i18n="total_notes">笔记</span>
+                <span>{{ total_notes }}</span>
             </div>
         </div>
 
         <div class="monitor-group">
-            <div class="monitor-label" data-i18n="metrics">Metrics</div>
+            <div class="monitor-label" data-i18n="today_focus">待处理</div>
             <div class="monitor-item">
-                <span data-i18n="total_posts">Total Posts</span>
-                <span>1,248</span>
+                <span data-i18n="drafts">草稿</span>
+                <span style="color: var(--accent-color)">{{ draft_count }}</span>
             </div>
             <div class="monitor-item">
-                <span data-i18n="views">Views</span>
-                <span>48.2k</span>
+                <span data-i18n="pending">评论</span>
+                <span>{{ comment_count }}</span>
+            </div>
+        </div>
+
+        <div class="monitor-group">
+            <div class="monitor-label" data-i18n="metrics">用户</div>
+            <div class="monitor-item">
+                <span data-i18n="total_users">注册用户</span>
+                <span>{{ total_users }}</span>
             </div>
         </div>
 
@@ -300,49 +346,7 @@
                 <div data-i18n="col_status">Status</div>
             </div>
 
-            <!-- Stream Items -->
-            <div class="stream-item">
-                <div class="item-time">10:42 AM</div>
-                <div class="item-type">BLOG</div>
-                <div class="item-title" data-i18n="post_1">The Evolution of Minimalist Design in Enterprise Systems</div>
-                <div class="item-status"><span class="status-dot"></span><span data-i18n="status_pub">Published</span></div>
-            </div>
-            <div class="stream-item">
-                <div class="item-time">09:15 AM</div>
-                <div class="item-type">WEIBO</div>
-                <div class="item-title" data-i18n="post_2">Just shipped the new dashboard layout. Feedback welcome.</div>
-                <div class="item-status"><span data-i18n="likes_1">128 Likes</span></div>
-            </div>
-            <div class="stream-item">
-                <div class="item-time" data-i18n="time_yest">Yesterday</div>
-                <div class="item-type">NOTE</div>
-                <div class="item-title" data-i18n="post_3">Meeting Notes: Q3 Product Roadmap Discussion</div>
-                <div class="item-status" data-i18n="status_edit">Edited</div>
-            </div>
-            <div class="stream-item">
-                <div class="item-time" data-i18n="time_yest">Yesterday</div>
-                <div class="item-type">BLOG</div>
-                <div class="item-title" data-i18n="post_4">Understanding Grid Systems in Modern Web Development</div>
-                <div class="item-status"><span class="status-dot"></span><span data-i18n="status_pub">Published</span></div>
-            </div>
-            <div class="stream-item">
-                <div class="item-time">May 18</div>
-                <div class="item-type">WEIBO</div>
-                <div class="item-title" data-i18n="post_5">Working on a new design system. Less is definitely more.</div>
-                <div class="item-status"><span data-i18n="likes_2">84 Likes</span></div>
-            </div>
-             <div class="stream-item">
-                <div class="item-time">May 18</div>
-                <div class="item-type">NOTE</div>
-                <div class="item-title" data-i18n="post_6">Research: Color Theory for Dark Mode Interfaces</div>
-                <div class="item-status" data-i18n="status_draft">Draft</div>
-            </div>
-             <div class="stream-item">
-                <div class="item-time">May 17</div>
-                <div class="item-type">BLOG</div>
-                <div class="item-title" data-i18n="post_7">Why Swiss Style is Making a Comeback in UI Design</div>
-                <div class="item-status"><span class="status-dot"></span><span data-i18n="status_pub">Published</span></div>
-            </div>
+            {{ activity_items }}
         </div>
 
         <div class="quick-actions">
@@ -355,14 +359,15 @@
     <script>
         const i18n = {
             en: {
-                sys_status: "System Status",
-                storage: "Storage",
-                today_focus: "Today's Focus",
+                sys_status: "Overview",
+                total_posts: "Blog",
+                total_microblogs: "Weibo",
+                total_notes: "Notes",
+                today_focus: "Pending",
                 drafts: "Drafts",
-                pending: "Pending",
-                metrics: "Metrics",
-                total_posts: "Total Posts",
-                views: "Views",
+                pending: "Comments",
+                metrics: "Users",
+                total_users: "Registered",
                 lang_label: "LANGUAGE",
                 header_title: "DATA STREAM // RECENT ACTIVITY",
                 theme_toggle: "LIGHT / DARK",
@@ -370,32 +375,20 @@
                 col_type: "Type",
                 col_content: "Title / Content",
                 col_status: "Status",
-                post_1: "The Evolution of Minimalist Design in Enterprise Systems",
-                post_2: "Just shipped the new dashboard layout. Feedback welcome.",
-                post_3: "Meeting Notes: Q3 Product Roadmap Discussion",
-                post_4: "Understanding Grid Systems in Modern Web Development",
-                post_5: "Working on a new design system. Less is definitely more.",
-                post_6: "Research: Color Theory for Dark Mode Interfaces",
-                post_7: "Why Swiss Style is Making a Comeback in UI Design",
-                status_pub: "Published",
-                likes_1: "128 Likes",
-                time_yest: "Yesterday",
-                status_edit: "Edited",
-                likes_2: "84 Likes",
-                status_draft: "Draft",
                 btn_weibo: "+ New Weibo",
                 btn_blog: "+ Write Blog",
                 btn_note: "+ Add Note"
             },
             cn: {
-                sys_status: "系统状态",
-                storage: "存储空间",
-                today_focus: "今日聚焦",
-                drafts: "草稿箱",
-                pending: "待处理",
-                metrics: "核心指标",
-                total_posts: "总产出",
-                views: "总浏览",
+                sys_status: "概览",
+                total_posts: "博客",
+                total_microblogs: "微博",
+                total_notes: "笔记",
+                today_focus: "待处理",
+                drafts: "草稿",
+                pending: "评论",
+                metrics: "用户",
+                total_users: "注册用户",
                 lang_label: "语言设置",
                 header_title: "数据流 // 最新动态",
                 theme_toggle: "浅色 / 深色",
@@ -403,19 +396,6 @@
                 col_type: "类型",
                 col_content: "标题 / 内容摘要",
                 col_status: "状态",
-                post_1: "企业系统中极简主义设计的演变历程",
-                post_2: "新版仪表盘布局已上线，欢迎反馈。",
-                post_3: "会议纪要：第三季度产品路线图讨论",
-                post_4: "理解现代 Web 开发中的网格系统",
-                post_5: "正在构建新的设计系统。少即是多。",
-                post_6: "研究：深色模式界面的色彩理论应用",
-                post_7: "瑞士国际主义风格为何在 UI 设计中复兴",
-                status_pub: "已发布",
-                likes_1: "128 次点赞",
-                time_yest: "昨天",
-                status_edit: "已编辑",
-                likes_2: "84 次点赞",
-                status_draft: "草稿",
                 btn_weibo: "+ 发布微博",
                 btn_blog: "+ 撰写博客",
                 btn_note: "+ 新建笔记"

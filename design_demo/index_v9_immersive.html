@@ -1,0 +1,283 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>pyWork - Immersive Workspace</title>
+    <style>
+        :root {
+            --bg-color: #f4f5f7;
+            --card-bg: #ffffff;
+            --text-primary: #1a1a1a;
+            --text-secondary: #6b7280;
+            --accent-color: #00bcd4;
+            --border-color: #e5e7eb;
+            --font-mono: 'SF Mono', 'Menlo', 'Monaco', 'Courier New', monospace;
+            --font-sans: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+        }
+
+        [data-theme="dark"] {
+            --bg-color: #0f1011;
+            --card-bg: #161718;
+            --text-primary: #e5e7eb;
+            --text-secondary: #9ca3af;
+            --accent-color: #22d3ee;
+            --border-color: #2d2e30;
+        }
+
+        * { box-sizing: border-box; margin: 0; padding: 0; transition: background-color 0.3s ease, color 0.3s ease; }
+        
+        body {
+            font-family: var(--font-sans);
+            background-color: var(--bg-color);
+            color: var(--text-primary);
+            height: 100vh;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+        }
+
+        /* Header */
+        header {
+            height: 60px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 0 40px;
+            border-bottom: 1px solid var(--border-color);
+            background-color: var(--bg-color);
+        }
+
+        .logo { font-weight: 700; font-size: 18px; letter-spacing: -0.5px; }
+        .logo span { color: var(--accent-color); }
+
+        .controls { display: flex; gap: 20px; font-size: 13px; color: var(--text-secondary); }
+        .control-item { cursor: pointer; }
+        .control-item:hover { color: var(--text-primary); }
+
+        /* Main Layout */
+        main {
+            flex: 1;
+            display: grid;
+            grid-template-columns: 1fr 350px;
+            max-width: 1400px;
+            margin: 0 auto;
+            width: 100%;
+            padding: 40px;
+            gap: 60px;
+        }
+
+        /* Left: Creation Stage */
+        .creation-stage {
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            padding-right: 40px;
+            border-right: 1px solid var(--border-color);
+        }
+
+        .greeting {
+            font-size: 32px;
+            font-weight: 300;
+            margin-bottom: 40px;
+            color: var(--text-primary);
+        }
+
+        .quick-input {
+            background: transparent;
+            border: none;
+            font-size: 24px;
+            width: 100%;
+            outline: none;
+            color: var(--text-primary);
+            font-family: var(--font-sans);
+            resize: none;
+            min-height: 100px;
+        }
+
+        .quick-input::placeholder { color: var(--text-secondary); opacity: 0.5; }
+
+        .action-bar {
+            display: flex;
+            gap: 15px;
+            margin-top: 20px;
+            opacity: 0;
+            transform: translateY(10px);
+            transition: all 0.3s ease;
+        }
+
+        .quick-input:focus ~ .action-bar, .action-bar:hover {
+            opacity: 1;
+            transform: translateY(0);
+        }
+
+        .btn {
+            padding: 8px 16px;
+            border: 1px solid var(--border-color);
+            border-radius: 4px;
+            background: var(--card-bg);
+            color: var(--text-secondary);
+            font-size: 13px;
+            cursor: pointer;
+            font-family: var(--font-mono);
+        }
+
+        .btn:hover { border-color: var(--accent-color); color: var(--accent-color); }
+
+        /* Right: Stream */
+        .stream-section {
+            display: flex;
+            flex-direction: column;
+            gap: 30px;
+        }
+
+        .section-title {
+            font-size: 12px;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            color: var(--text-secondary);
+            font-family: var(--font-mono);
+        }
+
+        .feed-item {
+            padding-bottom: 20px;
+            border-bottom: 1px solid var(--border-color);
+        }
+
+        .feed-meta {
+            font-size: 11px;
+            color: var(--text-secondary);
+            margin-bottom: 8px;
+            font-family: var(--font-mono);
+            display: flex;
+            gap: 10px;
+        }
+
+        .feed-content {
+            font-size: 15px;
+            line-height: 1.6;
+            color: var(--text-primary);
+        }
+
+        .tag {
+            color: var(--accent-color);
+            font-weight: 500;
+        }
+
+        /* Responsive */
+        @media (max-width: 1024px) {
+            main { grid-template-columns: 1fr; padding: 20px; }
+            .creation-stage { border-right: none; border-bottom: 1px solid var(--border-color); padding-bottom: 40px; }
+        }
+    </style>
+</head>
+<body>
+    <header>
+        <div class="logo">py<span>Work</span></div>
+        <div class="controls">
+            <div class="control-item" onclick="toggleTheme()">◐ Theme</div>
+            <div class="control-item" onclick="toggleLang()">EN/CN</div>
+            <div class="control-item">Profile</div>
+        </div>
+    </header>
+
+    <main>
+        <!-- Left: Focus Area -->
+        <section class="creation-stage">
+            <h1 class="greeting" data-i18n="greeting">Good morning, Joe.</h1>
+            <textarea class="quick-input" placeholder="What's on your mind? (Type to start writing...)" data-i18n-placeholder="input_placeholder"></textarea>
+            <div class="action-bar">
+                <button class="btn" data-i18n="btn_microblog">Post Microblog</button>
+                <button class="btn" data-i18n="btn_blog">Write Blog</button>
+                <button class="btn" data-i18n="btn_note">New Note</button>
+            </div>
+        </section>
+
+        <!-- Right: Information Stream -->
+        <section class="stream-section">
+            <div class="section-title" data-i18n="latest_updates">Latest Updates</div>
+            
+            <div class="feed-item">
+                <div class="feed-meta">
+                    <span>10:42 AM</span>
+                    <span class="tag">#Microblog</span>
+                </div>
+                <div class="feed-content" data-i18n="feed_1">
+                    Completed the V8 design iteration. The balance between minimalism and information density is finally achieved.
+                </div>
+            </div>
+
+            <div class="feed-item">
+                <div class="feed-meta">
+                    <span>Yesterday</span>
+                    <span class="tag">#Blog</span>
+                </div>
+                <div class="feed-content" data-i18n="feed_2">
+                    Deep dive into the Swiss Style of web design: How precision grids create a sense of order in digital products.
+                </div>
+            </div>
+
+            <div class="feed-item">
+                <div class="feed-meta">
+                    <span>May 19</span>
+                    <span class="tag">#Note</span>
+                </div>
+                <div class="feed-content" data-i18n="feed_3">
+                    Meeting notes: Discussing the integration of MCP tools into the daily workflow. Action items assigned.
+                </div>
+            </div>
+        </section>
+    </main>
+
+    <script>
+        const i18n = {
+            en: {
+                greeting: "Good morning, Joe.",
+                input_placeholder: "What's on your mind? (Type to start writing...)",
+                btn_microblog: "Post Microblog",
+                btn_blog: "Write Blog",
+                btn_note: "New Note",
+                latest_updates: "Latest Updates",
+                feed_1: "Completed the V8 design iteration. The balance between minimalism and information density is finally achieved.",
+                feed_2: "Deep dive into the Swiss Style of web design: How precision grids create a sense of order in digital products.",
+                feed_3: "Meeting notes: Discussing the integration of MCP tools into the daily workflow. Action items assigned."
+            },
+            cn: {
+                greeting: "早上好，Joe。",
+                input_placeholder: "此刻在想什么？（输入即可开始创作...）",
+                btn_microblog: "发布微博",
+                btn_blog: "撰写博客",
+                btn_note: "新建笔记",
+                latest_updates: "最新动态",
+                feed_1: "完成了 V8 版本的迭代。极简主义与信息密度的平衡终于达成。",
+                feed_2: "深入探讨网页设计的瑞士风格：精密网格如何在数字产品中建立秩序感。",
+                feed_3: "会议纪要：讨论将 MCP 工具集成到日常工作流中。已分配待办事项。"
+            }
+        };
+
+        let currentLang = 'en';
+        let currentTheme = 'light';
+
+        function toggleTheme() {
+            currentTheme = currentTheme === 'light' ? 'dark' : 'light';
+            document.body.setAttribute('data-theme', currentTheme);
+        }
+
+        function toggleLang() {
+            currentLang = currentLang === 'en' ? 'cn' : 'en';
+            updateContent();
+        }
+
+        function updateContent() {
+            document.querySelectorAll('[data-i18n]').forEach(el => {
+                const key = el.getAttribute('data-i18n');
+                if (i18n[currentLang][key]) el.textContent = i18n[currentLang][key];
+            });
+            document.querySelectorAll('[data-i18n-placeholder]').forEach(el => {
+                const key = el.getAttribute('data-i18n-placeholder');
+                if (i18n[currentLang][key]) el.placeholder = i18n[currentLang][key];
+            });
+        }
+    </script>
+</body>
+</html>

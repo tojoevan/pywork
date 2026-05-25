@@ -1,0 +1,194 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>pyWork - V9.1 Dense</title>
+    <style>
+        :root {
+            --bg-color: #f5f7fa;
+            --card-bg: #ffffff;
+            --text-primary: #1a1a1a;
+            --text-secondary: #666666;
+            --accent-color: #00bcd4;
+            --border-color: #e0e0e0;
+            --hover-bg: #f0f9ff;
+            --font-main: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+            --font-mono: "SF Mono", "Monaco", "Inconsolata", "Fira Mono", monospace;
+        }
+
+        [data-theme="dark"] {
+            --bg-color: #0f1011;
+            --card-bg: #161718;
+            --text-primary: #e0e0e0;
+            --text-secondary: #888888;
+            --accent-color: #00bcd4;
+            --border-color: #2a2b2c;
+            --hover-bg: #1c1d1e;
+        }
+
+        * { box-sizing: border-box; margin: 0; padding: 0; transition: background-color 0.3s ease, color 0.3s ease, border-color 0.3s ease; }
+        body { font-family: var(--font-main); background-color: var(--bg-color); color: var(--text-primary); height: 100vh; display: flex; flex-direction: column; overflow: hidden; }
+
+        /* Header */
+        header { height: 60px; border-bottom: 1px solid var(--border-color); display: flex; align-items: center; justify-content: space-between; padding: 0 40px; background-color: var(--card-bg); }
+        .logo { font-size: 20px; font-weight: 700; letter-spacing: -0.5px; color: var(--accent-color); }
+        .nav-controls { display: flex; gap: 20px; align-items: center; font-size: 13px; font-family: var(--font-mono); color: var(--text-secondary); }
+        .control-btn { cursor: pointer; padding: 4px 8px; border-radius: 4px; }
+        .control-btn:hover { background-color: var(--hover-bg); color: var(--accent-color); }
+
+        /* Main Layout */
+        main { flex: 1; display: grid; grid-template-columns: 1fr 380px; gap: 0; overflow: hidden; }
+        
+        /* Left: Creation Stage */
+        .creation-stage { padding: 60px 80px; display: flex; flex-direction: column; border-right: 1px solid var(--border-color); overflow-y: auto; }
+        .stage-header { margin-bottom: 30px; }
+        .stage-title { font-size: 32px; font-weight: 300; letter-spacing: -1px; margin-bottom: 10px; }
+        .stage-subtitle { font-size: 14px; color: var(--text-secondary); font-family: var(--font-mono); }
+        
+        .input-area { position: relative; flex: 1; min-height: 300px; }
+        textarea { width: 100%; height: 100%; border: none; outline: none; background: transparent; font-size: 18px; line-height: 1.6; color: var(--text-primary); resize: none; font-family: var(--font-main); }
+        textarea::placeholder { color: var(--border-color); }
+        
+        .action-bar { display: flex; gap: 15px; margin-top: 20px; opacity: 0; transform: translateY(10px); transition: all 0.3s ease; }
+        .input-area:focus-within .action-bar { opacity: 1; transform: translateY(0); }
+        .btn { padding: 8px 16px; border: 1px solid var(--border-color); background: var(--card-bg); color: var(--text-secondary); font-size: 13px; cursor: pointer; border-radius: 4px; font-family: var(--font-mono); }
+        .btn:hover { border-color: var(--accent-color); color: var(--accent-color); }
+        .btn-primary { background: var(--accent-color); color: #fff; border-color: var(--accent-color); }
+        .btn-primary:hover { background: #00acc1; }
+
+        /* Right: Info Panels */
+        .info-panels { display: flex; flex-direction: column; background-color: var(--bg-color); }
+        .panel { padding: 25px; border-bottom: 1px solid var(--border-color); }
+        .panel:last-child { border-bottom: none; }
+        .panel-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px; }
+        .panel-title { font-size: 12px; font-weight: 600; text-transform: uppercase; letter-spacing: 1px; color: var(--text-secondary); font-family: var(--font-mono); }
+        
+        /* Feed List */
+        .feed-item { padding: 12px 0; border-bottom: 1px solid var(--border-color); cursor: pointer; }
+        .feed-item:last-child { border-bottom: none; }
+        .feed-item:hover .feed-content { color: var(--accent-color); }
+        .feed-meta { font-size: 11px; color: var(--text-secondary); font-family: var(--font-mono); margin-bottom: 4px; display: flex; gap: 10px; }
+        .feed-tag { color: var(--accent-color); }
+        .feed-content { font-size: 14px; line-height: 1.5; color: var(--text-primary); transition: color 0.2s; }
+
+        /* Micro Chart */
+        .chart-row { display: flex; align-items: flex-end; gap: 4px; height: 40px; margin-top: 10px; }
+        .bar { flex: 1; background-color: var(--border-color); border-radius: 2px; transition: height 0.5s ease; }
+        .bar.active { background-color: var(--accent-color); }
+
+        /* Todo List */
+        .todo-item { display: flex; align-items: center; gap: 10px; padding: 8px 0; font-size: 13px; }
+        .checkbox { width: 14px; height: 14px; border: 1px solid var(--border-color); border-radius: 2px; cursor: pointer; }
+        .checkbox.checked { background-color: var(--accent-color); border-color: var(--accent-color); }
+
+        @media (max-width: 1024px) {
+            main { grid-template-columns: 1fr; }
+            .info-panels { display: none; }
+            .creation-stage { padding: 40px; }
+        }
+    </style>
+</head>
+<body>
+    <header>
+        <div class="logo">pyWork.</div>
+        <div class="nav-controls">
+            <span class="control-btn" onclick="toggleLang()">LANG: EN</span>
+            <span class="control-btn" onclick="toggleTheme()">THEME: LIGHT</span>
+            <span class="control-btn">SEARCH ⌘K</span>
+        </div>
+    </header>
+
+    <main>
+        <section class="creation-stage">
+            <div class="stage-header">
+                <h1 class="stage-title" data-i18n="title">Create something new.</h1>
+                <p class="stage-subtitle" data-i18n="subtitle">Focus on what matters. The rest will follow.</p>
+            </div>
+            <div class="input-area">
+                <textarea placeholder="Start typing your thoughts..."></textarea>
+                <div class="action-bar">
+                    <button class="btn btn-primary" data-i18n="publish">Publish</button>
+                    <button class="btn" data-i18n="save_draft">Save Draft</button>
+                    <button class="btn"># Tags</button>
+                </div>
+            </div>
+        </section>
+
+        <aside class="info-panels">
+            <div class="panel">
+                <div class="panel-header">
+                    <span class="panel-title" data-i18n="latest_feed">Latest Feed</span>
+                </div>
+                <div class="feed-list">
+                    <div class="feed-item">
+                        <div class="feed-meta"><span class="feed-tag">BLOG</span><span>10:42 AM</span></div>
+                        <div class="feed-content">Exploring the minimalism in modern web design...</div>
+                    </div>
+                    <div class="feed-item">
+                        <div class="feed-meta"><span class="feed-tag">MICRO</span><span>09:15 AM</span></div>
+                        <div class="feed-content">Just finished the V9.1 layout iteration.</div>
+                    </div>
+                    <div class="feed-item">
+                        <div class="feed-meta"><span class="feed-tag">NOTE</span><span>Yesterday</span></div>
+                        <div class="feed-content">Meeting notes: Q3 product roadmap discussion.</div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="panel">
+                <div class="panel-header">
+                    <span class="panel-title" data-i18n="weekly_trend">Weekly Trend</span>
+                </div>
+                <div class="chart-row">
+                    <div class="bar" style="height: 30%"></div>
+                    <div class="bar" style="height: 50%"></div>
+                    <div class="bar active" style="height: 80%"></div>
+                    <div class="bar" style="height: 40%"></div>
+                    <div class="bar" style="height: 60%"></div>
+                    <div class="bar" style="height: 90%"></div>
+                    <div class="bar" style="height: 70%"></div>
+                </div>
+            </div>
+
+            <div class="panel">
+                <div class="panel-header">
+                    <span class="panel-title" data-i18n="todos">Todos</span>
+                </div>
+                <div class="todo-item">
+                    <div class="checkbox checked"></div>
+                    <span style="text-decoration: line-through; opacity: 0.5;">Review V8 design draft</span>
+                </div>
+                <div class="todo-item">
+                    <div class="checkbox"></div>
+                    <span>Update pyWork documentation</span>
+                </div>
+            </div>
+        </aside>
+    </main>
+
+    <script>
+        const i18n = {
+            en: { title: "Create something new.", subtitle: "Focus on what matters. The rest will follow.", publish: "Publish", save_draft: "Save Draft", latest_feed: "Latest Feed", weekly_trend: "Weekly Trend", todos: "Todos" },
+            cn: { title: "开启新的创作。", subtitle: "专注核心，其余自会随之而来。", publish: "发布", save_draft: "存草稿", latest_feed: "最新动态", weekly_trend: "本周趋势", todos: "待办事项" }
+        };
+        let currentLang = 'en';
+        let currentTheme = 'light';
+
+        function toggleLang() {
+            currentLang = currentLang === 'en' ? 'cn' : 'en';
+            document.querySelector('[onclick="toggleLang()"]').innerText = `LANG: ${currentLang.toUpperCase()}`;
+            document.querySelectorAll('[data-i18n]').forEach(el => {
+                const key = el.getAttribute('data-i18n');
+                if (i18n[currentLang][key]) el.innerText = i18n[currentLang][key];
+            });
+        }
+
+        function toggleTheme() {
+            currentTheme = currentTheme === 'light' ? 'dark' : 'light';
+            document.documentElement.setAttribute('data-theme', currentTheme);
+            document.querySelector('[onclick="toggleTheme()"]').innerText = `THEME: ${currentTheme.toUpperCase()}`;
+        }
+    </script>
+</body>
+</html>
