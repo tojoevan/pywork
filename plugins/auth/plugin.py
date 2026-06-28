@@ -659,8 +659,8 @@ class AuthPlugin(Plugin):
         new_password_hash = f"{new_salt}:{new_hash}"
         now = int(time.time())
         await self.engine.execute(
-            "UPDATE users SET password_hash = ?, updated_at = ? WHERE id = ?",
-            (new_password_hash, now, user_id)
+            "UPDATE users SET password_hash = ? WHERE id = ?",
+            (new_password_hash, user_id)
         )
         
         return {"success": True}
