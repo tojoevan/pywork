@@ -201,6 +201,17 @@
     </div>
 
     <div class="profile-section">
+        <h2>安全设置</h2>
+        <div class="profile-field" style="display:flex;align-items:center;justify-content:space-between;">
+            <div>
+                <label>密码修改</label>
+                <span style="color:#737373; font-size:13px; display:block; margin-top:4px;">定期修改密码有助于保护账号安全</span>
+            </div>
+            <button class="btn-secondary" style="font-size:13px;padding:6px 14px;" onclick="openPasswordModal()">修改密码</button>
+        </div>
+    </div>
+
+    <div class="profile-section">
         <h2>账号绑定</h2>
         <div class="profile-field" style="display:flex;align-items:center;justify-content:space-between;">
             <div>
@@ -303,6 +314,34 @@
     <div class="profile-actions">
         <a href="/" class="btn-secondary">返回首页</a>
         <a href="#" class="btn-danger" id="logout-btn">退出登录</a>
+    </div>
+</div>
+
+<!-- Password Change Modal -->
+<div class="modal-overlay" id="passwordModal">
+    <div class="modal">
+        <div class="modal-header">
+            <div class="modal-icon" style="background: #eab308;">🔒</div>
+            <div>
+                <h3 style="margin: 0; font-size: 16px; color: #111;">修改密码</h3>
+                <p style="margin: 4px 0 0; font-size: 13px; color: #737373;">请填写您的原密码和新密码</p>
+            </div>
+        </div>
+        <div class="modal-body">
+            <div style="margin-bottom: 12px;">
+                <label style="display: block; font-size: 13px; font-weight: 600; color: #525252; margin-bottom: 6px;">原密码</label>
+                <input type="password" id="old-password-input" placeholder="请输入原密码" style="width: 100%; padding: 8px 12px; border: 1px solid #ddd; border-radius: 4px; font-size: 13px;" autocomplete="current-password">
+            </div>
+            <div>
+                <label style="display: block; font-size: 13px; font-weight: 600; color: #525252; margin-bottom: 6px;">新密码</label>
+                <input type="password" id="new-password-input" placeholder="至少8位" style="width: 100%; padding: 8px 12px; border: 1px solid #ddd; border-radius: 4px; font-size: 13px;" autocomplete="new-password">
+            </div>
+            <div id="password-msg" style="color: #ef4444; font-size: 13px; margin-top: 8px; display: none;"></div>
+        </div>
+        <div class="modal-footer">
+            <button class="btn-modal-secondary" onclick="closePasswordModal()">取消</button>
+            <button class="btn-modal-primary" id="btn-submit-password" onclick="submitChangePassword()">确认修改</button>
+        </div>
     </div>
 </div>
 
@@ -544,6 +583,63 @@ function closeShowModal() {
     document.getElementById('showTokenModal').classList.remove('active');
     loadMcpTokens();
 }
+
+function openPasswordModal() {
+    document.getElementById('old-password-input').value = '';
+    document.getElementById('new-password-input').value = '';
+    document.getElementById('password-msg').style.display = 'none';
+    document.getElementById('passwordModal').classList.add('active');
+}
+
+function closePasswordModal() {
+    document.getElementById('passwordModal').classList.remove('active');
+}
+
+async function submitChangePassword() {
+    const oldPassword = document.getElementById('old-password-input').value;
+    const newPassword = document.getElementById('new-password-input').value;
+    const msgEl = document.getElementById('password-msg');
+    const btn = document.getElementById('btn-submit-password');
+
+    if (!oldPassword || !newPassword) {
+        msgEl.textContent = '请填写完整';
+        msgEl.style.display = 'block';
+        return;
+    }
+    if (newPassword.length < 8) {
+        msgEl.textContent = '新密码至少需要8位';
+        msgEl.style.display = 'block';
+        return;
+    }
+
+    btn.disabled = true;
+    btn.textContent = '提交中...';
+    
+    try {
+        const response = await fetch('/auth/change-password', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ old_password: oldPassword, new_password: newPassword })
+        });
+        const data = await response.json();
+        
+        if (data.success) {
+            closePasswordModal();
+            alert('密码修改成功，下次请使用新密码登录。');
+        } else {
+            msgEl.textContent = data.error || '修改失败';
+            msgEl.style.display = 'block';
+        }
+    } catch (e) {
+        console.error(e);
+        msgEl.textContent = '网络错误，请稍后再试';
+        msgEl.style.display = 'block';
+    } finally {
+        btn.disabled = false;
+        btn.textContent = '确认修改';
+    }
+}
+
 function copyGeneratedToken() {
     const token = document.getElementById('generatedToken').textContent;
     navigator.clipboard.writeText(token).then(() => {
@@ -563,6 +659,9 @@ function copyGeneratedToken() {
 // 点击遮罩关闭
 document.getElementById('createTokenModal').addEventListener('click', function(e) {
     if (e.target === this) closeCreateModal();
+});
+document.getElementById('passwordModal').addEventListener('click', function(e) {
+    if (e.target === this) closePasswordModal();
 });
 
 // 退出

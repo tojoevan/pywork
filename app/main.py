@@ -554,6 +554,15 @@ class WorkbenchApp:
                 return JSONResponse(result)
             return JSONResponse({"error": "Auth plugin not loaded"}, status_code=503)
 
+        @self.app.post("/auth/change-password")
+        async def change_password(request: Request):
+            """修改用户密码"""
+            auth_plugin = self.plugin_manager.plugins.get("auth")
+            if auth_plugin:
+                result = await auth_plugin.change_password_api(request)
+                return JSONResponse(result)
+            return JSONResponse({"error": "Auth plugin not loaded"}, status_code=503)
+
         @self.app.get("/api/mcp-config")
         async def mcp_config(request: Request):
             """获取 MCP 配置(仅 API 模式,不暴露本地路径)"""

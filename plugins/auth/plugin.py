@@ -1040,6 +1040,31 @@ class AuthPlugin(Plugin):
         except Exception as e:
             return {"error": f"解绑失败: {str(e)}"}
 
+    async def change_password_api(self, request):
+        """处理修改密码 API 请求"""
+        token = request.cookies.get("auth_token", "")
+        if not token:
+            token = request.headers.get("Authorization", "").replace("Bearer ", "")
+        user = await self.get_user_by_token(token)
+        if not user:
+            return {"error": "未登录"}
+
+        body = await request.json()
+        old_password = body.get("old_password")
+        new_password = body.get("new_password")
+        
+        if not old_password or not new_password:
+            return {"error": "新旧密码不能为空"}
+            
+        if len(new_password) < 8:
+            return {"error": "新密码至少8位"}
+            
+        result = await self.change_password(user["id"], old_password, new_password)
+        if "error" in result:
+            return {"error": result["error"]}
+        
+        return {"success": True}
+
     async def update_nickname_api(self, request):
         """修改昵称 - 每分钟限1次，全局唯一"""
         import re
