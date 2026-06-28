@@ -332,9 +332,13 @@
                 <label style="display: block; font-size: 13px; font-weight: 600; color: #525252; margin-bottom: 6px;">原密码</label>
                 <input type="password" id="old-password-input" placeholder="请输入原密码" style="width: 100%; padding: 8px 12px; border: 1px solid #ddd; border-radius: 4px; font-size: 13px;" autocomplete="current-password">
             </div>
-            <div>
+            <div style="margin-bottom: 12px;">
                 <label style="display: block; font-size: 13px; font-weight: 600; color: #525252; margin-bottom: 6px;">新密码</label>
                 <input type="password" id="new-password-input" placeholder="至少8位" style="width: 100%; padding: 8px 12px; border: 1px solid #ddd; border-radius: 4px; font-size: 13px;" autocomplete="new-password">
+            </div>
+            <div>
+                <label style="display: block; font-size: 13px; font-weight: 600; color: #525252; margin-bottom: 6px;">确认新密码</label>
+                <input type="password" id="confirm-password-input" placeholder="请再次输入新密码" style="width: 100%; padding: 8px 12px; border: 1px solid #ddd; border-radius: 4px; font-size: 13px;" autocomplete="new-password">
             </div>
             <div id="password-msg" style="color: #ef4444; font-size: 13px; margin-top: 8px; display: none;"></div>
         </div>
@@ -587,6 +591,7 @@ function closeShowModal() {
 function openPasswordModal() {
     document.getElementById('old-password-input').value = '';
     document.getElementById('new-password-input').value = '';
+    document.getElementById('confirm-password-input').value = '';
     document.getElementById('password-msg').style.display = 'none';
     document.getElementById('passwordModal').classList.add('active');
 }
@@ -598,11 +603,17 @@ function closePasswordModal() {
 async function submitChangePassword() {
     const oldPassword = document.getElementById('old-password-input').value;
     const newPassword = document.getElementById('new-password-input').value;
+    const confirmPassword = document.getElementById('confirm-password-input').value;
     const msgEl = document.getElementById('password-msg');
     const btn = document.getElementById('btn-submit-password');
 
-    if (!oldPassword || !newPassword) {
+    if (!oldPassword || !newPassword || !confirmPassword) {
         msgEl.textContent = '请填写完整';
+        msgEl.style.display = 'block';
+        return;
+    }
+    if (newPassword !== confirmPassword) {
+        msgEl.textContent = '两次输入的新密码不一致';
         msgEl.style.display = 'block';
         return;
     }

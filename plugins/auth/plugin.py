@@ -656,8 +656,12 @@ class AuthPlugin(Plugin):
         
         # 设置新密码（统一使用 salt:hash 格式）
         new_salt, new_hash = self._hash_password(new_password)
-        user["password_hash"] = f"{new_salt}:{new_hash}"
-        await self.engine.put("users", user_id, user)
+        new_password_hash = f"{new_salt}:{new_hash}"
+        now = int(time.time())
+        await self.engine.execute(
+            "UPDATE users SET password_hash = ?, updated_at = ? WHERE id = ?",
+            (new_password_hash, now, user_id)
+        )
         
         return {"success": True}
     
