@@ -153,6 +153,14 @@ class SlidingWindowRateLimiter:
 
         return True, weighted_count + 1
 
+    async def reset(self, identifier: str) -> None:
+        """清除指定标识符的所有限流记录（登录成功后调用）"""
+        base = f"{self._prefix}{identifier}" if self._prefix else identifier
+        await self._engine.execute(
+            "DELETE FROM rate_limits WHERE key LIKE ?",
+            (f"{base}:%",)
+        )
+
     async def cleanup(self, max_age: int = 3600) -> int:
         """清理过期记录，返回删除数量"""
         now = int(time.time())
