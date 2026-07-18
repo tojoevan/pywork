@@ -859,19 +859,20 @@ class AuthPlugin(Plugin):
                 """)
         return result
     
-    async def login_api(self, request):
+    async def login_api(self, request, login_result=None):
         """登录API"""
-        data = await self._get_request_data(request)
-        result = await self.login(
-            username=data.get("username"),
-            password=data.get("password")
-        )
+        if login_result is None:
+            data = await self._get_request_data(request)
+            login_result = await self.login(
+                username=data.get("username"),
+                password=data.get("password")
+            )
         # 表单提交返回 HTML 响应并设置 Cookie
         content_type = request.headers.get("content-type", "")
         if "application/json" not in content_type:
             from starlette.responses import HTMLResponse
-            if result.get("success"):
-                token = result.get("token")
+            if login_result.get("success"):
+                token = login_result.get("token")
                 response = HTMLResponse(content="""
                     <!DOCTYPE html>
                     <html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><title>登录成功</title>
@@ -902,7 +903,7 @@ class AuthPlugin(Plugin):
                 return response
             else:
                 from markupsafe import escape
-                error_msg = escape(result.get("error", "登录失败"))
+                error_msg = escape(login_result.get("error", "登录失败"))
                 return HTMLResponse(content=f"""
                     <!DOCTYPE html>
                     <html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><title>登录失败</title>
@@ -920,8 +921,8 @@ class AuthPlugin(Plugin):
                         <a href="/login">重新登录</a>
                     </div></body></html>
                 """)
-        return result
-    
+        return login_result
+
     async def logout_api(self, request):
         """登出API - 优先从 Cookie 读取 token"""
         token = request.cookies.get("auth_token", "")
