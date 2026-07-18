@@ -383,26 +383,29 @@ class WorkbenchApp:
             allowed, remaining = await self._login_limiter.check(
                 client_ip, self._login_rate_limit_interval
             )
-            if not allowed:
-                return JSONResponse(
-                    {"error": f"登录尝试过于频繁，请 {remaining} 秒后重试"},
-                    status_code=429
-                )
+
             auth_plugin = self.plugin_manager.plugins.get("auth")
             if not auth_plugin:
                 return JSONResponse({"error": "Auth plugin not loaded"}, status_code=503)
 
-            # 执行登录获取结果
+            # 先执行登录（无论限流与否，先验证密码）
             data = await auth_plugin._get_request_data(request)
             result = await auth_plugin.login(
                 username=data.get("username"),
                 password=data.get("password")
             )
 
-            # 仅失败计数，成功重置（正确密码后立即解除限制）
             if result.get("success"):
+                # 密码正确：清除限流记录，立即放行
                 await self._login_limiter.reset(client_ip)
+            elif not allowed:
+                # 密码错误 + 已被限流：返回限流错误
+                return JSONResponse(
+                    {"error": f"登录尝试过于频繁，请 {remaining} 秒后重试"},
+                    status_code=429
+                )
             else:
+                # 密码错误 + 未限流：记录本次失败
                 await self._login_limiter.record(client_ip, self._login_rate_limit_interval)
 
             # 格式化响应
