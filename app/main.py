@@ -380,33 +380,31 @@ class WorkbenchApp:
         async def auth_login(request: Request):
             """登录API"""
             client_ip = request.client.host if request.client else "unknown"
-            allowed, remaining = await self._login_limiter.check(
-                client_ip, self._login_rate_limit_interval
+
+            # 滑动窗口限流检查（超过阈值则不执行登录，直接拒绝）
+            allowed, _ = await self._login_limiter.check_and_record(
+                client_ip, self._login_rate_limit_max, self._login_rate_limit_window
             )
+            if not allowed:
+                return JSONResponse(
+                    {"error": "登录尝试过于频繁，请稍后重试"},
+                    status_code=429
+                )
 
             auth_plugin = self.plugin_manager.plugins.get("auth")
             if not auth_plugin:
                 return JSONResponse({"error": "Auth plugin not loaded"}, status_code=503)
 
-            # 先执行登录（无论限流与否，先验证密码）
+            # 执行登录
             data = await auth_plugin._get_request_data(request)
             result = await auth_plugin.login(
                 username=data.get("username"),
                 password=data.get("password")
             )
 
+            # 成功则重置计数器（后续尝试不计入限流）
             if result.get("success"):
-                # 密码正确：清除限流记录，立即放行
                 await self._login_limiter.reset(client_ip)
-            elif not allowed:
-                # 密码错误 + 已被限流：返回限流错误
-                return JSONResponse(
-                    {"error": f"登录尝试过于频繁，请 {remaining} 秒后重试"},
-                    status_code=429
-                )
-            else:
-                # 密码错误 + 未限流：记录本次失败
-                await self._login_limiter.record(client_ip, self._login_rate_limit_interval)
 
             # 格式化响应
             return await auth_plugin.login_api(request, login_result=result)
@@ -707,8 +705,9 @@ class WorkbenchApp:
         self._mcp_rate_limit_window = 60  # 秒
 
         # Auth 频率限制
-        self._login_limiter = RateLimiter(self.engine, key_prefix="login:")
-        self._login_rate_limit_interval = 60  # 每分钟最多 5 次
+        self._login_limiter = SlidingWindowRateLimiter(self.engine, key_prefix="login:")
+        self._login_rate_limit_max = 5
+        self._login_rate_limit_window = 60  # 5 次/60 秒
         self._register_limiter = RateLimiter(self.engine, key_prefix="register:")
         self._register_rate_limit_interval = 60  # 每分钟最多 3 次
 
