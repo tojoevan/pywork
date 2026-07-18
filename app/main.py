@@ -380,7 +380,7 @@ class WorkbenchApp:
         async def auth_login(request: Request):
             """登录API"""
             client_ip = request.client.host if request.client else "unknown"
-            allowed, remaining = await self._login_limiter.check_and_record(
+            allowed, remaining = await self._login_limiter.check(
                 client_ip, self._login_rate_limit_interval
             )
             if not allowed:
@@ -389,9 +389,24 @@ class WorkbenchApp:
                     status_code=429
                 )
             auth_plugin = self.plugin_manager.plugins.get("auth")
-            if auth_plugin:
-                return await auth_plugin.login_api(request)
-            return JSONResponse({"error": "Auth plugin not loaded"}, status_code=503)
+            if not auth_plugin:
+                return JSONResponse({"error": "Auth plugin not loaded"}, status_code=503)
+
+            # 执行登录获取结果
+            data = await auth_plugin._get_request_data(request)
+            result = await auth_plugin.login(
+                username=data.get("username"),
+                password=data.get("password")
+            )
+
+            # 仅失败计数，成功重置（正确密码后立即解除限制）
+            if result.get("success"):
+                await self._login_limiter.reset(client_ip)
+            else:
+                await self._login_limiter.record(client_ip, self._login_rate_limit_interval)
+
+            # 格式化响应
+            return await auth_plugin.login_api(request, login_result=result)
 
         @self.app.post("/auth/register")
         async def auth_register(request: Request):

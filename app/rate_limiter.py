@@ -66,6 +66,11 @@ class RateLimiter:
         )
         return True, 0
 
+    async def reset(self, identifier: str) -> None:
+        """清除指定标识符的速率限制记录（如登录成功后调用）"""
+        key = self._make_key(identifier)
+        await self._engine.execute("DELETE FROM rate_limits WHERE key = ?", (key,))
+
     async def cleanup(self, max_age: int = 3600) -> int:
         """清理过期记录，返回删除数量"""
         now = int(time.time())
