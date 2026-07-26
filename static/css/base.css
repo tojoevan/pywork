@@ -164,7 +164,7 @@ a:hover {
 /* ── Main Content ── */
 .main-content {
     min-height: calc(100vh - 200px);
-    padding: 2rem 0;
+    padding: calc(56px + 2rem) 0 2rem 0;  /* top: topbar 56px + spacing */
 }
 
 /* ── Footer ── */
