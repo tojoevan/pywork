@@ -112,7 +112,7 @@ function initMobileMenu() {
     }
 }
 
-// 移动端键盘弹出修正：兼容 Android 软键盘弹出视口压缩及 fixed 导航栏遮挡
+// 移动端键盘弹出修正：单向位移补齐，绝不反复上下拉扯
 function initComposeScrollFix() {
     if (!window.visualViewport) return;
     window.visualViewport.addEventListener('resize', function() {
@@ -122,9 +122,11 @@ function initComposeScrollFix() {
         if (!box) return;
         // 获取输入框相对当前视口的 Top 坐标
         var rect = box.getBoundingClientRect();
-        // 56px 固定导航栏 + 10px 缓冲。若小于 66px 说明被导航栏盖住，精确补齐差值
-        if (rect.top < 66) {
-            window.scrollBy(0, rect.top - 70);
+        // 56px 固定导航栏。如果 Top 小于 70px 说明被导航栏盖住或靠太近
+        // 仅执行一次单向向上补齐：直接加上 (70 - rect.top) 正数偏差量向上推
+        if (rect.top < 70) {
+            var needOffset = 70 - rect.top;
+            window.scrollBy({ top: -needOffset, behavior: 'instant' });
         }
     });
 }
