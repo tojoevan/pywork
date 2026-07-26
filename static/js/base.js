@@ -121,16 +121,15 @@ function initComposeScrollFix() {
         var box = activeEl.closest('.compose-box, .home-compose');
         if (!box) return;
 
-        // 1. 目标绝对 Top 坐标：56px (fixed topbar) + 14px (安全留白) = 70px
-        var TARGET_TOP = 70;
+        // 目标绝对 Top 坐标：56px (fixed topbar) + 34px (充裕安全留白) = 90px
+        var TARGET_TOP = 90;
         
-        // 2. getBoundingClientRect().top 直接代表 box 距离可视视口顶部的当前真实距离
         var currentTop = box.getBoundingClientRect().top;
 
-        // 3. 仅当输入框头部被盖在 56px 导航栏下方/贴太近时，精准补齐相差的遮挡值
+        // 当 currentTop 小于 TARGET_TOP 时补齐遮挡补偿值，正向增加 scrollTop
         if (currentTop < TARGET_TOP) {
-            var needScrollUp = TARGET_TOP - currentTop;
-            window.scrollBy(0, -needScrollUp);
+            var scrollDelta = TARGET_TOP - currentTop;
+            window.scrollBy(0, scrollDelta);
         }
     });
 }
