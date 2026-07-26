@@ -112,47 +112,16 @@ function initMobileMenu() {
     }
 }
 
-// 移动端焦点修正：focus 预定位 + keyboard 弹出后二次校正，消除遮挡
+// 移动端焦点修正：滚动距离 = 当前位置距顶部 - 顶栏高度(56px)
 function initComposeScrollFix() {
-    var active = null;
-    var resizeTimer = null;
-
-    function correct() {
-        if (!active) return;
-        var vOffset = window.visualViewport ? window.visualViewport.offsetTop : 0;
-        var docTop = active.box.getBoundingClientRect().top + window.scrollY + vOffset;
-        window.scrollTo(0, docTop - active.target);
-    }
-
-    function onResize() {
-        if (!active) return;
-        if (resizeTimer) clearTimeout(resizeTimer);
-        resizeTimer = setTimeout(correct, 200);
-    }
-
     function onFocus() {
         var box = this.closest('.compose-box, .home-compose');
         if (!box) return;
-        active = {
-            box: box,
-            target: this.id === 'homeComposeText' ? 88 : 160
-        };
-        // 1. 键盘弹出前预先定位（消除可见跳动）
-        correct();
+        window.scrollBy(0, box.getBoundingClientRect().top - 56);
     }
-
-    function onBlur() {
-        active = null;
-    }
-
-    if (window.visualViewport) {
-        window.visualViewport.addEventListener('resize', onResize);
-    }
-
-    var el1 = document.getElementById('composeText');
-    var el2 = document.getElementById('homeComposeText');
-    if (el1) { el1.addEventListener('focus', onFocus); el1.addEventListener('blur', onBlur); }
-    if (el2) { el2.addEventListener('focus', onFocus); el2.addEventListener('blur', onBlur); }
+    var textarea = document.getElementById('composeText') ||
+                   document.getElementById('homeComposeText');
+    if (textarea) textarea.addEventListener('focus', onFocus);
 }
 
 // 工具函数
