@@ -17,7 +17,11 @@
 
 @media (max-width: 768px) {
     .microblog-header {
-        display: none;
+        margin-bottom: 1rem;
+        padding-bottom: 1rem;
+    }
+    .microblog-header h1 {
+        font-size: 1.6rem;
     }
 }
 
