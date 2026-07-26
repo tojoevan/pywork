@@ -114,23 +114,23 @@ function initMobileMenu() {
 
 // 移动端键盘弹出后修正发布框位置，避免被 fixed topbar 遮挡
 function initComposeScrollFix() {
-    if (!window.visualViewport) return;
-    window.visualViewport.addEventListener('resize', function() {
+    function fixNow() {
         var el = document.getElementById('composeText') || document.getElementById('homeComposeText');
         if (!el || el !== document.activeElement) return;
         var box = el.closest('.compose-box, .home-compose');
         if (!box) return;
-        var targetVisual = el.id === 'homeComposeText' ? 88 : 160;
-        var attempts = 0, iv = setInterval(function() {
-            var top = box.getBoundingClientRect().top - window.visualViewport.offsetTop;
-            attempts++;
-            if (attempts >= 22) {
-                clearInterval(iv);
-                if (top < 70 && top > -500) {
-                    window.scrollTo(0, box.getBoundingClientRect().top + window.scrollY - targetVisual);
-                }
-            }
-        }, 50);
+        var visualTop = box.getBoundingClientRect().top - (window.visualViewport ? window.visualViewport.offsetTop : 0);
+        var target = el.id === 'homeComposeText' ? 88 : 160;
+        if (visualTop < 70 && visualTop > -500) {
+            window.scrollTo(0, box.getBoundingClientRect().top + window.scrollY - target);
+        }
+    }
+    // visualViewport.resize + window.resize 双保险
+    var evtSrc = window.visualViewport || window;
+    evtSrc.addEventListener('resize', function() {
+        setTimeout(fixNow, 200);
+        setTimeout(fixNow, 600);
+        setTimeout(fixNow, 1200);
     });
 }
 
