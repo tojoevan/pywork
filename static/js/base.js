@@ -112,7 +112,7 @@ function initMobileMenu() {
     }
 }
 
-// 移动端键盘弹出修正：基于物理坐标精准计算 offset 补偿值
+// 移动端键盘弹出修正：精准补齐 topbar 遮挡，防止向上滚动过度
 function initComposeScrollFix() {
     if (!window.visualViewport) return;
     window.visualViewport.addEventListener('resize', function() {
@@ -121,15 +121,14 @@ function initComposeScrollFix() {
         var box = activeEl.closest('.compose-box, .home-compose');
         if (!box) return;
 
-        // 目标绝对 Top 坐标：56px (fixed topbar) + 34px (充裕安全留白) = 90px
-        var TARGET_TOP = 90;
+        // 目标绝对 Top 坐标：56px (fixed topbar) + 14px (安全留白) = 70px
+        var TARGET_TOP = 70;
         
         var currentTop = box.getBoundingClientRect().top;
 
-        // 当 currentTop 小于 TARGET_TOP 时补齐遮挡补偿值，正向增加 scrollTop
+        // 当 currentTop < TARGET_TOP 时，说明元素落入导航栏遮挡区，需要把内容向上滚入可视区 (y 轴位移 = currentTop - TARGET_TOP，即负值)
         if (currentTop < TARGET_TOP) {
-            var scrollDelta = TARGET_TOP - currentTop;
-            window.scrollBy(0, scrollDelta);
+            window.scrollBy(0, currentTop - TARGET_TOP);
         }
     });
 }
