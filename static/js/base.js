@@ -112,16 +112,35 @@ function initMobileMenu() {
     }
 }
 
-// 移动端焦点修正：滚动距离 = 当前位置距顶部 - 顶栏高度(56px)
+// 移动端焦点修正：scrollBy(top - 106)，focus 预定位 + resize 二次校正
 function initComposeScrollFix() {
-    function onFocus() {
-        var box = this.closest('.compose-box, .home-compose');
-        if (!box) return;
-        window.scrollBy(0, box.getBoundingClientRect().top - 56);
+    var active = null;
+    var timer = null;
+
+    function scroll() {
+        if (!active) return;
+        window.scrollBy(0, active.getBoundingClientRect().top - 106);
     }
-    var textarea = document.getElementById('composeText') ||
-                   document.getElementById('homeComposeText');
-    if (textarea) textarea.addEventListener('focus', onFocus);
+
+    function onResize() {
+        if (timer) clearTimeout(timer);
+        timer = setTimeout(scroll, 200);
+    }
+
+    function onFocus() {
+        active = this.closest('.compose-box, .home-compose');
+        if (active) scroll();
+    }
+
+    function onBlur() { active = null; }
+
+    if (window.visualViewport) {
+        window.visualViewport.addEventListener('resize', onResize);
+    }
+
+    var el = document.getElementById('composeText') ||
+             document.getElementById('homeComposeText');
+    if (el) { el.addEventListener('focus', onFocus); el.addEventListener('blur', onBlur); }
 }
 
 // 工具函数
