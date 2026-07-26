@@ -119,10 +119,12 @@ function initComposeScrollFix() {
         if (!el || el !== document.activeElement) return;
         var box = el.closest('.compose-box, .home-compose');
         if (!box) return;
-        var visualTop = box.getBoundingClientRect().top - (window.visualViewport ? window.visualViewport.offsetTop : 0);
+        var rectTop = box.getBoundingClientRect().top;
+        var offset = window.visualViewport ? window.visualViewport.offsetTop : 0;
+        var visualTop = rectTop - offset;
         var target = el.id === 'homeComposeText' ? 88 : 160;
         if (visualTop < 70 && visualTop > -500) {
-            window.scrollTo(0, box.getBoundingClientRect().top + window.scrollY - target);
+            window.scrollBy(0, visualTop - target);
         }
     }
     // visualViewport.resize + window.resize 双保险
