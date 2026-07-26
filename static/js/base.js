@@ -112,24 +112,28 @@ function initMobileMenu() {
     }
 }
 
-// 移动端键盘弹出后修正 compose box 位置
+// 移动端键盘弹出修正：基于物理坐标精准计算 offset 补偿值
 function initComposeScrollFix() {
-    var ids = ['composeText', 'homeComposeText'];
-    ids.forEach(function(id) {
-        var el = document.getElementById(id);
-        if (!el) return;
-        el.addEventListener('focus', function() {
-            var box = el.closest('.compose-box, .home-compose');
-            if (!box) return;
-            // 延迟 350ms 等移动端软键盘推开视口并稳定后定位
-            setTimeout(function() {
-                var rect = box.getBoundingClientRect();
-                // 顶部固定导航栏高度为 56px，如果低于 70px（说明被导航栏遮挡）或超出视口下方，强行按 scroll-margin-top 75px 顶格对齐
-                if (rect.top < 70 || rect.top > (window.innerHeight || document.documentElement.clientHeight) - 100) {
-                    box.scrollIntoView({ behavior: 'smooth', block: 'start' });
-                }
-            }, 350);
-        });
+    if (!window.visualViewport) return;
+    window.visualViewport.addEventListener('resize', function() {
+        var activeEl = document.activeElement;
+        if (!activeEl || (activeEl.id !== 'composeText' && activeEl.id !== 'homeComposeText')) return;
+        var box = activeEl.closest('.compose-box, .home-compose');
+        if (!box) return;
+
+        // 1. 目标绝对 Top 坐标：56px (fixed topbar) + 14px (安全留白) = 70px
+        var TARGET_TOP = 70;
+        
+        // 2. 考虑 visualViewport.offsetTop (iOS/Android 软键盘推开视口时的滚动偏移)
+        var visualTop = box.getBoundingClientRect().top - (window.visualViewport.offsetTop || 0);
+
+        // 3. 计算唯一绝对补偿值：若处于遮挡区 (visualTop < TARGET_TOP)
+        var compensation = TARGET_TOP - visualTop;
+
+        // 4. 仅当存在有效正数遮挡补偿值时，单向向上补齐 delta
+        if (compensation > 0) {
+            window.scrollBy({ top: -compensation, behavior: 'instant' });
+        }
     });
 }
 
