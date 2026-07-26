@@ -112,22 +112,47 @@ function initMobileMenu() {
     }
 }
 
-// 移动端焦点修正：focus 时计算文档绝对坐标，scrollTo 一步到位
+// 移动端焦点修正：focus 预定位 + keyboard 弹出后二次校正，消除遮挡
 function initComposeScrollFix() {
+    var active = null;
+    var resizeTimer = null;
+
+    function correct() {
+        if (!active) return;
+        var vOffset = window.visualViewport ? window.visualViewport.offsetTop : 0;
+        var docTop = active.box.getBoundingClientRect().top + window.scrollY + vOffset;
+        window.scrollTo(0, docTop - active.target);
+    }
+
+    function onResize() {
+        if (!active) return;
+        if (resizeTimer) clearTimeout(resizeTimer);
+        resizeTimer = setTimeout(correct, 200);
+    }
+
     function onFocus() {
         var box = this.closest('.compose-box, .home-compose');
         if (!box) return;
-        var target = this.id === 'homeComposeText' ? 88 : 160;
-        // getBoundingClientRect 基于 visual viewport，scrollY 基于 layout viewport
-        // visualViewport.offsetTop 补齐键盘推上去的偏移
-        var vOffset = window.visualViewport ? window.visualViewport.offsetTop : 0;
-        var boxDocTop = box.getBoundingClientRect().top + window.scrollY + vOffset;
-        window.scrollTo(0, boxDocTop - target);
+        active = {
+            box: box,
+            target: this.id === 'homeComposeText' ? 88 : 160
+        };
+        // 1. 键盘弹出前预先定位（消除可见跳动）
+        correct();
     }
+
+    function onBlur() {
+        active = null;
+    }
+
+    if (window.visualViewport) {
+        window.visualViewport.addEventListener('resize', onResize);
+    }
+
     var el1 = document.getElementById('composeText');
     var el2 = document.getElementById('homeComposeText');
-    if (el1) el1.addEventListener('focus', onFocus);
-    if (el2) el2.addEventListener('focus', onFocus);
+    if (el1) { el1.addEventListener('focus', onFocus); el1.addEventListener('blur', onBlur); }
+    if (el2) { el2.addEventListener('focus', onFocus); el2.addEventListener('blur', onBlur); }
 }
 
 // 工具函数
