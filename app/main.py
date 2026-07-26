@@ -185,24 +185,26 @@ class WorkbenchApp:
             # 获取当前用户
             auth_plugin = self.plugin_manager.plugins.get("auth")
             theme_plugin = self.plugin_manager.plugins.get("theme_switcher")
-            
-            if auth_plugin and theme_plugin:
+
+            current_user = None
+            if auth_plugin:
                 token = request.cookies.get("auth_token", "")
                 if token:
-                    user = await auth_plugin.get_user_by_token(token)
-                    if user:
-                        # 获取用户的主题偏好
-                        theme = await theme_plugin.get_user_theme(user["id"])
-                        if theme == "v7":
-                            # 重定向到 V7.1 仪表盘
-                            from starlette.responses import RedirectResponse
-                            return RedirectResponse(url="/v7", status_code=302)
+                    current_user = await auth_plugin.get_user_by_token(token)
+
+            # 检查 V7 主题偏好（仅登录用户）
+            if current_user and theme_plugin:
+                theme = await theme_plugin.get_user_theme(current_user["id"])
+                if theme == "v7":
+                    from starlette.responses import RedirectResponse
+                    return RedirectResponse(url="/v7", status_code=302)
             
             # 默认返回传统界面
             data = await self.home_service.get_home_data()
             html = await self.template_engine.render("home.html", {
                 **data,
                 "nav_page": "home",
+                "current_user": current_user,
             })
             return HTMLResponse(content=html)
 

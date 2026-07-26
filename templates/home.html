@@ -36,6 +36,20 @@
 
     <!-- 中栏：内容流（博客 + 微博混合） -->
     <section class="col-center">
+        <!-- 快速发布框（仅登录用户可见） -->
+        {% if current_user %}
+        {% set name = current_user.nickname or current_user.username or '?' %}
+        <div class="home-compose">
+            <div class="home-compose-avatar">{{ name[0] | upper }}</div>
+            <div class="home-compose-main">
+                <textarea id="homeComposeText" placeholder="有什么想法？快速发一条微博..." maxlength="500" rows="2"></textarea>
+                <div class="home-compose-footer">
+                    <span class="char-count"><span id="homeCharCount">0</span>/500</span>
+                    <button class="btn-send" id="homeSendBtn" onclick="sendHomeMicroblog()">发布</button>
+                </div>
+            </div>
+        </div>
+        {% endif %}
         {% if posts %}
         {% for post in posts %}
         {% if post.type == 'microblog' %}
@@ -137,4 +151,45 @@
     </aside>
 
 </div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    async function sendHomeMicroblog() {
+        const textarea = document.getElementById('homeComposeText');
+        const content = textarea.value.trim();
+        if (!content) { alert('请输入内容'); return; }
+
+        const btn = document.getElementById('homeSendBtn');
+        btn.disabled = true; btn.textContent = '发布中...';
+
+        try {
+            const resp = await fetch('/microblog', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+                body: 'content=' + encodeURIComponent(content)
+            });
+            const result = await resp.json();
+            if (result.error) {
+                alert(result.error);
+                btn.disabled = false; btn.textContent = '发布';
+                return;
+            }
+            textarea.value = '';
+            document.getElementById('homeCharCount').textContent = '0';
+            window.location.reload();
+        } catch (e) {
+            alert('发布失败，请稍后重试');
+            btn.disabled = false; btn.textContent = '发布';
+        }
+    }
+
+    document.getElementById('homeComposeText').addEventListener('input', function () {
+        document.getElementById('homeCharCount').textContent = this.value.length;
+    });
+
+    document.getElementById('homeComposeText').addEventListener('keydown', function (e) {
+        if (e.ctrlKey && e.key === 'Enter') sendHomeMicroblog();
+    });
+</script>
 {% endblock %}
