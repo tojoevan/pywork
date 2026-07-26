@@ -125,7 +125,7 @@ function initComposeScrollFix() {
             var top = box.getBoundingClientRect().top - window.visualViewport.offsetTop;
             if (top === lastTop || attempts++ > 20) {
                 clearInterval(iv);
-                if (top < 70 && top > -500) window.scrollBy(0, top - 75);
+                if (top < 70 && top > -500) window.scrollBy(0, top - 88);
             }
             lastTop = top;
         }, 50);
