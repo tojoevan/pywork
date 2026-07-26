@@ -191,5 +191,15 @@
     document.getElementById('homeComposeText').addEventListener('keydown', function (e) {
         if (e.ctrlKey && e.key === 'Enter') sendHomeMicroblog();
     });
+
+    // 移动端：输入框聚焦时滚动到可见区域，避免被顶部导航遮挡
+    document.getElementById('homeComposeText').addEventListener('focus', function () {
+        const box = this.closest('.home-compose');
+        if (box) {
+            setTimeout(function () {
+                box.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            }, 300);
+        }
+    });
 </script>
 {% endblock %}
