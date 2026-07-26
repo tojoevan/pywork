@@ -267,16 +267,6 @@
         if (e.ctrlKey && e.key === 'Enter') sendMicroblog();
     });
 
-    // 移动端：输入框聚焦时滚动到可见区域，避免被顶部导航遮挡
-    document.getElementById('composeText').addEventListener('focus', function() {
-        const box = document.getElementById('composeBox');
-        if (box) {
-            setTimeout(function() {
-                box.scrollIntoView({ behavior: 'smooth', block: 'center' });
-            }, 300);
-        }
-    });
-
     // 加载用户信息
     async function loadUser() {
         try {
