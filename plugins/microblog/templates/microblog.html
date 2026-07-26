@@ -268,14 +268,16 @@
     });
 
     // 聚焦时如发布框被顶部导航遮挡，即时补偿滚动
+    // iOS 在 focus 后会自动滚动页面，用 50ms 延迟等其完成后修正
     document.getElementById('composeText').addEventListener('focus', function() {
         var box = this.closest('.compose-box');
-        if (box) {
+        if (!box) return;
+        setTimeout(function() {
             var top = box.getBoundingClientRect().top;
-            if (top < 70 && top > -200) {
+            if (top < 70 && top > -500) {
                 window.scrollBy(0, top - 75);
             }
-        }
+        }, 50);
     });
 
     // 加载用户信息
