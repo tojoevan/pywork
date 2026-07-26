@@ -7,6 +7,7 @@ document.addEventListener('DOMContentLoaded', function() {
     initTagClicks();
     initSmoothScroll();
     initMobileMenu();
+    initComposeScrollFix();
 });
 
 // 时间格式化
@@ -109,6 +110,30 @@ function initMobileMenu() {
             }
         });
     }
+}
+
+// 移动端键盘弹出后修正 compose box 位置，避免被 fixed topbar 遮挡
+function initComposeScrollFix() {
+    if (!window.visualViewport) return;
+    var ticking = false;
+    window.visualViewport.addEventListener('resize', function() {
+        if (ticking) return;
+        ticking = true;
+        setTimeout(function() {
+            ticking = false;
+            var ids = ['composeText', 'homeComposeText'];
+            for (var i = 0; i < ids.length; i++) {
+                var el = document.getElementById(ids[i]);
+                if (!el || el !== document.activeElement) continue;
+                var box = el.closest('.compose-box, .home-compose');
+                if (!box) continue;
+                var visualTop = box.getBoundingClientRect().top - window.visualViewport.offsetTop;
+                if (visualTop < 70 && visualTop > -500) {
+                    window.scrollBy(0, visualTop - 75);
+                }
+            }
+        }, 100);
+    });
 }
 
 // 工具函数
