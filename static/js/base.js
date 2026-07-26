@@ -112,7 +112,7 @@ function initMobileMenu() {
     }
 }
 
-// 移动端键盘弹出修正：单向位移补齐，绝不反复上下拉扯
+// 移动端键盘弹出修正：基于物理坐标精准计算 offset 补偿值
 function initComposeScrollFix() {
     if (!window.visualViewport) return;
     window.visualViewport.addEventListener('resize', function() {
@@ -120,13 +120,19 @@ function initComposeScrollFix() {
         if (!activeEl || (activeEl.id !== 'composeText' && activeEl.id !== 'homeComposeText')) return;
         var box = activeEl.closest('.compose-box, .home-compose');
         if (!box) return;
-        // 获取输入框相对当前视口的 Top 坐标
-        var rect = box.getBoundingClientRect();
-        // 56px 固定导航栏。如果 Top 小于 70px 说明被导航栏盖住或靠太近
-        // 仅执行一次单向向上补齐：直接加上 (70 - rect.top) 正数偏差量向上推
-        if (rect.top < 70) {
-            var needOffset = 70 - rect.top;
-            window.scrollBy({ top: -needOffset, behavior: 'instant' });
+
+        // 1. 目标绝对 Top 坐标：56px (fixed topbar) + 14px (安全留白) = 70px
+        var TARGET_TOP = 70;
+        
+        // 2. 考虑 visualViewport.offsetTop (iOS/Android 软键盘推开视口时的滚动偏移)
+        var visualTop = box.getBoundingClientRect().top - (window.visualViewport.offsetTop || 0);
+
+        // 3. 计算唯一绝对补偿值：若处于遮挡区 (visualTop < TARGET_TOP)
+        var compensation = TARGET_TOP - visualTop;
+
+        // 4. 仅当存在有效正数遮挡补偿值时，单向向上补齐 delta
+        if (compensation > 0) {
+            window.scrollBy({ top: -compensation, behavior: 'instant' });
         }
     });
 }
