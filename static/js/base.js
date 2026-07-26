@@ -112,24 +112,20 @@ function initMobileMenu() {
     }
 }
 
-// 移动端键盘弹出后修正 compose box 位置
+// 移动端键盘弹出修正：兼容 Android 软键盘弹出视口压缩及 fixed 导航栏遮挡
 function initComposeScrollFix() {
-    var ids = ['composeText', 'homeComposeText'];
-    ids.forEach(function(id) {
-        var el = document.getElementById(id);
-        if (!el) return;
-        el.addEventListener('focus', function() {
-            var box = el.closest('.compose-box, .home-compose');
-            if (!box) return;
-            // 延迟 350ms 等移动端软键盘推开视口并稳定后定位
-            setTimeout(function() {
-                var rect = box.getBoundingClientRect();
-                // 顶部固定导航栏高度为 56px，如果低于 70px（说明被导航栏遮挡）或超出视口下方，强行按 scroll-margin-top 75px 顶格对齐
-                if (rect.top < 70 || rect.top > (window.innerHeight || document.documentElement.clientHeight) - 100) {
-                    box.scrollIntoView({ behavior: 'smooth', block: 'start' });
-                }
-            }, 350);
-        });
+    if (!window.visualViewport) return;
+    window.visualViewport.addEventListener('resize', function() {
+        var activeEl = document.activeElement;
+        if (!activeEl || (activeEl.id !== 'composeText' && activeEl.id !== 'homeComposeText')) return;
+        var box = activeEl.closest('.compose-box, .home-compose');
+        if (!box) return;
+        // 获取输入框相对当前视口的 Top 坐标
+        var rect = box.getBoundingClientRect();
+        // 56px 固定导航栏 + 10px 缓冲。若小于 66px 说明被导航栏盖住，精确补齐差值
+        if (rect.top < 66) {
+            window.scrollBy(0, rect.top - 70);
+        }
     });
 }
 
