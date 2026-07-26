@@ -121,7 +121,7 @@ function initComposeScrollFix() {
         function correct() {
             var vOff = window.visualViewport ? window.visualViewport.offsetTop : 0;
             var docTop = box.getBoundingClientRect().top + window.scrollY + vOff;
-            window.scrollTo(0, docTop - 106);
+            window.scrollTo(0, docTop - 86);
         }
 
         correct();
