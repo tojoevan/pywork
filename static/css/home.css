@@ -331,7 +331,7 @@ a:hover { color: var(--primary-hover); }
     border-radius: var(--radius-md);
     padding: 16px;
     margin-bottom: 16px;
-    scroll-margin-top: 120px;
+    scroll-margin-top: 75px;
     transition: box-shadow 0.2s;
 }
 

@@ -267,21 +267,6 @@
         if (e.ctrlKey && e.key === 'Enter') sendMicroblog();
     });
 
-    // 聚焦时如发布框被顶部导航遮挡，即时补偿滚动
-    // iOS 在 focus 后会自动滚动页面，用 50ms 延迟等其完成后修正
-    document.getElementById('composeText').addEventListener('focus', function() {
-        var box = this.closest('.compose-box');
-        if (!box) return;
-        setTimeout(function() {
-            var top = box.getBoundingClientRect().top;
-            var offset = window.visualViewport ? window.visualViewport.offsetTop : 0;
-            var visualTop = top - offset;
-            if (visualTop < 70 && visualTop > -500) {
-                window.scrollBy(0, visualTop - 75);
-            }
-        }, 50);
-    });
-
     // 加载用户信息
     async function loadUser() {
         try {
