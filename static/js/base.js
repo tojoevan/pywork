@@ -112,17 +112,55 @@ function initMobileMenu() {
     }
 }
 
-// 移动端焦点修正：键盘弹出前把发布框推到 topbar 下方，避免自动滚动后遮挡
+// 移动端焦点修正：focus 预校正 + keyboard 弹出后二次校正
 function initComposeScrollFix() {
+    var CORRECTING = null;
+    var resizeTimer = null;
+
+    function doScroll(correction) {
+        var top = correction.box.getBoundingClientRect().top;
+        window.scrollBy(0, top - correction.target);
+    }
+
+    function done() {
+        CORRECTING = null;
+    }
+
+    function onResize() {
+        if (resizeTimer) clearTimeout(resizeTimer);
+        resizeTimer = setTimeout(function() {
+            if (!CORRECTING) return;
+            doScroll(CORRECTING);
+            done();
+        }, 150);
+    }
+
     function onFocus() {
         var box = this.closest('.compose-box, .home-compose');
         if (!box) return;
-        var target = this.id === 'homeComposeText' ? 88 : 160;
-        var top = box.getBoundingClientRect().top;
-        if (top < target - 10) {
-            window.scrollBy(0, top - target);
+        var id = this.id;
+        var target = id === 'homeComposeText' ? 88 : 160;
+
+        CORRECTING = { id: id, target: target, box: box };
+
+        // 1. 键盘弹出前立即预校正
+        doScroll(CORRECTING);
+
+        // 2. 监听 visualViewport.resize（键盘弹出后最终校正）
+        if (window.visualViewport) {
+            window.visualViewport.addEventListener('resize', onResize, { once: false });
+            // 延时兜底（500ms 足够键盘动画完成）
+            setTimeout(function() {
+                if (CORRECTING) { doScroll(CORRECTING); done(); }
+            }, 500);
+        } else {
+            // 无 visualViewport，延时校正
+            setTimeout(function() {
+                if (CORRECTING) { doScroll(CORRECTING); done(); }
+            }, 500);
         }
     }
+
     var el1 = document.getElementById('composeText');
     var el2 = document.getElementById('homeComposeText');
     if (el1) el1.addEventListener('focus', onFocus);
