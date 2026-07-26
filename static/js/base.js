@@ -124,15 +124,13 @@ function initComposeScrollFix() {
         // 1. 目标绝对 Top 坐标：56px (fixed topbar) + 14px (安全留白) = 70px
         var TARGET_TOP = 70;
         
-        // 2. 考虑 visualViewport.offsetTop (iOS/Android 软键盘推开视口时的滚动偏移)
-        var visualTop = box.getBoundingClientRect().top - (window.visualViewport.offsetTop || 0);
+        // 2. getBoundingClientRect().top 直接代表 box 距离可视视口顶部的当前真实距离
+        var currentTop = box.getBoundingClientRect().top;
 
-        // 3. 计算唯一绝对补偿值：若处于遮挡区 (visualTop < TARGET_TOP)
-        var compensation = TARGET_TOP - visualTop;
-
-        // 4. 仅当存在有效正数遮挡补偿值时，单向向上补齐 delta
-        if (compensation > 0) {
-            window.scrollBy({ top: -compensation, behavior: 'instant' });
+        // 3. 仅当输入框头部被盖在 56px 导航栏下方/贴太近时，精准补齐相差的遮挡值
+        if (currentTop < TARGET_TOP) {
+            var needScrollUp = TARGET_TOP - currentTop;
+            window.scrollBy(0, -needScrollUp);
         }
     });
 }
