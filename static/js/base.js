@@ -120,13 +120,15 @@ function initComposeScrollFix() {
         if (!el || el !== document.activeElement) return;
         var box = el.closest('.compose-box, .home-compose');
         if (!box) return;
-        var targetTop = el.id === 'homeComposeText' ? 88 : 160;
+        var targetVisual = el.id === 'homeComposeText' ? 88 : 160;
         var lastTop = null, attempts = 0;
         var iv = setInterval(function() {
             var top = box.getBoundingClientRect().top - window.visualViewport.offsetTop;
             if (top === lastTop || attempts++ > 20) {
                 clearInterval(iv);
-                if (top < 70 && top > -500) window.scrollBy(0, top - targetTop);
+                if (top < 70 && top > -500) {
+                    window.scrollTo(0, box.getBoundingClientRect().top + window.scrollY - targetVisual);
+                }
             }
             lastTop = top;
         }, 50);
