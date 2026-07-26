@@ -195,8 +195,11 @@
     // 聚焦时如发布框被顶部导航遮挡，即时补偿滚动
     document.getElementById('homeComposeText').addEventListener('focus', function () {
         var box = this.closest('.home-compose');
-        if (box && box.getBoundingClientRect().top < 70) {
-            box.scrollIntoView({ block: 'start', behavior: 'instant' });
+        if (box) {
+            var top = box.getBoundingClientRect().top;
+            if (top < 70 && top > -200) {
+                window.scrollBy(0, top - 75);
+            }
         }
     });
 </script>
