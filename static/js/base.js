@@ -7,7 +7,6 @@ document.addEventListener('DOMContentLoaded', function() {
     initTagClicks();
     initSmoothScroll();
     initMobileMenu();
-    initComposeScrollFix();
 });
 
 // 时间格式化
@@ -110,27 +109,6 @@ function initMobileMenu() {
             }
         });
     }
-}
-
-// 移动端键盘弹出修正：精准补齐 topbar 遮挡，防止向上滚动过度
-function initComposeScrollFix() {
-    if (!window.visualViewport) return;
-    window.visualViewport.addEventListener('resize', function() {
-        var activeEl = document.activeElement;
-        if (!activeEl || (activeEl.id !== 'composeText' && activeEl.id !== 'homeComposeText')) return;
-        var box = activeEl.closest('.compose-box, .home-compose');
-        if (!box) return;
-
-        // 目标绝对 Top 坐标：56px (fixed topbar) + 14px (安全留白) = 70px
-        var TARGET_TOP = 70;
-        
-        var currentTop = box.getBoundingClientRect().top;
-
-        // 当 currentTop < TARGET_TOP 时，说明元素落入导航栏遮挡区，需要把内容向上滚入可视区 (y 轴位移 = currentTop - TARGET_TOP，即负值)
-        if (currentTop < TARGET_TOP) {
-            window.scrollBy(0, currentTop - TARGET_TOP);
-        }
-    });
 }
 
 // 工具函数
