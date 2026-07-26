@@ -112,35 +112,32 @@ function initMobileMenu() {
     }
 }
 
-// 移动端焦点修正：scrollBy(top - 106)，focus 预定位 + resize 二次校正
+// 移动端焦点修正：scrollTo 绝对定位 + 拦截浏览器自动滚动
 function initComposeScrollFix() {
-    var active = null;
-    var timer = null;
-
-    function scroll() {
-        if (!active) return;
-        window.scrollBy(0, active.getBoundingClientRect().top - 106);
-    }
-
-    function onResize() {
-        if (timer) clearTimeout(timer);
-        timer = setTimeout(scroll, 200);
-    }
-
     function onFocus() {
-        active = this.closest('.compose-box, .home-compose');
-        if (active) scroll();
-    }
+        var box = this.closest('.compose-box, .home-compose');
+        if (!box) return;
 
-    function onBlur() { active = null; }
+        function correct() {
+            var vOff = window.visualViewport ? window.visualViewport.offsetTop : 0;
+            var docTop = box.getBoundingClientRect().top + window.scrollY + vOff;
+            window.scrollTo(0, docTop - 106);
+        }
 
-    if (window.visualViewport) {
-        window.visualViewport.addEventListener('resize', onResize);
+        correct();
+
+        // 拦截浏览器自动滚动，500ms 内每次 scroll 事件立即修正
+        function onScroll() { correct(); }
+        window.addEventListener('scroll', onScroll, { passive: true });
+        setTimeout(function() {
+            window.removeEventListener('scroll', onScroll);
+            correct();
+        }, 500);
     }
 
     var el = document.getElementById('composeText') ||
              document.getElementById('homeComposeText');
-    if (el) { el.addEventListener('focus', onFocus); el.addEventListener('blur', onBlur); }
+    if (el) el.addEventListener('focus', onFocus);
 }
 
 // 工具函数
