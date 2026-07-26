@@ -114,7 +114,23 @@ function initMobileMenu() {
 
 // 移动端键盘弹出后修正 compose box 位置
 function initComposeScrollFix() {
-    // 依靠 CSS 布局与 scroll-margin-top 兜底，避免 JS 在 resize 时干预页面滚动
+    var ids = ['composeText', 'homeComposeText'];
+    ids.forEach(function(id) {
+        var el = document.getElementById(id);
+        if (!el) return;
+        el.addEventListener('focus', function() {
+            var box = el.closest('.compose-box, .home-compose');
+            if (!box) return;
+            // 延迟 350ms 等移动端软键盘推开视口并稳定后定位
+            setTimeout(function() {
+                var rect = box.getBoundingClientRect();
+                // 顶部固定导航栏高度为 56px，如果低于 70px（说明被导航栏遮挡）或超出视口下方，强行按 scroll-margin-top 75px 顶格对齐
+                if (rect.top < 70 || rect.top > (window.innerHeight || document.documentElement.clientHeight) - 100) {
+                    box.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                }
+            }, 350);
+        });
+    });
 }
 
 // 工具函数
