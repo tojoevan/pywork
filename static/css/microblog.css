@@ -39,6 +39,7 @@
     border-radius: 12px;
     padding: 16px;
     margin-bottom: 24px;
+    scroll-margin-top: 75px;
     box-shadow: 0 1px 3px rgba(0,0,0,0.04);
 }
 
