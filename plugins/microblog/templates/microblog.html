@@ -267,16 +267,6 @@
         if (e.ctrlKey && e.key === 'Enter') sendMicroblog();
     });
 
-    // 聚焦时修正：在键盘弹出前把发布框推到 topbar 下方
-    document.getElementById('composeText').addEventListener('focus', function() {
-        var box = this.closest('.compose-box');
-        if (!box) return;
-        var top = box.getBoundingClientRect().top;
-        if (top < 70) {
-            window.scrollBy(0, top - 75);
-        }
-    });
-
     // 加载用户信息
     async function loadUser() {
         try {

@@ -7,6 +7,7 @@ document.addEventListener('DOMContentLoaded', function() {
     initTagClicks();
     initSmoothScroll();
     initMobileMenu();
+    initComposeScrollFix();
 });
 
 // 时间格式化
@@ -109,6 +110,26 @@ function initMobileMenu() {
             }
         });
     }
+}
+
+// 移动端键盘弹出后修正发布框位置，避免被 fixed topbar 遮挡
+function initComposeScrollFix() {
+    if (!window.visualViewport) return;
+    window.visualViewport.addEventListener('resize', function() {
+        var el = document.getElementById('composeText') || document.getElementById('homeComposeText');
+        if (!el || el !== document.activeElement) return;
+        var box = el.closest('.compose-box, .home-compose');
+        if (!box) return;
+        var lastTop = null, attempts = 0;
+        var iv = setInterval(function() {
+            var top = box.getBoundingClientRect().top - window.visualViewport.offsetTop;
+            if (top === lastTop || attempts++ > 20) {
+                clearInterval(iv);
+                if (top < 70 && top > -500) window.scrollBy(0, top - 75);
+            }
+            lastTop = top;
+        }, 50);
+    });
 }
 
 // 工具函数
