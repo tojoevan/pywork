@@ -267,6 +267,16 @@
         if (e.ctrlKey && e.key === 'Enter') sendMicroblog();
     });
 
+    // 移动端键盘弹出时，确保发布框不被顶部导航遮挡
+    if (window.visualViewport) {
+        window.visualViewport.addEventListener('resize', function() {
+            const el = document.getElementById('composeText');
+            if (el && el === document.activeElement) {
+                el.closest('.compose-box').scrollIntoView({ block: 'nearest', behavior: 'instant' });
+            }
+        });
+    }
+
     // 加载用户信息
     async function loadUser() {
         try {
