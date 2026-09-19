@@ -121,6 +121,7 @@ class SQLiteHandler(logging.Handler):
         self._queue.clear()
         try:
             conn = sqlite3.connect(self._db_path)
+            conn.execute("PRAGMA busy_timeout=5000")
             conn.executemany(
                 "INSERT INTO app_logs (level, module, message, context, traceback, created_at) "
                 "VALUES (:level, :module, :message, :context, :traceback, :created_at)",
@@ -155,6 +156,7 @@ class SQLiteHandler(logging.Handler):
         if self._db_path is not None:
             try:
                 conn = sqlite3.connect(self._db_path)
+                conn.execute("PRAGMA busy_timeout=5000")
                 conn.executemany(
                     "INSERT INTO app_logs (level, module, message, context, traceback, created_at) "
                     "VALUES (:level, :module, :message, :context, :traceback, :created_at)",

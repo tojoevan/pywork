@@ -669,8 +669,19 @@ class BoardPlugin(Plugin):
                         )
                         if target_row:
                             target_title = str(target_row.get("title", "") or "")
-                    except Exception as e:
-                        log.debug(f"Failed to fetch target title: {e}")
+                    except Exception:
+                        # 目标表可能没有 title 列（部分表用 name/subject），回退候选列
+                        try:
+                            cols = {c["name"] for c in await self.engine.fetchall(
+                                f"PRAGMA table_info({table})")}
+                            cand = next((c for c in ("title", "name", "subject", "topic") if c in cols), None)
+                            if cand:
+                                t = await self.engine.fetchone(
+                                    f"SELECT {cand} FROM {table} WHERE id = ?", (target_id,))
+                                if t:
+                                    target_title = str(t.get(cand, "") or "")
+                        except Exception as e:
+                            log.debug(f"Failed to fetch target title: {e}")
 
                 # 写入 recent_comments 表
                 try:
