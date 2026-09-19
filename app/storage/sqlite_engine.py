@@ -380,7 +380,9 @@ class SQLiteEngine(Engine):
         await self._db.execute("PRAGMA journal_mode=WAL")
         await self._db.execute("PRAGMA synchronous=NORMAL")
         await self._db.execute("PRAGMA cache_size=-64000")  # 64MB
-        
+        # 写写冲突时等待而非立即报 database is locked（根治 6:55 锁争用）
+        await self._db.execute("PRAGMA busy_timeout=5000")
+
         # Initialize schema
         await self._db.executescript(self.SCHEMA)
         await self._db.commit()
