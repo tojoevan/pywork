@@ -181,6 +181,16 @@
     white-space: pre-wrap;
 }
 
+.post-content a.post-link {
+    color: var(--primary-color, #10b981);
+    word-break: break-all;
+    text-decoration: none;
+}
+
+.post-content a.post-link:hover {
+    text-decoration: underline;
+}
+
 .post-actions {
     margin-top: 8px;
 }
