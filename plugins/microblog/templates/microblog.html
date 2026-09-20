@@ -81,6 +81,7 @@
                 const time = formatTime(post.created_at);
                 const isOwner = post.author_id === currentAuthorId;
                 const escapedContent = escapeHtml(post.content || post.body || '');
+                const displayContent = linkifyText(escapedContent);
                 return `
                     <div class="post" id="post-${post.id}">
                         <div class="post-avatar">${avatar}</div>
@@ -89,7 +90,7 @@
                                 ${post.author_id ? `<a href="/author/${post.author_id}" class="post-author">${post.author_name || '匿名'}</a>` : `<span class="post-author">${post.author_name || '匿名'}</span>`}
                                 <span class="post-time">${time}</span>
                             </div>
-                            <div class="post-content">${escapedContent}</div>
+                            <div class="post-content">${displayContent}</div>
                             <div class="post-actions">
                                 ${isOwner ? `<button class="btn-edit" data-content="${escapedContent}" onclick="openEditModal(${post.id})">编辑</button>` : ''}
                                 ${(isOwner || isAdmin) ? `<button class="btn-delete" onclick="deletePost(${post.id})">删除</button>` : ''}
@@ -244,6 +245,21 @@
         const div = document.createElement('div');
         div.textContent = text;
         return div.innerHTML;
+    }
+
+    // 在已转义文本上识别 URL 并转为链接（注意：必须先 escapeHtml 再 linkify，防 XSS）
+    function linkifyText(escaped) {
+        return escaped.replace(/https?:\/\/[^\s<>"'\u2018-\u201f\u3000-\u303f\u4e00-\u9fff\uff00-\uffef]+/g, function (url) {
+            // 剥离尾部标点，避免把中文句号等带进链接
+            const m = url.match(/[.,;:!?。，、；：！？）)」』”]+$/);
+            let tail = '';
+            if (m) {
+                tail = m[0];
+                url = url.slice(0, -tail.length);
+            }
+            // 转义文本中的 &amp; 在 href 属性里会由浏览器解码回 &，合法且正确
+            return `<a href="${url}" target="_blank" rel="noopener noreferrer nofollow" class="post-link">${url}</a>${tail}`;
+        });
     }
 
     function formatTime(timestamp) {
