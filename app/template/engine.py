@@ -6,6 +6,7 @@ import time
 from datetime import datetime
 import re
 import markdown as md
+from markupsafe import escape, Markup
 from app.log import get_logger
 
 log = get_logger("template")
@@ -69,6 +70,34 @@ def excerpt_filter(text: str, length: int = 200) -> str:
     if len(text) > length:
         return text[:length] + '...'
     return text
+
+
+_URL_RE = re.compile(r'https?://[^\s<>"\'\u2018-\u201f\u3000-\u303f\u4e00-\u9fff\uff00-\uffef]+')
+_TRAIL_PUNCT_RE = re.compile(r'[.,;:!?。，、；：！？）)」』”]+$')
+
+
+def linkify_filter(text: str) -> Markup:
+    """将文本中的 http/https 网址转为可点击链接。
+
+    先 escape 再链接（防 XSS）；匹配规则与前端一致：URL 不含 CJK 字符段，
+    并剥离尾部标点，避免把中文句号等带进链接。返回 Markup 以保留 <a> 标签。
+    """
+    if not text:
+        return Markup('')
+    escaped = escape(text)
+
+    def _repl(m: "re.Match") -> str:
+        url = m.group(0)
+        tail = ''
+        t = _TRAIL_PUNCT_RE.search(url)
+        if t:
+            tail = t.group(0)
+            url = url[: -len(tail)]
+        return (f'<a href="{url}" target="_blank" '
+                f'rel="noopener noreferrer nofollow" class="post-link">'
+                f'{url}</a>{tail}')
+
+    return Markup(_URL_RE.sub(_repl, str(escaped)))
 
 
 def _sanitize_html_input(text: str) -> str:
@@ -229,6 +258,7 @@ class TemplateEngine:
         self.env.filters['datefmt'] = datefmt_filter
         self.env.filters['excerpt'] = excerpt_filter
         self.env.filters['markdown'] = markdown_filter
+        self.env.filters['linkify'] = linkify_filter
     
     def add_template_dir(self, template_dir: str):
         """添加模板目录"""

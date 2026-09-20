@@ -420,6 +420,8 @@ a:hover { color: var(--primary-hover); }
 
 .post-microblog .mb-body { overflow: hidden; }
 .post-microblog .microblog-body { color: var(--text-color); font-size: 14px; line-height: 1.7; margin: 0; }
+.post-microblog .microblog-body a.post-link { color: var(--primary-color, #10b981); word-break: break-all; text-decoration: none; }
+.post-microblog .microblog-body a.post-link:hover { text-decoration: underline; }
 
 /* 笔记卡片 */
 .note-badge {

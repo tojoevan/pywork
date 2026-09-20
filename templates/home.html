@@ -61,7 +61,7 @@
                     <span class="sep">·</span>
                     <time>{{ post.created_at | datefmt }}</time>
                 </div>
-                <p class="microblog-body">{{ post.body }}</p>
+                <p class="microblog-body">{{ post.body | linkify }}</p>
             </div>
         </article>
         {% elif post.type == 'note' %}
