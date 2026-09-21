@@ -218,7 +218,7 @@
         <h2>📝 博客 <span class="count">({{ blog_results | length }})</span></h2>
         {% for item in blog_results %}
         <div class="result-item">
-            <a href="/blog/{{ item.id }}">
+            <a href="/blog/view/{{ item.id }}">
                 <div class="result-title">{{ item.title | safe }}</div>
                 <div class="result-excerpt">{{ item.excerpt | safe }}</div>
                 <div class="result-meta">
@@ -238,7 +238,7 @@
         <h2>💬 微博 <span class="count">({{ microblog_results | length }})</span></h2>
         {% for item in microblog_results %}
         <div class="result-item">
-            <a href="/microblog#post-{{ item.id }}">
+            <a href="/microblog?post={{ item.id }}">
                 <div class="result-excerpt">{{ item.excerpt | safe }}</div>
                 <div class="result-meta">
                     <span class="type">微博</span>
