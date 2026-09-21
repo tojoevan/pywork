@@ -80,33 +80,6 @@
                 return renderPostCard(post);
             }).join('');
 
-            // 单条微博卡片渲染（供列表与按 id 定位复用）
-            function renderPostCard(post) {
-                const avatar = post.author_avatar || post.author_name?.charAt(0).toUpperCase() || '?';
-                const time = formatTime(post.created_at);
-                const isOwner = post.author_id === currentAuthorId;
-                const escapedContent = escapeHtml(post.content || post.body || '');
-                const displayContent = linkifyText(escapedContent);
-                return `
-                    <div class="post" id="post-${post.id}">
-                        <div class="post-avatar">${avatar}</div>
-                        <div class="post-body">
-                            <div class="post-header">
-                                ${post.author_id ? `<a href="/author/${post.author_id}" class="post-author">${post.author_name || '匿名'}</a>` : `<span class="post-author">${post.author_name || '匿名'}</span>`}
-                                <span class="post-time">${time}</span>
-                            </div>
-                            <div class="post-content">${displayContent}</div>
-                            <div class="post-actions">
-                                ${isOwner ? `<button class="btn-edit" data-content="${escapedContent}" onclick="openEditModal(${post.id})">编辑</button>` : ''}
-                                ${(isOwner || isAdmin) ? `<button class="btn-delete" onclick="deletePost(${post.id})">删除</button>` : ''}
-                                <button class="btn-comment" onclick="toggleMicroblogComments(${post.id})">评论</button>
-                            </div>
-                            <div class="microblog-comments" id="mb-comments-${post.id}"></div>
-                        </div>
-                    </div>
-                `;
-            }
-            
             feed.insertAdjacentHTML('beforeend', html);
             
             // 更新加载更多按钮
@@ -319,6 +292,33 @@
             }
         }
     });
+
+    // 单条微博卡片渲染（供列表与按 id 定位共用，定义在顶层作用域）
+    function renderPostCard(post) {
+        const avatar = post.author_avatar || post.author_name?.charAt(0).toUpperCase() || '?';
+        const time = formatTime(post.created_at);
+        const isOwner = post.author_id === currentAuthorId;
+        const escapedContent = escapeHtml(post.content || post.body || '');
+        const displayContent = linkifyText(escapedContent);
+        return `
+            <div class="post" id="post-${post.id}">
+                <div class="post-avatar">${avatar}</div>
+                <div class="post-body">
+                    <div class="post-header">
+                        ${post.author_id ? `<a href="/author/${post.author_id}" class="post-author">${post.author_name || '匿名'}</a>` : `<span class="post-author">${post.author_name || '匿名'}</span>`}
+                        <span class="post-time">${time}</span>
+                    </div>
+                    <div class="post-content">${displayContent}</div>
+                    <div class="post-actions">
+                        ${isOwner ? `<button class="btn-edit" data-content="${escapedContent}" onclick="openEditModal(${post.id})">编辑</button>` : ''}
+                        ${(isOwner || isAdmin) ? `<button class="btn-delete" onclick="deletePost(${post.id})">删除</button>` : ''}
+                        <button class="btn-comment" onclick="toggleMicroblogComments(${post.id})">评论</button>
+                    </div>
+                    <div class="microblog-comments" id="mb-comments-${post.id}"></div>
+                </div>
+            </div>
+        `;
+    }
 
     // 按 id 定位单条微博：首屏未加载到则拉取 /api/microblog/{id} 并插入列表顶部
     async function loadSinglePost(id) {
