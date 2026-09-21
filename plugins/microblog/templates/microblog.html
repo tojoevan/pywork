@@ -77,6 +77,11 @@
 
             const html = displayPosts.map(post => {
                 renderedPostIds.push(post.id);
+                return renderPostCard(post);
+            }).join('');
+
+            // 单条微博卡片渲染（供列表与按 id 定位复用）
+            function renderPostCard(post) {
                 const avatar = post.author_avatar || post.author_name?.charAt(0).toUpperCase() || '?';
                 const time = formatTime(post.created_at);
                 const isOwner = post.author_id === currentAuthorId;
@@ -100,7 +105,7 @@
                         </div>
                     </div>
                 `;
-            }).join('');
+            }
             
             feed.insertAdjacentHTML('beforeend', html);
             
@@ -297,18 +302,44 @@
 
     loadUser();
     loadFeed().then(() => {
-        // 锚点滚动：从 URL hash 定位到对应帖子
-        if (window.location.hash) {
+        const params = new URLSearchParams(window.location.search);
+        const pid = params.get('post');
+        if (pid) {
+            // 从搜索等入口跳入，定位到指定微博（若该条不在首屏则单独拉取插入）
+            loadSinglePost(pid);
+        } else if (window.location.hash) {
+            // 锚点滚动：从 URL hash 定位到对应帖子
             const targetId = window.location.hash.substring(1); // 去掉 #
             const targetEl = document.getElementById(targetId);
             if (targetEl) {
                 targetEl.scrollIntoView({ behavior: 'smooth', block: 'center' });
-                // 高亮效果
                 targetEl.style.transition = 'background-color 0.5s';
                 targetEl.style.backgroundColor = '#fef3c7';
                 setTimeout(() => targetEl.style.backgroundColor = '', 2000);
             }
         }
     });
+
+    // 按 id 定位单条微博：首屏未加载到则拉取 /api/microblog/{id} 并插入列表顶部
+    async function loadSinglePost(id) {
+        try {
+            const res = await fetch(`/api/microblog/${id}`);
+            const post = await res.json();
+            if (!post || !post.id) return;
+            const feed = document.getElementById('feed');
+            let target = document.getElementById(`post-${post.id}`);
+            if (!target) {
+                feed.insertAdjacentHTML('afterbegin', renderPostCard(post));
+                renderedPostIds.push(post.id);
+                target = document.getElementById(`post-${post.id}`);
+            }
+            if (target) {
+                target.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                target.style.transition = 'background-color 0.5s';
+                target.style.backgroundColor = '#fef3c7';
+                setTimeout(() => target.style.backgroundColor = '', 2000);
+            }
+        } catch (e) {}
+    }
 </script>
 {% endblock %}
