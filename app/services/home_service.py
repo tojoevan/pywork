@@ -118,15 +118,20 @@ class HomeService:
     #  数据获取
     # ========================================================
 
-    async def get_feed(self, limit: int = 20) -> List[Dict[str, Any]]:
-        """获取混合内容流"""
+    async def get_feed(self, limit: int = 20, offset: int = 0) -> Dict[str, Any]:
+        """获取混合内容流（支持分页）
+
+        各数据源独立按 offset 拉取，合并后按时间倒序取本页。
+        多取 1 条用于判断 has_more，避免末页之后出现空页。
+        """
         items: List[HomeFeedItem] = []
+        fetch_n = limit + 1
 
         # 博客
         blog_plugin = self._get_plugin("blog")
         if blog_plugin:
             try:
-                posts = await blog_plugin.list_posts(limit=limit)
+                posts = await blog_plugin.list_posts(limit=fetch_n, offset=offset)
                 for p in posts:
                     items.append(self._transform_blog_post(p))
             except Exception as e:
@@ -136,7 +141,7 @@ class HomeService:
         microblog_plugin = self._get_plugin("microblog")
         if microblog_plugin:
             try:
-                micro_posts = await microblog_plugin.list_posts(limit=limit)
+                micro_posts = await microblog_plugin.list_posts(limit=fetch_n, offset=offset)
                 for p in micro_posts:
                     items.append(self._transform_microblog(p))
             except Exception as e:
@@ -146,7 +151,7 @@ class HomeService:
         notes_plugin = self._get_plugin("notes")
         if notes_plugin:
             try:
-                notes = await notes_plugin.list_notes(visibility="public", limit=limit // 2)
+                notes = await notes_plugin.list_notes(visibility="public", limit=fetch_n, offset=offset)
                 for n in notes:
                     items.append(self._transform_note(n))
             except Exception as e:
@@ -154,9 +159,14 @@ class HomeService:
 
         # 按时间倒序
         items.sort(key=lambda x: x.created_at, reverse=True)
+
+        has_more = len(items) > limit
         items = items[:limit]
 
-        return [item.to_dict() for item in items]
+        return {
+            "items": [item.to_dict() for item in items],
+            "has_more": has_more,
+        }
 
     async def get_stats(self) -> HomeStats:
         """获取统计数字"""
@@ -279,11 +289,11 @@ class HomeService:
     #  聚合接口
     # ========================================================
 
-    async def get_home_data(self, feed_limit: int = 20) -> Dict[str, Any]:
+    async def get_home_data(self, feed_limit: int = 20, feed_offset: int = 0, page: int = 1) -> Dict[str, Any]:
         """一次性获取首页所需全部数据（并行查询）"""
 
         # 并行执行
-        feed_task = asyncio.create_task(self.get_feed(feed_limit))
+        feed_task = asyncio.create_task(self.get_feed(feed_limit, feed_offset))
         stats_task = asyncio.create_task(self.get_stats())
         authors_task = asyncio.create_task(self.get_active_authors())
         tags_task = asyncio.create_task(self.get_hot_tags())
@@ -294,7 +304,7 @@ class HomeService:
             return_exceptions=True
         )
 
-        feed = results[0] if not isinstance(results[0], Exception) else []
+        feed = results[0] if not isinstance(results[0], Exception) else {"items": [], "has_more": False}
         stats = results[1] if not isinstance(results[1], Exception) else HomeStats()
         authors = results[2] if not isinstance(results[2], Exception) else []
         hot_tags = results[3] if not isinstance(results[3], Exception) else []
@@ -312,7 +322,11 @@ class HomeService:
             log.error(f"Recent comments query failed: {results[4]}")
 
         return {
-            "posts": feed,
+            "posts": feed["items"],
+            "has_more": feed["has_more"],
+            "page": page,
+            "prev_page": page - 1 if page > 1 else None,
+            "next_page": page + 1 if feed["has_more"] else None,
             "blog_count": stats.blog_count,
             "microblog_count": stats.microblog_count,
             "note_count": stats.note_count,

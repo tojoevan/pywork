@@ -19,6 +19,40 @@ body {
 a { color: var(--primary-color); text-decoration: none; transition: color 0.2s; }
 a:hover { color: var(--primary-hover); }
 
+/* ── 翻页 ── */
+.pagination {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    gap: 1rem;
+    margin-top: 2.5rem;
+    padding-top: 1.5rem;
+    border-top: 1px solid var(--border-color);
+}
+
+.page-btn {
+    padding: 0.5rem 1rem;
+    background: #e5e7eb;
+    border-radius: 0.375rem;
+    font-weight: 500;
+    color: var(--text-color);
+    transition: background 0.2s;
+}
+
+.page-btn:hover { background: #d1d5db; text-decoration: none; color: var(--text-color); }
+
+.page-btn.disabled {
+    background: #f3f4f6;
+    color: #9ca3af;
+    cursor: not-allowed;
+    pointer-events: none;
+}
+
+.page-current {
+    color: #6b7280;
+    font-size: 0.875rem;
+}
+
 .container { max-width: 1300px; margin: 0 auto; padding: 0 24px; }
 
 /* ── 顶部导航 ── */

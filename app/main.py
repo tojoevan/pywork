@@ -198,9 +198,19 @@ class WorkbenchApp:
                 if theme == "v7":
                     from starlette.responses import RedirectResponse
                     return RedirectResponse(url="/v7", status_code=302)
-            
+
+            # 首页翻页
+            try:
+                page = max(1, int(request.query_params.get("page", "1")))
+            except (ValueError, TypeError):
+                page = 1
+            feed_limit = 20
+            feed_offset = (page - 1) * feed_limit
+
             # 默认返回传统界面
-            data = await self.home_service.get_home_data()
+            data = await self.home_service.get_home_data(
+                feed_limit=feed_limit, feed_offset=feed_offset, page=page
+            )
             html = await self.template_engine.render("home.html", {
                 **data,
                 "nav_page": "home",
