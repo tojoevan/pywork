@@ -50,6 +50,7 @@ class MicroblogPlugin(Plugin):
     def routes(self) -> List[Route]:
         return [
             Route("/microblog", "GET", self.home, "microblog.home"),
+            Route("/microblog/{post_id}", "GET", self.detail, "microblog.detail"),
             Route("/microblog", "POST", self.create_api, "microblog.create"),
             Route("/api/microblog", "GET", self.list_api, "microblog.list"),
             Route("/api/microblog/{post_id}", "GET", self.get_api, "microblog.get"),
@@ -275,6 +276,46 @@ class MicroblogPlugin(Plugin):
             "microblog.html",
             {
                 "posts": posts,
+                "nav_page": "microblog",
+                "current_author_id": current_author_id,
+                "is_admin": is_admin,
+            }
+        )
+        return HTMLResponse(content=html)
+
+    async def detail(self, request, post_id, **kwargs):
+        """微博详情页 - 独立渲染单条微博 + 评论"""
+        try:
+            pid = int(post_id)
+        except (ValueError, TypeError):
+            return HTMLResponse(content="<h1>无效的微博 ID</h1>", status_code=400)
+
+        sql = """
+            SELECT c.*,
+                   COALESCE(u.nickname, u.display_name, u.username) as author_name,
+                   u.avatar as author_avatar
+            FROM microblog_posts c
+            LEFT JOIN users u ON c.author_id = u.id
+            WHERE c.id = ?
+        """
+        post = await self.engine.fetchone(sql, (pid,))
+        if not post:
+            return HTMLResponse(content="<h1>微博不存在或已被删除</h1>", status_code=404)
+
+        if not post.get("author_name"):
+            post["author_name"] = "匿名"
+
+        current_author_id = None
+        is_admin = False
+        user = await self.get_current_user(request)
+        if user:
+            current_author_id = user["id"]
+            is_admin = user.get("role") == "admin"
+
+        html = await self.template_engine.render(
+            "microblog_detail.html",
+            {
+                "post": post,
                 "nav_page": "microblog",
                 "current_author_id": current_author_id,
                 "is_admin": is_admin,

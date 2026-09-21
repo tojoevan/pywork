@@ -3,6 +3,18 @@
     margin: 0 auto;
 }
 
+/* 详情页返回链接 */
+.back-link {
+    display: inline-block;
+    margin: 1.5rem 0 1rem;
+    color: var(--primary, #2563eb);
+    font-weight: 500;
+    text-decoration: none;
+}
+.back-link:hover {
+    text-decoration: underline;
+}
+
 .microblog-header {
     text-align: center;
     margin-bottom: 3rem;
