@@ -446,9 +446,9 @@ Requirements:
 """
     
     # HTTP API handlers (FastAPI style)
-    async def list_posts(self, author_id: Optional[int] = None, status: Optional[str] = None, limit: int = 20, **kwargs):
+    async def list_posts(self, author_id: Optional[int] = None, status: Optional[str] = None, limit: int = 20, offset: int = 0, **kwargs):
         """List posts API"""
-        return await self.search_posts(author_id=author_id, status=status, limit=limit)
+        return await self.search_posts(author_id=author_id, status=status, limit=limit, offset=offset)
     
     async def new_post_page(self, request):
         """新建博客页面"""
