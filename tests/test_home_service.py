@@ -130,7 +130,10 @@ class TestGetFeed:
         manager = make_plugin_manager()
         service = HomeService(manager)
         feed = await service.get_feed(limit=10)
-        assert feed == []
+        assert feed["items"] == []
+        assert feed["total"] == 0
+        assert feed["page"] == 1
+        assert feed["has_more"] is False
 
     @pytest.mark.asyncio
     async def test_blog_only(self):
@@ -142,10 +145,13 @@ class TestGetFeed:
         service = HomeService(manager)
         feed = await service.get_feed(limit=10)
 
-        assert len(feed) == 1
-        assert feed[0]["type"] == "post"
-        assert feed[0]["title"] == "Post 1"
-        assert feed[0]["author_name"] == "Alice"
+        assert len(feed["items"]) == 1
+        assert feed["total"] == 1
+        assert feed["page"] == 1
+        assert feed["has_more"] is False
+        assert feed["items"][0]["type"] == "post"
+        assert feed["items"][0]["title"] == "Post 1"
+        assert feed["items"][0]["author_name"] == "Alice"
 
     @pytest.mark.asyncio
     async def test_microblog_only(self):
@@ -157,9 +163,10 @@ class TestGetFeed:
         service = HomeService(manager)
         feed = await service.get_feed(limit=10)
 
-        assert len(feed) == 1
-        assert feed[0]["type"] == "microblog"
-        assert feed[0]["body"] == "Micro 1"
+        assert len(feed["items"]) == 1
+        assert feed["total"] == 1
+        assert feed["items"][0]["type"] == "microblog"
+        assert feed["items"][0]["body"] == "Micro 1"
 
     @pytest.mark.asyncio
     async def test_notes_only(self):
@@ -171,8 +178,9 @@ class TestGetFeed:
         service = HomeService(manager)
         feed = await service.get_feed(limit=10)
 
-        assert len(feed) == 1
-        assert feed[0]["type"] == "note"
+        assert len(feed["items"]) == 1
+        assert feed["total"] == 1
+        assert feed["items"][0]["type"] == "note"
 
     @pytest.mark.asyncio
     async def test_mixed_feed_sorted_by_time(self):
@@ -190,11 +198,12 @@ class TestGetFeed:
         service = HomeService(manager)
         feed = await service.get_feed(limit=10)
 
-        assert len(feed) == 3
+        assert len(feed["items"]) == 3
+        assert feed["total"] == 3
         # 按时间倒序：microblog(3000) > note(2000) > post(1000)
-        assert feed[0]["type"] == "microblog"
-        assert feed[1]["type"] == "note"
-        assert feed[2]["type"] == "post"
+        assert feed["items"][0]["type"] == "microblog"
+        assert feed["items"][1]["type"] == "note"
+        assert feed["items"][2]["type"] == "post"
 
     @pytest.mark.asyncio
     async def test_limit_respected(self):
@@ -207,7 +216,9 @@ class TestGetFeed:
         service = HomeService(manager)
         feed = await service.get_feed(limit=5)
 
-        assert len(feed) == 5
+        assert len(feed["items"]) == 5
+        assert feed["total"] == 19
+        assert feed["has_more"] is True
 
     @pytest.mark.asyncio
     async def test_plugin_exception_handled(self):
@@ -224,8 +235,9 @@ class TestGetFeed:
         feed = await service.get_feed(limit=10)
 
         # blog 的数据仍然返回
-        assert len(feed) == 1
-        assert feed[0]["type"] == "post"
+        assert len(feed["items"]) == 1
+        assert feed["total"] == 1
+        assert feed["items"][0]["type"] == "post"
 
 
 # ============ Test get_stats ============
