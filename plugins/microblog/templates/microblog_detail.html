@@ -1,0 +1,120 @@
+{% extends "base.html" %}
+
+{% block title %}{{ Site.title | default('pyWork') }} - 微博详情{% endblock %}
+
+{% block head %}
+<link rel="stylesheet" href="/static/css/microblog.css">
+<link rel="stylesheet" href="/static/css/comments.css">
+{% endblock %}
+
+{% block content %}
+<div class="microblog-container">
+    <a href="/microblog" class="back-link">&larr; 返回微博</a>
+
+    <div class="post" id="post-{{ post.id }}">
+        <div class="post-avatar">{{ (post.author_avatar or (post.author_name or '?')[:1] or '?') | upper }}</div>
+        <div class="post-body">
+            <div class="post-header">
+                {% if post.author_id %}
+                    <a href="/author/{{ post.author_id }}" class="post-author">{{ post.author_name or '匿名' }}</a>
+                {% else %}
+                    <span class="post-author">{{ post.author_name or '匿名' }}</span>
+                {% endif %}
+                <span class="post-time">{{ post.created_at | datefmt }}</span>
+            </div>
+            <div class="post-content">{{ post.content | linkify }}</div>
+            <div class="post-actions">
+                {% if post.author_id and post.author_id == current_author_id %}
+                    <button class="btn-edit" data-content="{{ post.content }}" onclick="openEditModal({{ post.id }})">编辑</button>
+                {% endif %}
+                {% if (post.author_id and post.author_id == current_author_id) or is_admin %}
+                    <button class="btn-delete" onclick="deletePost({{ post.id }})">删除</button>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+
+    <!-- 评论区 -->
+    <div class="microblog-comments comments-section" id="mb-comments-{{ post.id }}">
+        <div class="comments-header"><span class="comments-title">评论</span> <span class="comments-count"></span></div>
+        <div class="comment-login-hint" style="display:none">请先<a href="/auth/login">登录</a>后评论</div>
+        <div class="comment-form" style="display:none"><textarea placeholder="写评论..." rows="2"></textarea><button onclick="Comments.submit('microblog', {{ post.id }}, '#mb-comments-{{ post.id }}')">发送</button></div>
+        <ul class="comments-list"></ul>
+    </div>
+</div>
+
+<!-- 编辑弹窗 -->
+<div class="edit-modal" id="editModal" style="display:none;">
+    <div class="edit-modal-content">
+        <h3>编辑微博</h3>
+        <textarea id="editText" maxlength="500" rows="4"></textarea>
+        <div class="edit-modal-actions">
+            <button class="btn-cancel" onclick="closeEditModal()">取消</button>
+            <button class="btn-save" onclick="updatePost()">保存</button>
+        </div>
+    </div>
+</div>
+
+<script src="/static/js/comments.js"></script>
+<script>
+    const currentAuthorId = {{ current_author_id | tojson }};
+    const isAdmin = {{ is_admin | tojson }};
+    let editingPostId = null;
+
+    function openEditModal(postId) {
+        editingPostId = postId;
+        const btn = document.querySelector('.btn-edit[data-content]');
+        const content = btn ? btn.dataset.content : '';
+        document.getElementById('editText').value = content;
+        document.getElementById('editModal').style.display = 'flex';
+    }
+
+    function closeEditModal() {
+        editingPostId = null;
+        document.getElementById('editModal').style.display = 'none';
+    }
+
+    async function updatePost() {
+        if (!editingPostId) return;
+        const content = document.getElementById('editText').value.trim();
+        if (!content) {
+            alert('内容不能为空');
+            return;
+        }
+        try {
+            const response = await fetch(`/api/microblog/${editingPostId}`, {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ content })
+            });
+            const result = await response.json();
+            if (result.error) {
+                alert(result.error);
+                return;
+            }
+            closeEditModal();
+            location.reload();
+        } catch (e) {
+            alert('保存失败');
+        }
+    }
+
+    async function deletePost(id) {
+        if (!confirm('确定删除这条微博？')) return;
+        try {
+            const response = await fetch(`/api/microblog/${id}`, { method: 'DELETE' });
+            const result = await response.json();
+            if (result.error) {
+                alert(result.error);
+                return;
+            }
+            window.location.href = '/microblog';
+        } catch (e) {
+            alert('删除失败');
+        }
+    }
+
+    // 初始化评论区
+    Comments.init('microblog', {{ post.id }}, '#mb-comments-{{ post.id }}');
+</script>
+{% endblock %}
