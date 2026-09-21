@@ -119,19 +119,20 @@ class HomeService:
     # ========================================================
 
     async def get_feed(self, limit: int = 20, offset: int = 0) -> Dict[str, Any]:
-        """获取混合内容流（支持分页）
+        """获取混合内容流（全量合并后按页切片）
 
-        各数据源独立按 offset 拉取，合并后按时间倒序取本页。
-        多取 1 条用于判断 has_more，避免末页之后出现空页。
+        各数据源一次性拉取后合并、按时间倒序，再做精确分页切片。
+        这样总页数/末页/跳页都精确，避免各源独立按 offset 分页导致末页空白或重复。
+        个人站点数据量小，全量合并开销可忽略；上限 10000 条作安全护栏。
         """
         items: List[HomeFeedItem] = []
-        fetch_n = limit + 1
+        FETCH_CAP = 10000
 
         # 博客
         blog_plugin = self._get_plugin("blog")
         if blog_plugin:
             try:
-                posts = await blog_plugin.list_posts(limit=fetch_n, offset=offset)
+                posts = await blog_plugin.list_posts(limit=FETCH_CAP)
                 for p in posts:
                     items.append(self._transform_blog_post(p))
             except Exception as e:
@@ -141,7 +142,7 @@ class HomeService:
         microblog_plugin = self._get_plugin("microblog")
         if microblog_plugin:
             try:
-                micro_posts = await microblog_plugin.list_posts(limit=fetch_n, offset=offset)
+                micro_posts = await microblog_plugin.list_posts(limit=FETCH_CAP)
                 for p in micro_posts:
                     items.append(self._transform_microblog(p))
             except Exception as e:
@@ -151,7 +152,7 @@ class HomeService:
         notes_plugin = self._get_plugin("notes")
         if notes_plugin:
             try:
-                notes = await notes_plugin.list_notes(visibility="public", limit=fetch_n, offset=offset)
+                notes = await notes_plugin.list_notes(visibility="public", limit=FETCH_CAP)
                 for n in notes:
                     items.append(self._transform_note(n))
             except Exception as e:
@@ -159,13 +160,20 @@ class HomeService:
 
         # 按时间倒序
         items.sort(key=lambda x: x.created_at, reverse=True)
+        total = len(items)
 
-        has_more = len(items) > limit
-        items = items[:limit]
+        # 越界（如跳到超过末页）则回退到最后一页
+        if total > 0 and offset >= total:
+            offset = max(0, ((total - 1) // limit) * limit)
+        page = offset // limit + 1 if total > 0 else 1
+
+        page_items = items[offset: offset + limit]
 
         return {
-            "items": [item.to_dict() for item in items],
-            "has_more": has_more,
+            "items": [item.to_dict() for item in page_items],
+            "total": total,
+            "page": page,
+            "has_more": offset + limit < total,
         }
 
     async def get_stats(self) -> HomeStats:
@@ -304,7 +312,7 @@ class HomeService:
             return_exceptions=True
         )
 
-        feed = results[0] if not isinstance(results[0], Exception) else {"items": [], "has_more": False}
+        feed = results[0] if not isinstance(results[0], Exception) else {"items": [], "has_more": False, "total": 0, "page": 1}
         stats = results[1] if not isinstance(results[1], Exception) else HomeStats()
         authors = results[2] if not isinstance(results[2], Exception) else []
         hot_tags = results[3] if not isinstance(results[3], Exception) else []
@@ -321,12 +329,23 @@ class HomeService:
         if isinstance(results[4], Exception):
             log.error(f"Recent comments query failed: {results[4]}")
 
+        total = feed.get("total", 0)
+        page = feed.get("page", page)
+        total_pages = max(1, (total + feed_limit - 1) // feed_limit) if total > 0 else 1
+
+        # 页码窗口：始终显示首页与末页，中间以滑动窗口 + 省略号呈现
+        page_window, show_start_ellipsis, show_end_ellipsis = self._build_page_window(page, total_pages, spread=3)
+
         return {
             "posts": feed["items"],
             "has_more": feed["has_more"],
             "page": page,
+            "total_pages": total_pages,
             "prev_page": page - 1 if page > 1 else None,
             "next_page": page + 1 if feed["has_more"] else None,
+            "page_window": page_window,
+            "show_start_ellipsis": show_start_ellipsis,
+            "show_end_ellipsis": show_end_ellipsis,
             "blog_count": stats.blog_count,
             "microblog_count": stats.microblog_count,
             "note_count": stats.note_count,
@@ -334,3 +353,17 @@ class HomeService:
             "hot_tags": hot_tags,
             "recent_comments": recent_comments,
         }
+
+    @staticmethod
+    def _build_page_window(current: int, total_pages: int, spread: int = 3):
+        """生成中间页码窗口与省略号标记（首页 1 与末页 total_pages 由模板单独渲染）"""
+        if total_pages <= 1:
+            return [], False, False
+        left = max(2, current - spread)
+        right = min(total_pages - 1, current + spread)
+        if left > right:
+            # 窗口塌缩（如总页数很少），不渲染中间段
+            return [], False, False
+        show_start_ellipsis = left > 2
+        show_end_ellipsis = right < total_pages - 1
+        return list(range(left, right + 1)), show_start_ellipsis, show_end_ellipsis

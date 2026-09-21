@@ -108,19 +108,39 @@
         {% endif %}
 
         <!-- 翻页 -->
-        {% if posts or page > 1 %}
+        {% if total_pages > 1 or page > 1 %}
         <nav class="pagination">
-            {% if prev_page %}
+            {% if page > 1 %}
+            <a href="/?page=1" class="page-btn">« 首页</a>
             <a href="/?page={{ prev_page }}" class="page-btn">← 上一页</a>
             {% else %}
+            <span class="page-btn disabled">« 首页</span>
             <span class="page-btn disabled">← 上一页</span>
             {% endif %}
-            <span class="page-current">第 {{ page }} 页</span>
+
+            <a href="/?page=1" class="page-num {% if page == 1 %}active{% endif %}">1</a>
+            {% if show_start_ellipsis %}<span class="page-ellipsis">…</span>{% endif %}
+            {% for pn in page_window %}
+            <a href="/?page={{ pn }}" class="page-num {% if pn == page %}active{% endif %}">{{ pn }}</a>
+            {% endfor %}
+            {% if show_end_ellipsis %}<span class="page-ellipsis">…</span>{% endif %}
+            {% if total_pages > 1 %}
+            <a href="/?page={{ total_pages }}" class="page-num {% if page == total_pages %}active{% endif %}">{{ total_pages }}</a>
+            {% endif %}
+
             {% if next_page %}
             <a href="/?page={{ next_page }}" class="page-btn">下一页 →</a>
+            <a href="/?page={{ total_pages }}" class="page-btn">末页 »</a>
             {% else %}
             <span class="page-btn disabled">下一页 →</span>
+            <span class="page-btn disabled">末页 »</span>
             {% endif %}
+
+            <form class="page-jump" method="get" action="/">
+                <label>跳至</label>
+                <input type="number" name="page" min="1" max="{{ total_pages }}" value="{{ page }}" />
+                <button type="submit" class="page-btn">跳转</button>
+            </form>
         </nav>
         {% endif %}
     </section>
