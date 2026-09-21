@@ -317,10 +317,20 @@ class MicroblogPlugin(Plugin):
         return await self.create_post(content=content, author_id=author_id, is_anonymous=is_anonymous)
 
     async def get_api(self, post_id: int, **kwargs):
-        """获取单条微博"""
-        post = await self.engine.get("microblog_posts", post_id)
+        """获取单条微博（含作者名/头像）"""
+        sql = """
+            SELECT c.*,
+                   COALESCE(u.nickname, u.display_name, u.username) as author_name,
+                   u.avatar as author_avatar
+            FROM microblog_posts c
+            LEFT JOIN users u ON c.author_id = u.id
+            WHERE c.id = ?
+        """
+        post = await self.engine.fetchone(sql, (post_id,))
         if not post:
             return self.error_json("微博不存在", 404)
+        if not post.get("author_name"):
+            post["author_name"] = "匿名"
         return post
 
     async def update_api(self, post_id: int, request, **kwargs):
