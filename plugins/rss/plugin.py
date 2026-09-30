@@ -89,10 +89,21 @@ class RssPlugin(Plugin):
                     except Exception as e:
                         self.log.error(f"RSS fetch feed {fid} error: {e}")
                     if self._fetch_running:
-                        await asyncio.sleep(60)
+                        # 礼貌限速，但不宜过长：过长的间隔会让整个抓取周期拖到数分钟，
+                        # 期间 WAL 无法被 checkpoint，是 09-30 事故的放大因素之一
+                        await asyncio.sleep(2)
 
                 elapsed = int(time.time()) - cycle_start
                 self.log.info(f"RSS cycle done, {len(feed_ids)} feeds, {elapsed}s elapsed")
+
+                # 抓取完成后主动截断 WAL：RSS 批量写入会推大 WAL，而 litestream 的读快照
+                # 会阻塞自动 checkpoint，导致 WAL 持续膨胀（09-30 事故根因之一）。
+                # 抓取结束即尝试 TRUNCATE，把 WAL 收回主库，减小副本同步体积。
+                try:
+                    await self.engine.execute("PRAGMA wal_checkpoint(TRUNCATE)")
+                except Exception as e:
+                    self.log.debug(f"RSS wal_checkpoint skipped: {e}")
+
                 await self._wait_until_next_hour()
             except asyncio.CancelledError:
                 return
@@ -206,7 +217,9 @@ class RssPlugin(Plugin):
             description = feed_info.get("description", feed["description"] or "")
             site_url = feed_info.get("link", feed["site_url"] or "")
 
-            inserted = 0
+            # 收集待插入行，单事务批量写入，减少 WAL 碎片与持锁时长
+            # （09-30 事故根因：逐条 execute 产生大量小事务，WAL 持续累积）
+            rows = []
             for entry in parsed.get("entries", []):
                 guid = entry.get("id") or entry.get("link") or ""
                 if not guid:
@@ -219,17 +232,22 @@ class RssPlugin(Plugin):
                 desc = entry.get("summary") or entry.get("content", [{}])[0].get("value", "") if entry.get("content") else entry.get("summary", "")
                 author = entry.get("author", "")
                 published_at = self._parse_entry_date(entry)
+                rows.append((feed_id, guid, entry_title, link, desc, author, published_at, now, now))
 
+            inserted = 0
+            if rows:
                 try:
-                    await self.engine.execute(
-                        "INSERT OR IGNORE INTO rss_items "
-                        "(feed_id, guid, title, link, description, author, published_at, created_at, updated_at) "
-                        "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
-                        (feed_id, guid, entry_title, link, desc, author, published_at, now, now)
-                    )
-                    inserted += 1
+                    async with self.engine.transaction():
+                        for row in rows:
+                            await self.engine.execute(
+                                "INSERT OR IGNORE INTO rss_items "
+                                "(feed_id, guid, title, link, description, author, published_at, created_at, updated_at) "
+                                "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                                row,
+                            )
+                    inserted = len(rows)
                 except Exception as e:
-                    log.debug(f"Failed to insert RSS item: {e}")
+                    log.debug(f"Failed to batch insert RSS items: {e}")
 
             await self.engine.execute(
                 "UPDATE rss_feeds SET title = ?, description = ?, site_url = ?, "

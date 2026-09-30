@@ -1,0 +1,20 @@
+# 生产环境 Litestream 配置（主机 / 单盘本地副本）
+# 由 scripts/setup-litestream.sh primary 安装到 /etc/litestream.yml
+#
+# 09-30 事故根因：默认 sync-interval=1s 在「副本与数据库同盘」场景下，
+# 会针对 WAL 的微小变动形成每秒 1-2 次的紧同步循环，打满单盘 IO 致网站不可用。
+# 故强制放宽到 5m。
+#
+# 异地/容灾：挂载第二块云盘或开通 OSS 后，把下方 replicas 改为 type: sftp / s3
+# 并指向独立磁盘或对象存储，即可同时解决单盘争用与无异地容灾两点。
+dbs:
+  - path: /www/wwwroot/pywork/data/pywork.db
+    sync-interval: 5m
+    replicas:
+      - type: file
+        path: /www/wwwroot/pywork/data/pywork.db-replica
+
+logging:
+  level: info
+  type: text
+  stderr: true
