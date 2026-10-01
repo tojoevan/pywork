@@ -382,6 +382,9 @@ class SQLiteEngine(Engine):
         await self._db.execute("PRAGMA cache_size=-64000")  # 64MB
         # 写写冲突时等待而非立即报 database is locked（根治 6:55 锁争用）
         await self._db.execute("PRAGMA busy_timeout=5000")
+        # WAL 文件软上限 8MB：超过即强制 checkpoint，防止 WAL 无界膨胀
+        # （09-30 事故中 WAL 涨到 32MB，被 litestream 读快照阻塞 checkpoint 无法截断）
+        await self._db.execute("PRAGMA journal_size_limit=8388608")
 
         # Initialize schema
         await self._db.executescript(self.SCHEMA)

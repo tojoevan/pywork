@@ -65,15 +65,18 @@ setup_primary() {
     cp "$(dirname "$0")/../deploy/litestream.service" /etc/systemd/system/litestream.service
     sed -i "s|<PRIMARY_DB_DIR>|$DB_DIR|g" /etc/systemd/system/litestream.service
     systemctl daemon-reload
-    log "Service installed. Configure /etc/litestream.yml then run:"
+
+    # 安装生产 litestream 配置（含 sync-interval:5m，避免单盘同副本下每秒紧同步循环打满磁盘 IO）
+    log "Installing litestream config (deploy/litestream-prod.yml -> /etc/litestream.yml)..."
+    cp "$(dirname "$0")/../deploy/litestream-prod.yml" /etc/litestream.yml
+
+    log "Service installed. Start litestream then run:"
     log "  systemctl enable --now litestream"
 
     log "=== Primary setup complete ==="
     log "Next steps:"
-    log "  1. Copy deploy/litestream.yml to /etc/litestream.yml"
-    log "  2. Edit /etc/litestream.yml with standby IP and SSH port"
-    log "  3. Copy SSH public key to standby"
-    log "  4. systemctl enable --now litestream"
+    log "  1. Copy SSH public key to standby (如需异地副本)"
+    log "  2. systemctl enable --now litestream"
 }
 
 # === 备机配置 ===
