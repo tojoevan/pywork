@@ -158,20 +158,82 @@ class RssPlugin(Plugin):
         )
         return [dict(r) for r in rows]
 
+    # 同一篇文章可能被多个订阅源收录（例如「精选」是「全部」的子集），而表约束是
+    # UNIQUE(feed_id, guid)，同一 guid 在不同 feed 下会各存一行，导致时间线重复。
+    # 这里只在查询层按文章合并，并把所有来源聚合进 item.sources；数据库与抓取逻辑不变。
+    # 去重键优先用 link（跨源通常指向同一原文），为空时回退 feed 提供的 guid。
+    DEDUP_KEY_ITEM = "COALESCE(NULLIF(i.link, ''), i.guid)"
+    DEDUP_KEY_ROW = "COALESCE(NULLIF(link, ''), guid)"
+
     async def list_items(self, page: int = 1, per_page: int = 30) -> dict:
         page = max(1, page)
         offset = (page - 1) * per_page
-        total_row = await self.engine.fetchone("SELECT COUNT(*) as cnt FROM rss_items")
+
+        # total 必须按「去重后的篇数」计算，否则页码会错乱、末页出现空白
+        total_row = await self.engine.fetchone(
+            "SELECT COUNT(*) AS cnt FROM ("
+            "  SELECT 1 FROM rss_items GROUP BY " + self.DEDUP_KEY_ROW + ")"
+        )
         total = total_row["cnt"] if total_row else 0
+
         rows = await self.engine.fetchall(
-            "SELECT i.*, f.title as feed_title, f.site_url as feed_site_url "
-            "FROM rss_items i LEFT JOIN rss_feeds f ON i.feed_id = f.id "
-            "ORDER BY i.published_at DESC LIMIT ? OFFSET ?",
+            "WITH reps AS ("
+            "  SELECT " + self.DEDUP_KEY_ROW + " AS dedup_key, "
+            "         MAX(id) AS rep_id, MAX(published_at) AS group_published_at "
+            "  FROM rss_items GROUP BY " + self.DEDUP_KEY_ROW + " "
+            ") "
+            "SELECT i.*, f.title AS feed_title, f.site_url AS feed_site_url, "
+            "       r.dedup_key AS dedup_key "
+            "FROM reps r JOIN rss_items i ON i.id = r.rep_id "
+            "LEFT JOIN rss_feeds f ON i.feed_id = f.id "
+            "ORDER BY r.group_published_at DESC, r.rep_id DESC "
+            "LIMIT ? OFFSET ?",
             (per_page, offset)
         )
+        items = [dict(r) for r in rows]
+
+        # 聚合当前页每篇文章的全部来源，数量不限；后续新增订阅源会自动生效
+        keys = [it.get("dedup_key") for it in items if it.get("dedup_key")]
+        sources_map: Dict[str, List[Dict[str, Any]]] = {}
+        if keys:
+            placeholders = ",".join("?" for _ in keys)
+            src_rows = await self.engine.fetchall(
+                "SELECT " + self.DEDUP_KEY_ITEM + " AS dedup_key, "
+                "       f.id AS feed_id, f.title AS feed_title, "
+                "       f.site_url AS feed_site_url "
+                "FROM rss_items i LEFT JOIN rss_feeds f ON i.feed_id = f.id "
+                "WHERE " + self.DEDUP_KEY_ITEM + " IN (" + placeholders + ") "
+                "ORDER BY f.id",
+                tuple(keys)
+            )
+            for row in src_rows:
+                key = row.get("dedup_key")
+                if not key:
+                    continue
+                source = {
+                    "feed_id": row.get("feed_id"),
+                    "title": row.get("feed_title") or "",
+                    "site_url": row.get("feed_site_url") or "",
+                }
+                bucket = sources_map.setdefault(key, [])
+                if source not in bucket:
+                    bucket.append(source)
+
+        for it in items:
+            sources = sources_map.get(it.get("dedup_key"), [])
+            if not sources:
+                # 兼容旧调用方 / 测试桩：聚合结果缺失时回退到代表行的单来源
+                sources = [{
+                    "feed_id": it.get("feed_id"),
+                    "title": it.get("feed_title") or "",
+                    "site_url": it.get("feed_site_url") or "",
+                }]
+            it["sources"] = sources
+            it["source_count"] = len(sources)
+
         total_pages = max(1, (total + per_page - 1) // per_page)
         return {
-            "items": [dict(r) for r in rows],
+            "items": items,
             "pagination": {"page": page, "total": total, "total_pages": total_pages}
         }
 

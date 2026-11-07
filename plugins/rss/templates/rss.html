@@ -56,8 +56,14 @@
     <div class="rss-timeline">
         {% for item in items %}
         <div class="rss-item">
-            <div class="rss-item-source">
-                {% if item.feed_site_url %}
+            <div class="rss-item-source"{% if item.sources and item.sources|length > 1 %} title="合并自 {{ item.sources|length }} 个来源"{% endif %}>
+                {% if item.sources %}
+                {% for source in item.sources %}
+                {% if not loop.first %} · {% endif %}
+                {% if source.site_url %}<a href="{{ source.site_url }}" target="_blank" rel="noopener">{{ source.title or '未知来源' }}</a>
+                {% else %}{{ source.title or '未知来源' }}{% endif %}
+                {% endfor %}
+                {% elif item.feed_site_url %}
                 <a href="{{ item.feed_site_url }}" target="_blank" rel="noopener">{{ item.feed_title or '未知来源' }}</a>
                 {% else %}
                 {{ item.feed_title or '未知来源' }}
