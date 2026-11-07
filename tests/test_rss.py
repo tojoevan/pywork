@@ -144,6 +144,17 @@ class MockEngine:
                 row["last_error"] = params[0]
                 row["updated_at"] = params[1]
 
+    def transaction(self):
+        """fetch_feed 用 async with engine.transaction() 批量写入；测试桩无需真事务。"""
+        class _NoopTx:
+            async def __aenter__(self):
+                return None
+
+            async def __aexit__(self, *exc):
+                return False
+
+        return _NoopTx()
+
 
 def seed_feed(engine, feed_id, url="https://example.com/feed.xml", title="Test Feed",
               added_by=1, last_fetched=0):
