@@ -1,6 +1,12 @@
 # pyWork 生产环境部署指南（宝塔面板 + Litestream 双机热备）
 
 > 适用场景：新 VPS 已安装宝塔面板，需要部署 pyWork 并配置双机热备
+>
+> ⚠️ **状态注记（2026-11-08）**：第三部分的「SFTP 双机热备」是早期方案，**当前生产并未采用**。
+> 主机 `47.110.153.9` 运行的是 `deploy/litestream-prod.yml`（单盘 `file` 副本，
+> `sync-interval: 5m`），由 `scripts/setup-litestream.sh primary` 安装；原 IPv6 备机已
+> 下线清空，**当前没有异地备份**。重建容灾前请先确认通道可达与新鲜度巡检，
+> 不要直接照抄第三部分覆盖现有 `/etc/litestream.yml`。
 
 ---
 
@@ -340,7 +346,7 @@ dbs:
       user: litestream
       key-path: /home/pywork/.ssh/litestream_key
       path: /www/wwwroot/pywork/data/pywork.db
-      sync-interval: 1s
+      sync-interval: 5m
       concurrent-writes: true
 
 logging:
@@ -349,6 +355,11 @@ logging:
   stderr: true
 EOF
 ```
+
+> ⚠️ **不要改回 `sync-interval: 1s`**。09-30 事故根因就是 1s 紧同步：副本与数据库
+> 同盘时每秒触发 1~2 次同步循环，打满单盘 IO 导致站点不可用；即使副本在异地，
+> 1s 也会堆积海量 LTX 分片（曾达 67398 个 / 2.4G）。生产配置一律以
+> `deploy/litestream-prod.yml`（5m）为准，本节仅供历史方案参考。
 
 ---
 

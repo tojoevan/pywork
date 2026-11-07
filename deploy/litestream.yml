@@ -1,7 +1,13 @@
-# Litestream 配置模板 - pyWork 主机推送到备机
-# 使用方法: 复制到 /etc/litestream.yml，修改 <PLACEHOLDER> 后启动
+# Litestream 配置模板 - 早期 SFTP 异地复制方案（历史参考）
 #
-# 部署步骤:
+# ⚠️ 2026-11-08：本模板不用于当前生产，请勿直接复制到 /etc/litestream.yml。
+#    当前生产由 scripts/setup-litestream.sh primary 安装 deploy/litestream-prod.yml
+#    （单盘 file 副本，sync-interval: 5m）；原 IPv6 备机已下线清空，暂无异地备份。
+#    09-30 事故根因：sync-interval: 1s 在「副本与数据库同盘」时会形成每秒紧同步
+#    循环、打满单盘 IO；即使副本在异地，1s 也会堆积海量 LTX 分片（曾达 2.4G）。
+#    故本模板统一放宽到 5m。
+#
+# 使用方法（仅在已确定新的异地备机且通道实测可达时才使用）:
 #   1. 修改下方 <PRIMARY_DB_PATH> 为实际数据库路径
 #   2. 修改 <STANDBY_IP> 和 <SSH_PORT> 为备机信息
 #   3. 确保 SSH 密钥已配置 (key-path)
@@ -20,9 +26,9 @@ dbs:
       user: litestream
       key-path: /home/pywork/.ssh/litestream_key
       path: <STANDBY_DB_PATH>
-      # 同步间隔（1s = 近实时复制）
-      sync-interval: 1s
-      # 并发写入（网络好时开启）
+      # 同步间隔：5m。切勿改回 1s（见文件头 09-30 事故说明）
+      sync-interval: 5m
+      # 并发写入（网络好时开启；副本与数据库同盘时请勿开启）
       concurrent-writes: true
 
 logging:
