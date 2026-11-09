@@ -259,6 +259,25 @@ class MicroblogPlugin(Plugin):
 
 
     # HTTP handlers
+    async def _can_view(self, post: Dict, request) -> bool:
+        """单条微博的可见性判定（详情页 / 单条 API 共用）。
+
+        - 已公开（status=public）：所有人可读；
+        - 待审或未公开：仅管理员、作者本人可读；
+        - request 缺失时按匿名处理（安全默认拒绝），避免内部调用绕过判定。
+
+        注意：这里只处理审核状态；visibility 字段的语义问题另行讨论，
+        本次不做改动，避免把两个问题混在一起引入回归。
+        """
+        if post.get("status") == "public":
+            return True
+        if request is None:
+            return False
+        user = await self.get_current_user(request)
+        if not user:
+            return False
+        return user.get("role") == "admin" or post.get("author_id") == user["id"]
+
     async def home(self, request, **kwargs):
         """微博首页 - 渲染 HTML 页面"""
 
@@ -300,6 +319,9 @@ class MicroblogPlugin(Plugin):
         """
         post = await self.engine.fetchone(sql, (pid,))
         if not post:
+            return HTMLResponse(content="<h1>微博不存在或已被删除</h1>", status_code=404)
+        # 待审微博不能被匿名（或非作者）按 ID 直接读到
+        if not await self._can_view(post, request):
             return HTMLResponse(content="<h1>微博不存在或已被删除</h1>", status_code=404)
 
         if not post.get("author_name"):
@@ -357,8 +379,8 @@ class MicroblogPlugin(Plugin):
         author_id = await self._get_author_id(request)
         return await self.create_post(content=content, author_id=author_id, is_anonymous=is_anonymous)
 
-    async def get_api(self, post_id: int, **kwargs):
-        """获取单条微博（含作者名/头像）"""
+    async def get_api(self, post_id: int, request=None, **kwargs):
+        """获取单条微博（含作者名/头像）；待审内容仅管理员/作者可读"""
         sql = """
             SELECT c.*,
                    COALESCE(u.nickname, u.display_name, u.username) as author_name,
@@ -369,6 +391,9 @@ class MicroblogPlugin(Plugin):
         """
         post = await self.engine.fetchone(sql, (post_id,))
         if not post:
+            return self.error_json("微博不存在", 404)
+        # 与详情页保持同一可见性判定，不泄露待审微博是否存在
+        if not await self._can_view(post, request):
             return self.error_json("微博不存在", 404)
         if not post.get("author_name"):
             post["author_name"] = "匿名"
